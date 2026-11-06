@@ -43,6 +43,9 @@ class States:
     def __getitem__(self, entity):
         return self.data.get(entity, Undefined(name=entity))
 
+    def __iter__(self):
+        return iter(self.data.values())
+
 
 def timestamp(value, default=0):
     try:
@@ -113,7 +116,7 @@ class Harness:
         return variables
 
     def decision(self):
-        block = PACKAGE['template'][1]
+        block = next(block for block in PACKAGE['template'] if 'actions' in block)
         variables = self.variables(block['actions'], {})
         entity = block['sensor'][0]
         attrs = {k: self.render(v, variables) for k, v in entity['attributes'].items()}
@@ -227,7 +230,8 @@ class PocTests(unittest.TestCase):
                 self.assertFalse(harness.write_allowed())
 
     def test_samples_reject_stale_or_implausible(self):
-        entity = PACKAGE['template'][0]['sensor'][2]
+        entity = next(e for block in PACKAGE['template'] for e in block.get('sensor', [])
+                      if e.get('name') == 'hp_poc_probka_outdoor')
         for value, age in [('40', 0), ('-50', 0), ('nan', 0), ('-5', 3600)]:
             data = fixture()
             source = data['sensor.garaz_pompa_ciepla_outdoor_ambient_temp']
@@ -241,6 +245,26 @@ class PocTests(unittest.TestCase):
         self.assertEqual(result['rounded'], 28)
         data[CO1].attributes['min'] = 36
         self.assertFalse(Harness(data).decision()['ready'])
+
+    def test_missing_statistics_are_not_reported_as_warmup(self):
+        data = fixture()
+        entity = PACKAGE['template'][0]['sensor'][0]
+        harness = Harness(data)
+        harness.decision()
+        self.assertEqual(harness.render(entity['state'], {}), 'obliczenia_gotowe')
+        del data['sensor.hp_poc_parter_liczba_probek']
+        self.assertEqual(harness.render(entity['state'], {}), 'brak_encji')
+        self.assertIn('sensor.hp_poc_parter_liczba_probek',
+                      harness.render(entity['attributes']['missing_entities'], {}))
+
+    def test_existing_empty_statistics_are_not_missing(self):
+        data = fixture()
+        data[PROPOSAL] = State(PROPOSAL, 'unavailable')
+        data['sensor.hp_poc_parter_liczba_probek'].state = 'unknown'
+        entity = PACKAGE['template'][0]['sensor'][0]
+        harness = Harness(data)
+        self.assertEqual(harness.render(entity['state'], {}), 'blokada_danych_lub_rozgrzewanie')
+        self.assertEqual(harness.render(entity['attributes']['missing_entities'], {}), [])
 
 
 if __name__ == '__main__':

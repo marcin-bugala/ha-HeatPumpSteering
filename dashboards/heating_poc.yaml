@@ -18,7 +18,25 @@ views:
         content: >-
           {% set e = 'sensor.hp_poc_co1_propozycja' %}
           {% if not is_number(states(e)) %}
-          **Oczekiwanie na komplet świeżych danych i około 2,5 h próbek.**
+          **Status: {{ states('sensor.hp_poc_status') }}**
+
+          {% set missing = state_attr('sensor.hp_poc_status', 'missing_entities') or [] %}
+          {% if missing %}
+          Brakuje encji: {{ missing | join(', ') }}.
+          Sprawdź pełny plik pakietu, wykonaj restart HA i sprawdź dzienniki
+          integracji Statistics. Brak encji nie jest rozgrzewaniem filtrów.
+          {% else %}
+          Próbki: parter {{ states('sensor.hp_poc_parter_liczba_probek') }}/29,
+          piętro {{ states('sensor.hp_poc_pietro_liczba_probek') }}/29,
+          outdoor {{ states('sensor.hp_poc_outdoor_liczba_probek') }}/20.
+          Filtry potrzebują około 2,5 h prawidłowych próbek.
+          {% endif %}
+
+          {% set invalid = state_attr('sensor.hp_poc_status', 'invalid_inputs') or [] %}
+          {% if invalid %}Nieprawidłowe wejścia: {{ invalid | join(', ') }}.{% endif %}
+
+          Jeśli status to `unknown`, sprawdź instalację poprawionej wersji
+          pakietu oraz dzienniki. Obliczenie odbywa się co 5 minut.
           {% else %}
           **Cel CO1: {{ states(e) }}°C** — {{ state_attr(e, 'reason') }}
 
@@ -58,6 +76,7 @@ views:
       - type: entities
         title: Dane do diagnostyki
         entities:
+          - sensor.hp_poc_status
           - sensor.pompa_ciepla_moc
           - sensor.hp_poc_parter_liczba_probek
           - sensor.hp_poc_pietro_liczba_probek

@@ -104,6 +104,26 @@ będą kolejne etapy projektu; POC nie obchodzi minimum ani nie odcina pompy.
 
 ## Sprawdzenie lokalne
 
+### Gdy dashboard pokazuje „Nie znaleziono encji”
+
+To oznacza brak encji pod oczekiwanym identyfikatorem, a nie brak historii.
+Pusty sensor Statistics powinien istnieć ze stanem `unknown`.
+
+1. Sprawdź, czy skopiowano **cały** plik pakietu, w tym sekcję `sensor:`
+   z ośmioma wpisami `platform: statistics`. Sam YAML dashboardu nie tworzy encji.
+2. Sprawdź konfigurację i wykonaj **pełny restart HA**, jeśli dotąd przeładowano
+   tylko automatyzacje lub szablony.
+3. W Narzędziach deweloperskich → Stany wyszukaj `hp_poc`. Sprawdź, czy
+   oczekiwane sensory istnieją pod inną nazwą, np. z końcówką `_2`.
+4. Jeśli nadal ich nie ma, w Ustawienia → System → Dzienniki sprawdź błędy
+   `statistics`, `sensor`, `template` i nazwy pliku pakietu. Treść błędu jest
+   potrzebna do ustalenia przyczyny; samo czekanie 2,5 h nie utworzy encji.
+
+Poprawiony dashboard i `sensor.hp_poc_status` rozróżniają brak encji,
+nieprawidłowe wejścia i oczekiwanie na próbki. Status dotyczy obliczeń;
+nie jest potwierdzeniem wykonania zapisu. Przy niekompletnych danych
+automatyzacja nie wysyła nastawy.
+
 ```text
 python -m pip install -r requirements-test.txt
 python -m unittest discover -s tests -v
