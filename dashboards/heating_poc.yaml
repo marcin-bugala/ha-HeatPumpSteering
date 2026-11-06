@@ -1,0 +1,66 @@
+title: Ogrzewanie POC
+views:
+  - title: CO1
+    path: co1
+    cards:
+      - type: entities
+        title: Sterowanie
+        show_header_toggle: false
+        entities:
+          - input_number.hp_poc_cel_parter
+          - input_number.hp_poc_cel_pietro
+          - automation.ogrzewanie_poc_zapis_co1
+          - number.garaz_pompa_ciepla_circuit_1_setpoint
+          - sensor.hp_poc_co1_propozycja
+          - input_datetime.hp_poc_ostatnia_proba
+      - type: markdown
+        title: Decyzja algorytmu
+        content: >-
+          {% set e = 'sensor.hp_poc_co1_propozycja' %}
+          {% if not is_number(states(e)) %}
+          **Oczekiwanie na komplet świeżych danych i około 2,5 h próbek.**
+          {% else %}
+          **Cel CO1: {{ states(e) }}°C** — {{ state_attr(e, 'reason') }}
+
+          Baza {{ state_attr(e, 'base') }}°C,
+          korekta {{ state_attr(e, 'correction') }}°C,
+          przed limitami {{ state_attr(e, 'unclamped') }}°C.
+
+          Zakres {{ state_attr(e, 'lower_limit') }}–{{ state_attr(e, 'upper_limit') }}°C.
+          Ograniczenie zakresu: {{ state_attr(e, 'limited') }}.
+
+          Komfort: parter {{ state_attr(e, 'ground_comfort') }}°C,
+          piętro {{ state_attr(e, 'upper_comfort') }}°C.
+          Trend gotowy: {{ state_attr(e, 'trend_ready') }}.
+          Blokada podnoszenia: {{ state_attr(e, 'block_increase') }}.
+
+          Zapis: najwyżej 1°C co 2 h, tylko inna nastawa i włączony CO1.
+          Odczyt HiMitII może być optymistyczny.
+          {% endif %}
+      - type: history-graph
+        title: Komfort kondygnacji
+        hours_to_show: 24
+        entities:
+          - sensor.salon_termometr_salon
+          - sensor.korytarz_termometr_pietro
+          - sensor.hp_poc_parter_komfort
+          - sensor.hp_poc_pietro_komfort
+          - input_number.hp_poc_cel_parter
+          - input_number.hp_poc_cel_pietro
+      - type: history-graph
+        title: CO1 i pogoda
+        hours_to_show: 24
+        entities:
+          - sensor.hp_poc_co1_propozycja
+          - number.garaz_pompa_ciepla_circuit_1_setpoint
+          - sensor.garaz_pompa_ciepla_circuit_1_water_temp
+          - sensor.hp_poc_outdoor_2h
+      - type: entities
+        title: Dane do diagnostyki
+        entities:
+          - sensor.pompa_ciepla_moc
+          - sensor.hp_poc_parter_liczba_probek
+          - sensor.hp_poc_pietro_liczba_probek
+          - sensor.hp_poc_outdoor_liczba_probek
+          - sensor.hp_poc_parter_zmiana_12h
+          - sensor.hp_poc_pietro_zmiana_12h
