@@ -86,7 +86,7 @@ def fixture(ground=21, upper=22, outdoor=-5, current=28):
         CO1: current,
     }
     data = {key: State(key, value, {'age_coverage_ratio': 0.95}) for key, value in values.items()}
-    data[CO1].attributes = {'min': 27, 'max': 55, 'step': 1, 'unit_of_measurement': '°C'}
+    data[CO1].attributes = {'min': 20, 'max': 55, 'step': 1, 'unit_of_measurement': '°C'}
     return data
 
 
@@ -149,11 +149,11 @@ class PocTests(unittest.TestCase):
         result = harness.decision()
         self.assertTrue(result['ready'])
         self.assertEqual(result['correction'], -2)
-        self.assertEqual(result['rounded'], 27)
+        self.assertEqual(result['rounded'], 23)
         self.assertTrue(harness.write_allowed())
 
     def test_same_integer_never_writes(self):
-        harness = Harness(fixture(current=27))
+        harness = Harness(fixture(current=25))
         harness.decision()
         self.assertFalse(harness.write_allowed())
 
@@ -245,6 +245,18 @@ class PocTests(unittest.TestCase):
         self.assertEqual(result['rounded'], 28)
         data[CO1].attributes['min'] = 36
         self.assertFalse(Harness(data).decision()['ready'])
+
+    def test_current_himit_minimum_and_no_artificial_27_floor(self):
+        data = fixture(ground=24, upper=24, outdoor=10, current=22)
+        harness = Harness(data)
+        result = harness.decision()
+        self.assertEqual(result['lower'], 20)
+        self.assertEqual(result['rounded'], 20)
+        self.assertTrue(harness.write_allowed())
+        data[CO1].attributes['min'] = 22
+        self.assertEqual(Harness(data).decision()['rounded'], 22)
+        data[CO1].attributes['min'] = 27
+        self.assertEqual(Harness(data).decision()['lower'], 27)
 
     def test_missing_statistics_are_not_reported_as_warmup(self):
         data = fixture()

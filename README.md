@@ -58,7 +58,9 @@ zapis, ale pozostawia obliczenia i historię. Nie przywraca poprzedniej nastawy.
   za trend wzrostowy: do −0,5°C. Nie jest to samouczący regulator ani PID.
 - Nagły spadek >0,7°C względem mediany lub bieżące przegrzanie strefy
   blokuje **podnoszenie** CO1; obniżanie pozostaje możliwe.
-- Wynik ogranicza do przecięcia zakresu HiMitII z zakresem POC **27–35°C**.
+- Minimum wyniku pobiera bezpośrednio z atrybutu `min` encji HiMitII
+  (w obecnej wersji MB dla CO1: **20°C**). Nie narzuca własnego minimum 27°C.
+  Maksimum to mniejsza z wartości: `max` encji i górny limit POC **35°C**.
   Parametry POC edytuje się w bloku zmiennych drugiej sekcji `template`.
   Następnie zaokrągla do pełnego stopnia, połówki w górę.
 
@@ -98,9 +100,10 @@ pompy jest wyłącznie pokazywana w diagnostyce — bez zgadywania progu pracy
 sprężarki i jednostek licznika. Stan włączonego CO1 nie oznacza pracy sprężarki.
 POC nie identyfikuje defrost/CWU; nie steruje ich cyklami, zmienia tylko CO1.
 
-Jeśli minimum wynosi 27°C, baza 25°C przy −5°C zostanie obcięta do 27°C.
-Dashboard pokaże ograniczenie. Przy przegrzewaniu mimo minimum potrzebne
-będą kolejne etapy projektu; POC nie obchodzi minimum ani nie odcina pompy.
+Przy minimum encji 20°C baza 25°C przy −5°C nie jest podnoszona do 27°C.
+Jeżeli aktualna integracja zgłosi inne minimum, POC je uwzględni automatycznie.
+Brak liczbowego `min` blokuje zapis. Dashboard pokazuje aktualny zakres;
+POC nie obchodzi limitów integracji ani nie odcina pompy.
 
 ## Sprawdzenie lokalne
 

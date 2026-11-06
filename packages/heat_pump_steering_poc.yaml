@@ -137,10 +137,9 @@ template:
         seconds: "30"
     actions:
       - variables:
-          # Parametry POC, edytowalne tutaj. Limity dodatkowo przecinamy
-          # z min/max encji HiMitII. 27°C nie jest potwierdzeniem minimum pompy.
+          # Minimum pochodzi wyłącznie z encji aktualnej integracji HiMitII.
+          # Górny limit POC dodatkowo ogranicza maksymalną nastawę do 35°C.
           co1_entity: number.garaz_pompa_ciepla_circuit_1_setpoint
-          poc_min: 27
           poc_max: 35
           gradient: 0.2
           deadband: 0.2
@@ -158,7 +157,7 @@ template:
                and state_attr('sensor.hp_poc_pietro_zmiana_12h', 'age_coverage_ratio') | float(0) >= 0.8 }}
       - variables:
           lower: >-
-            {{ [poc_min, state_attr(co1_entity, 'min') | float(poc_min)] | max | round(0, 'ceil') | int }}
+            {{ state_attr(co1_entity, 'min') | float(0) | round(0, 'ceil') | int }}
           ceiling: >-
             {{ [poc_max, state_attr(co1_entity, 'max') | float(poc_max)] | min | round(0, 'floor') | int }}
           error_ground: "{{ target_ground - ground }}"
