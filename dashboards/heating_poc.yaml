@@ -9,6 +9,12 @@ views:
         entities:
           - input_number.hp_poc_cel_parter
           - input_number.hp_poc_cel_pietro
+          - input_boolean.hp_poc_auto_stop_co1
+          - entity: switch.garaz_pompa_ciepla_circuit_1_heating
+            name: Ogrzewanie CO1 — stan i ręczne sterowanie
+          - type: simple-entity
+            entity: input_boolean.hp_poc_co1_wylaczony_przez_poc
+            name: CO1 wstrzymany przez POC
           - automation.ogrzewanie_poc_zapis_co1
           - number.garaz_pompa_ciepla_circuit_1_setpoint
           - sensor.hp_poc_co1_propozycja
@@ -56,6 +62,26 @@ views:
           Odczyt HiMitII może być optymistyczny.
           {% endif %}
       - type: history-graph
+        title: Opcjonalne wyłączanie ogrzewania
+        hours_to_show: 24
+        entities:
+          - switch.garaz_pompa_ciepla_circuit_1_heating
+          - binary_sensor.hp_poc_obie_strefy_przegrzane
+          - binary_sensor.hp_poc_potrzeba_grzania
+      - type: markdown
+        title: Zasady auto STOP
+        content: >-
+          Domyślnie wyłączone. STOP: **obie mediany ≥ cel +0,4°C przez 30 min**.
+          START: **jedna mediana ≤ cel −0,2°C przez 30 min**, bez nagłego
+          spadku surowej temperatury. Minimum 2 h pracy i 2 h przerwy.
+
+          Wznawia wyłącznie ogrzewanie zatrzymane przez POC.
+          Brak danych stref przez 30 min podczas przerwy POC powoduje
+          powrót do ogrzewania Hisense po minimalnej przerwie.
+
+          Wyłączenie opcji pozostawia CO1 w aktualnym stanie i oddaje
+          sterowanie ręczne. Jeśli chcesz grzać od razu, włącz CO1 powyżej.
+      - type: history-graph
         title: Komfort kondygnacji
         hours_to_show: 24
         entities:
@@ -77,6 +103,9 @@ views:
         title: Dane do diagnostyki
         entities:
           - sensor.hp_poc_status
+          - binary_sensor.hp_poc_dane_stref_ok
+          - binary_sensor.hp_poc_brak_danych_stref
+          - input_datetime.hp_poc_ostatnia_proba_co1_on_off
           - sensor.pompa_ciepla_moc
           - sensor.hp_poc_parter_liczba_probek
           - sensor.hp_poc_pietro_liczba_probek

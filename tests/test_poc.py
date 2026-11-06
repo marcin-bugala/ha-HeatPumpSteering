@@ -18,6 +18,10 @@ CO1 = 'number.garaz_pompa_ciepla_circuit_1_setpoint'
 PROPOSAL = 'sensor.hp_poc_co1_propozycja'
 
 
+def automation(identity):
+    return next(a for a in PACKAGE['automation'] if a['id'] == identity)
+
+
 class State:
     def __init__(self, entity, value, attrs=None, age=0, changed=10000):
         self.entity_id = entity
@@ -124,12 +128,31 @@ class Harness:
         return variables
 
     def write_allowed(self):
-        automation = PACKAGE['automation'][1]
-        variables = deepcopy(automation['variables'])
-        if not self.render(automation['conditions'][0]['value_template'], variables):
+        auto = automation('hp_poc_zapis_co1')
+        variables = deepcopy(auto['variables'])
+        if not self.render(auto['conditions'][0]['value_template'], variables):
             return False
-        self.variables(automation['actions'][:2], variables)
-        return bool(self.render(automation['actions'][2]['value_template'], variables))
+        self.variables(auto['actions'][:2], variables)
+        return bool(self.render(auto['actions'][2]['value_template'], variables))
+
+    def condition(self, item):
+        kind = item['condition']
+        if kind == 'state':
+            return States(self.data)(item['entity_id']) == item['state']
+        if kind == 'template':
+            return bool(self.render(item['value_template'], {}))
+        checks = [self.condition(child) for child in item['conditions']]
+        return all(checks) if kind == 'and' else any(checks)
+
+    def stop_start_command(self):
+        auto = automation('hp_poc_auto_stop_co1')
+        if not all(self.condition(c) for c in auto['conditions']):
+            return None
+        for branch in auto['actions'][0]['choose']:
+            if all(self.condition(c) for c in branch['conditions']):
+                return next(step['action'] for step in branch['sequence']
+                            if step.get('action', '').startswith('switch.'))
+        return None
 
 
 class PocTests(unittest.TestCase):
@@ -166,7 +189,7 @@ class PocTests(unittest.TestCase):
         harness = Harness(fixture(19, 20, -20, current=27))
         self.assertEqual(harness.decision()['rounded'], 30)
         self.assertTrue(harness.write_allowed())
-        auto = PACKAGE['automation'][1]
+        auto = automation('hp_poc_zapis_co1')
         variables = harness.variables(auto['actions'][:2], deepcopy(auto['variables']))
         self.assertEqual(variables['next_value'], 28)
 
@@ -277,6 +300,92 @@ class PocTests(unittest.TestCase):
         harness = Harness(data)
         self.assertEqual(harness.render(entity['state'], {}), 'blokada_danych_lub_rozgrzewanie')
         self.assertEqual(harness.render(entity['attributes']['missing_entities'], {}), [])
+
+    def stop_fixture(self, switch='on', owned='off'):
+        data = fixture()
+        for entity, state in {
+            'input_boolean.hp_poc_auto_stop_co1': 'on',
+            'input_boolean.hp_poc_co1_wylaczony_przez_poc': owned,
+            'binary_sensor.hp_poc_dane_stref_ok': 'on',
+            'binary_sensor.hp_poc_obie_strefy_przegrzane': 'off',
+            'binary_sensor.hp_poc_potrzeba_grzania': 'off',
+            'binary_sensor.hp_poc_brak_danych_stref': 'off',
+            'input_datetime.hp_poc_ostatnia_proba_co1_on_off': '2026-11-05 00:00:00+00:00',
+        }.items():
+            data[entity] = State(entity, state)
+        data['switch.garaz_pompa_ciepla_circuit_1_heating'].state = switch
+        return data
+
+    def test_stop_only_both_overheated_and_option_enabled(self):
+        data = self.stop_fixture()
+        harness = Harness(data)
+        self.assertIsNone(harness.stop_start_command())
+        data['binary_sensor.hp_poc_obie_strefy_przegrzane'].state = 'on'
+        self.assertEqual(harness.stop_start_command(), 'switch.turn_off')
+        data['input_boolean.hp_poc_auto_stop_co1'].state = 'off'
+        self.assertIsNone(harness.stop_start_command())
+
+    def test_resume_only_owned_stop_or_data_failure(self):
+        data = self.stop_fixture(switch='off', owned='on')
+        harness = Harness(data)
+        self.assertIsNone(harness.stop_start_command())
+        data['binary_sensor.hp_poc_potrzeba_grzania'].state = 'on'
+        self.assertEqual(harness.stop_start_command(), 'switch.turn_on')
+        data['input_boolean.hp_poc_co1_wylaczony_przez_poc'].state = 'off'
+        self.assertIsNone(harness.stop_start_command())
+        data['input_boolean.hp_poc_co1_wylaczony_przez_poc'].state = 'on'
+        data['binary_sensor.hp_poc_potrzeba_grzania'].state = 'off'
+        data['binary_sensor.hp_poc_dane_stref_ok'].state = 'off'
+        data['binary_sensor.hp_poc_brak_danych_stref'].state = 'on'
+        self.assertEqual(harness.stop_start_command(), 'switch.turn_on')
+
+    def test_stop_start_minimum_times_and_retry_cooldown(self):
+        for state, owned, signal in [('on', 'off', 'hp_poc_obie_strefy_przegrzane'),
+                                     ('off', 'on', 'hp_poc_potrzeba_grzania')]:
+            with self.subTest(state=state):
+                data = self.stop_fixture(state, owned)
+                data['binary_sensor.' + signal].state = 'on'
+                harness = Harness(data)
+                self.assertIsNotNone(harness.stop_start_command())
+                data['switch.garaz_pompa_ciepla_circuit_1_heating'].last_changed = NOW - timedelta(minutes=119)
+                self.assertIsNone(harness.stop_start_command())
+                data['switch.garaz_pompa_ciepla_circuit_1_heating'].last_changed = NOW - timedelta(hours=3)
+                data['input_datetime.hp_poc_ostatnia_proba_co1_on_off'].state = NOW.isoformat()
+                self.assertIsNone(harness.stop_start_command())
+
+    def test_stop_hysteresis_and_ventilation_from_actual_templates(self):
+        data = self.stop_fixture()
+        sensors = {e['name']: e for e in PACKAGE['template'][0]['binary_sensor']}
+        harness = Harness(data)
+        stop = sensors['hp_poc_obie_strefy_przegrzane']
+        start = sensors['hp_poc_potrzeba_grzania']
+        self.assertEqual(stop['delay_on'], {'minutes': 30})
+        self.assertEqual(start['delay_on'], {'minutes': 30})
+        for a, b, expected in [(21, 22, False), (22, 22, False), (21, 23, False), (21.5, 22.5, True)]:
+            data['sensor.hp_poc_parter_komfort'].state = str(a)
+            data['sensor.hp_poc_pietro_komfort'].state = str(b)
+            self.assertEqual(harness.render(stop['state'], {}), expected)
+        data['sensor.hp_poc_parter_komfort'].state = '20.7'
+        data['sensor.hp_poc_pietro_komfort'].state = '22'
+        self.assertTrue(harness.render(start['state'], {}))
+        data['sensor.salon_termometr_salon'].state = '17'
+        self.assertFalse(harness.render(start['state'], {}))
+
+    def test_stop_readiness_and_control_targets(self):
+        data = self.stop_fixture()
+        sensors = {e['name']: e for e in PACKAGE['template'][0]['binary_sensor']}
+        harness = Harness(data)
+        self.assertTrue(harness.render(sensors['hp_poc_dane_stref_ok']['state'], {}))
+        data['sensor.salon_termometr_salon'].last_reported = NOW - timedelta(hours=3)
+        self.assertFalse(harness.render(sensors['hp_poc_dane_stref_ok']['state'], {}))
+        data['binary_sensor.hp_poc_dane_stref_ok'].state = 'off'
+        self.assertFalse(harness.render(sensors['hp_poc_obie_strefy_przegrzane']['state'], {}))
+        auto = automation('hp_poc_auto_stop_co1')
+        for branch in auto['actions'][0]['choose']:
+            commands = [s for s in branch['sequence'] if s.get('action', '').startswith('switch.')]
+            self.assertEqual(len(commands), 1)
+            self.assertEqual(commands[0]['target']['entity_id'], 'switch.garaz_pompa_ciepla_circuit_1_heating')
+        self.assertNotIn('initial', PACKAGE['input_boolean']['hp_poc_auto_stop_co1'])
 
 
 if __name__ == '__main__':

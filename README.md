@@ -6,7 +6,9 @@ Hisense (`number.set_value`). Nie jest to jeszcze custom integration.
 
 **Po instalacji zapis jest aktywny**, gdy dane i filtry są gotowe.
 Nie przełącza trybu pracy pompy: Hisense należy ustawić na stałą temperaturę
-CO1. Nie zmienia CWU, sprężarki, pomp, zaworów ani demand.
+CO1. Opcjonalnie może wyłączać i włączać sam obieg CO1 przez jego przełącznik
+HiMitII. Nie odcina zasilania urządzenia ani nie zmienia CWU, sprężarki,
+pomp obiegowych, zaworów ani demand bezpośrednio.
 
 ## Instalacja
 
@@ -43,6 +45,60 @@ Encja automatyzacji powinna otrzymać nazwę
 wcześniej istniały encje o tych nazwach. Wyłączenie tej automatyzacji zatrzymuje
 zapis, ale pozostawia obliczenia i historię. Nie przywraca poprzedniej nastawy.
 **Usunięcie pakietu również pozostawia ostatnią nastawę w pompie.**
+
+## Opcjonalny auto STOP CO1 przy przegrzaniu
+
+Nowy przełącznik dashboardu **„auto STOP przy przegrzaniu”**
+(`input_boolean.hp_poc_auto_stop_co1`) jest przy pierwszej instalacji wyłączony.
+Po włączeniu jego stan jest odtwarzany po restarcie. Moduł działa niezależnie
+od automatyzacji zapisu temperatury wody; wyłączenie samego zapisu CO1
+nie wyłącza auto STOP.
+
+| Działanie | Warunek |
+| --- | --- |
+| STOP CO1 | Mediany 3 h **obu** stref ≥ własny cel +0,4°C nieprzerwanie przez 30 min |
+| START CO1 | Mediana 3 h **co najmniej jednej** strefy ≤ własny cel −0,2°C przez 30 min; brak nagłego spadku pomiaru o ponad 0,7°C względem mediany |
+| Minimalny czas stanu | CO1 musi być w obecnym stanie przez co najmniej 2 h przed zmianą |
+| Ponowienie po błędzie | Najwcześniej po 15 min, nie co minutę |
+| Utrata danych podczas przerwy POC | Po 30 min nieprawidłowych danych powrót do grzania Hisense, z zachowaniem minimum 2 h przerwy |
+
+Dla celów 21/22°C STOP oznacza mediany ≥21,4/22,4°C. START oznacza
+≤20,8°C na parterze lub ≤21,8°C na piętrze. Progi są startowymi parametrami
+POC; edytuje się je w szablonach nowych `binary_sensor`. Reguła „obie strefy”
+chroni chłodniejszą kondygnację przed wyłączeniem przez cieplejszą. Przy
+wznowieniu z powodu jednej strefy druga może być cieplejsza — nadal jest to
+wspólny obieg bez zaworów.
+
+Polecenia idą wyłącznie do
+`switch.garaz_pompa_ciepla_circuit_1_heating` (w HiMitII: `c1_SW_ON`).
+Nie używamy wyłącznika licznika Tuya ani nadrzędnego wyłącznika pompy.
+Hisense zachowuje własną obsługę sprężarki, CWU i ochrony urządzenia.
+
+POC wznawia tylko przerwę, którą sam zarządził i odnotował pomocniczą flagą.
+Ręcznie wyłączonego wcześniej CO1 nie uruchamia. Ręczne włączenie CO1
+kasuje tę flagę i uruchamia nowy minimalny czas pracy. Wyłączenie opcji
+auto STOP kasuje flagę i **pozostawia bieżący stan CO1**; w razie potrzeby
+włącz ogrzewanie ręcznie przełącznikiem CO1 na dashboardzie. Ponowne
+włączenie opcji nie przejmuje automatycznie już wyłączonego obiegu.
+Nie ustawiaj ręcznie flagi „CO1 wstrzymany przez POC”. Samo naciśnięcie OFF,
+gdy CO1 już jest OFF, nie jest rozpoznawalnym nowym zdarzeniem — do przejęcia
+sterowania służy wyłączenie opcji auto STOP.
+
+Brak danych stref blokuje nowe wyłączenie. Obsługa ON/OFF opiera się na
+temperaturach wnętrza, niezależnie od dostępności outdoor i temperatury wody,
+żeby postój obiegu nie blokował wznowienia. Nieudana próba OFF nie oznacza
+przejęcia sterowania: flagę ustawiamy dopiero po powrocie akcji i stanie OFF
+encji HA. To nadal nie jest niezależne potwierdzenie z chmury — HiMitII
+może aktualizować optymistycznie. Dziennik opisuje wysłane polecenia.
+
+Po restarcie lub przeładowaniu szablonów potwierdzanie 30-minutowe zaczyna
+się ponownie. Flaga własności i czas ostatniej próby są odtwarzane; stan CO1
+musi ponownie być stabilny przez 2 h. Usunięcie pakietu nie włącza CO1,
+jeżeli moduł wcześniej go wyłączył.
+
+Po aktualizacji skopiuj zarówno pakiet, jak i dashboard; sprawdź konfigurację
+i wykonaj pełny restart HA. Dopiero potem włącz opcję auto STOP, jeśli chcesz
+z niej korzystać.
 
 ## Algorytm
 

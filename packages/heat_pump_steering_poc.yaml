@@ -24,10 +24,20 @@ input_number:
     mode: box
 
 input_boolean:
+  hp_poc_auto_stop_co1:
+    name: "Ogrzewanie POC · auto STOP przy przegrzaniu"
+    icon: mdi:thermostat-auto
+  hp_poc_co1_wylaczony_przez_poc:
+    name: "Ogrzewanie POC · CO1 wstrzymany przez POC"
+    icon: mdi:pause-circle
   hp_poc_cele_zainicjalizowane:
     name: "Ogrzewanie POC · cele zainicjalizowane"
 
 input_datetime:
+  hp_poc_ostatnia_proba_co1_on_off:
+    name: "Ogrzewanie POC · ostatnia próba ON/OFF"
+    has_date: true
+    has_time: true
   hp_poc_ostatnia_proba:
     name: "Ogrzewanie POC · ostatnia próba zapisu"
     has_date: true
@@ -37,7 +47,58 @@ input_datetime:
 # który częściej raportuje. Brakujące/stare próbki nie stają się zerami.
 template:
   # Działa także bez statystyk: odróżnia brak encji od pustej historii.
-  - sensor:
+  - binary_sensor:
+      - name: hp_poc_dane_stref_ok
+        unique_id: hp_poc_dane_stref_ok
+        default_entity_id: binary_sensor.hp_poc_dane_stref_ok
+        state: >-
+          {% set ns = namespace(ok=true) %}
+          {% for e in ['sensor.salon_termometr_salon', 'sensor.korytarz_termometr_pietro'] %}
+            {% set s = states[e] %}
+            {% if s is not defined or not is_number(s.state)
+                  or not (10 <= s.state | float(0) <= 35)
+                  or not (0 <= as_timestamp(now()) - as_timestamp(s.last_reported, 0) < 7200) %}
+              {% set ns.ok = false %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.ok and is_state('input_boolean.hp_poc_cele_zainicjalizowane', 'on')
+             and is_number(states('input_number.hp_poc_cel_parter'))
+             and is_number(states('input_number.hp_poc_cel_pietro'))
+             and is_number(states('sensor.hp_poc_parter_komfort'))
+             and is_number(states('sensor.hp_poc_pietro_komfort'))
+             and state_attr('sensor.hp_poc_parter_komfort', 'age_coverage_ratio') | float(0) >= 0.8
+             and state_attr('sensor.hp_poc_pietro_komfort', 'age_coverage_ratio') | float(0) >= 0.8
+             and states('sensor.hp_poc_parter_liczba_probek') | int(0) >= 29
+             and states('sensor.hp_poc_pietro_liczba_probek') | int(0) >= 29 }}
+      - name: hp_poc_obie_strefy_przegrzane
+        unique_id: hp_poc_obie_strefy_przegrzane
+        default_entity_id: binary_sensor.hp_poc_obie_strefy_przegrzane
+        delay_on:
+          minutes: 30
+        state: >-
+          {{ is_state('binary_sensor.hp_poc_dane_stref_ok', 'on')
+             and states('sensor.hp_poc_parter_komfort') | float(0) >= states('input_number.hp_poc_cel_parter') | float(0) + 0.4
+             and states('sensor.hp_poc_pietro_komfort') | float(0) >= states('input_number.hp_poc_cel_pietro') | float(0) + 0.4 }}
+      - name: hp_poc_potrzeba_grzania
+        unique_id: hp_poc_potrzeba_grzania
+        default_entity_id: binary_sensor.hp_poc_potrzeba_grzania
+        delay_on:
+          minutes: 30
+        state: >-
+          {% set a = states('sensor.hp_poc_parter_komfort') | float(0) %}
+          {% set b = states('sensor.hp_poc_pietro_komfort') | float(0) %}
+          {{ is_state('binary_sensor.hp_poc_dane_stref_ok', 'on')
+             and (a <= states('input_number.hp_poc_cel_parter') | float(0) - 0.2
+                  or b <= states('input_number.hp_poc_cel_pietro') | float(0) - 0.2)
+             and states('sensor.salon_termometr_salon') | float(0) >= a - 0.7
+             and states('sensor.korytarz_termometr_pietro') | float(0) >= b - 0.7 }}
+      - name: hp_poc_brak_danych_stref
+        unique_id: hp_poc_brak_danych_stref
+        default_entity_id: binary_sensor.hp_poc_brak_danych_stref
+        delay_on:
+          minutes: 30
+        state: "{{ not is_state('binary_sensor.hp_poc_dane_stref_ok', 'on') }}"
+    sensor:
       - name: hp_poc_status
         unique_id: hp_poc_status
         default_entity_id: sensor.hp_poc_status
@@ -353,6 +414,119 @@ sensor:
     precision: 2
 
 automation:
+  # Osobny moduł opt-in. Pierwsza instalacja helpera auto_stop ma stan off.
+  # Kontrolujemy wyłącznie c1_SW_ON, nigdy zasilanie ani nadrzędny switch pompy.
+  - id: hp_poc_auto_stop_co1
+    alias: "Ogrzewanie POC · auto STOP CO1"
+    mode: single
+    triggers:
+      - trigger: time_pattern
+        minutes: "/1"
+        seconds: "10"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.hp_poc_auto_stop_co1
+        state: "on"
+      - condition: template
+        value_template: >-
+          {% set s = states.switch.garaz_pompa_ciepla_circuit_1_heating %}
+          {{ s is defined and s.state in ['on', 'off']
+             and as_timestamp(now()) - as_timestamp(s.last_changed, 0) >= 7200
+             and as_timestamp(now()) - as_timestamp(states('input_datetime.hp_poc_ostatnia_proba_co1_on_off'), 0) >= 900 }}
+    actions:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+                state: "on"
+              - condition: state
+                entity_id: binary_sensor.hp_poc_obie_strefy_przegrzane
+                state: "on"
+              - condition: state
+                entity_id: binary_sensor.hp_poc_dane_stref_ok
+                state: "on"
+            sequence:
+              - action: input_datetime.set_datetime
+                target:
+                  entity_id: input_datetime.hp_poc_ostatnia_proba_co1_on_off
+                data:
+                  timestamp: "{{ as_timestamp(now()) }}"
+              - action: switch.turn_off
+                target:
+                  entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+              - wait_template: "{{ is_state('switch.garaz_pompa_ciepla_circuit_1_heating', 'off') }}"
+                timeout: "00:00:30"
+                continue_on_timeout: false
+              - action: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
+              - action: logbook.log
+                data:
+                  name: Ogrzewanie POC
+                  entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+                  message: >-
+                    Wysłano STOP CO1 — obie mediany komfortu ≥ cel +0,4°C
+                    przez 30 min. Pompa zachowuje własną logikę ochrony i CWU.
+          - conditions:
+              - condition: state
+                entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+                state: "off"
+              - condition: state
+                entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
+                state: "on"
+              - condition: or
+                conditions:
+                  - condition: and
+                    conditions:
+                      - condition: state
+                        entity_id: binary_sensor.hp_poc_dane_stref_ok
+                        state: "on"
+                      - condition: state
+                        entity_id: binary_sensor.hp_poc_potrzeba_grzania
+                        state: "on"
+                  - condition: state
+                    entity_id: binary_sensor.hp_poc_brak_danych_stref
+                    state: "on"
+            sequence:
+              - action: input_datetime.set_datetime
+                target:
+                  entity_id: input_datetime.hp_poc_ostatnia_proba_co1_on_off
+                data:
+                  timestamp: "{{ as_timestamp(now()) }}"
+              - action: switch.turn_on
+                target:
+                  entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+              - wait_template: "{{ is_state('switch.garaz_pompa_ciepla_circuit_1_heating', 'on') }}"
+                timeout: "00:00:30"
+                continue_on_timeout: false
+              - action: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
+              - action: logbook.log
+                data:
+                  name: Ogrzewanie POC
+                  entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+                  message: >-
+                    Wysłano START CO1 po przerwie POC —
+                    {{ 'brak danych stref przez 30 min; powrót do ogrzewania Hisense'
+                       if is_state('binary_sensor.hp_poc_brak_danych_stref', 'on')
+                       else 'co najmniej jedna mediana ≤ cel −0,2°C przez 30 min' }}.
+
+  - id: hp_poc_co1_kasuj_wlasnosc
+    alias: "Ogrzewanie POC · zwolnienie sterowania STOP"
+    mode: restart
+    triggers:
+      - trigger: state
+        entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+        to: "on"
+      - trigger: state
+        entity_id: input_boolean.hp_poc_auto_stop_co1
+        to: "off"
+    actions:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
+
   - id: hp_poc_inicjalizacja_celow
     alias: "Ogrzewanie POC · inicjalizacja celów"
     mode: single
