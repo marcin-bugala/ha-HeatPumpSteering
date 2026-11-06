@@ -33,8 +33,13 @@ pomp obiegowych, zaworów ani demand bezpośrednio.
    Pakiet tworzy sensory statystyczne i helpery; nie wystarczy przeładować
    samych automatyzacji. Potrzebna współczesna wersja HA obsługująca
    `default_entity_id` i `last_reported` (projekt przygotowany dla HA 2026.11).
-5. Utwórz dashboard i wklej `dashboards/heating_poc.yaml` jako jego surową
-   konfigurację. Nie wymaga kart HACS.
+5. Skopiuj `www/hp-poc-readonly-card.js` do
+   `/config/www/hp-poc-readonly-card.js`. W zasobach dashboardów HA dodaj
+   `/local/hp-poc-readonly-card.js?v=1` jako **moduł JavaScript**. Jeśli zasoby
+   są zarządzane w YAML, dodaj ten adres z `type: module` do istniejącego
+   `lovelace.resources`. Nie tworzy się drugiej sekcji `lovelace`.
+6. Utwórz dashboard i wklej `dashboards/heating_poc.yaml` jako jego surową
+   konfigurację. Nie wymaga kart HACS. Po dodaniu zasobu odśwież przeglądarkę.
 
 Przy pierwszym uruchomieniu cele zostaną ustawione na **21°C / 22°C**.
 Późniejsze zmiany z dashboardu są odtwarzane po restarcie. Nie wyłączaj
@@ -45,6 +50,36 @@ Encja automatyzacji powinna otrzymać nazwę
 wcześniej istniały encje o tych nazwach. Wyłączenie tej automatyzacji zatrzymuje
 zapis, ale pozostawia obliczenia i historię. Nie przywraca poprzedniej nastawy.
 **Usunięcie pakietu również pozostawia ostatnią nastawę w pompie.**
+
+## Układ dashboardu
+
+Na szerokim ekranie panel ma trzy stałe sekcje:
+
+- **Po lewej — Historia i temperatury.** Osobne wykresy parteru, piętra,
+  wody CO1, temperatury zewnętrznej i pracy/przerw obiegu. Wszystkie legendy
+  mają czytelne nazwy zamiast identyfikatorów `hp_poc_*`.
+- **Pośrodku — Sterowanie i stan.** Cele kondygnacji, automatyczna nastawa
+  wody, auto STOP, ręczne ON/OFF obiegu i ręczna nastawa wody. Pod nimi
+  znajdują się nieedytowalne tabele bieżących odczytów, gotowości danych
+  i diagnostyki. Znaczniki prób zapisu nie są już polami do edycji.
+- **Po prawej — Jak działa POC.** Bieżąca decyzja wyrażona po polsku,
+  składniki obliczenia, słownik temperatur i reguły STOP/START. Progi w opisie
+  uwzględniają aktualne cele kondygnacji.
+
+Na węższym ekranie sekcje układają się kolejno pod sobą. Kolumny nie mieszają
+kart automatycznie. Panel korzysta z bieżącego motywu HA.
+
+Karty tylko do odczytu nie otwierają okien ani nie przełączają encji.
+Wykresy zachowują podgląd po najechaniu. Mała lokalna karta
+`hp-poc-readonly-card` otacza natywne wykresy HA i blokuje kliknięcia,
+podwójne kliknięcia, aktywację klawiaturą i zdarzenia more-info; nie wywołuje
+żadnych usług i nie zmienia danych. Tabele są natywnymi kartami Markdown.
+
+Jeśli aktualizujesz wyłącznie układ panelu, wystarczy dodać powyższy plik
+JavaScript i zasób, podmienić YAML dashboardu i odświeżyć stronę.
+**Pakiet automatyzacji pozostaje ten sam — nie trzeba restartować HA ani
+ponownie rozgrzewać filtrów.** Komunikat „Custom element doesn't exist:
+hp-poc-readonly-card” oznacza, że zasób nie został załadowany.
 
 ## Opcjonalny auto STOP CO1 przy przegrzaniu
 
@@ -192,6 +227,20 @@ Testy wykonują szablony Jinja bez połączenia z HA: przegrzewanie, konflikt
 stref, trend, zaokrąglanie, kroki, filtry rozruchowe, brakujące/stare dane,
 limity, brak zmiany i odstępy zapisu. Nie zastępują sprawdzenia konfiguracji
 w docelowym HA ani testu komunikacji z pompą.
+
+Testy dashboardu sprawdzają również układ kolumn i renderowanie opisów
+przy kompletnych, brakujących i pustych danych. Test karty w prawdziwej
+przeglądarce (z lokalną atrapą karty natywnej, bez połączenia z HA):
+
+```text
+npm install --no-save playwright
+node tests/test_readonly_card.cjs
+```
+
+Wymaga zainstalowanego Chrome; dla Edge ustaw `POC_BROWSER_CHANNEL=msedge`.
+Sprawdza blokadę aktywacji, pozostawienie podglądu po najechaniu, aktualizację
+danych i brak wpływu na przyciski poza kartą. Nie jest wizualnym odbiorem
+dashboardu w działającej instancji HA.
 
 Dokumentacja HA: [Statistics](https://www.home-assistant.io/integrations/statistics/),
 [Template](https://www.home-assistant.io/integrations/template/),
