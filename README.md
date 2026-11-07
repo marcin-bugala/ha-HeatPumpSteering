@@ -33,13 +33,16 @@ pomp obiegowych, zaworów ani demand bezpośrednio.
    Pakiet tworzy sensory statystyczne i helpery; nie wystarczy przeładować
    samych automatyzacji. Potrzebna współczesna wersja HA obsługująca
    `default_entity_id` i `last_reported` (projekt przygotowany dla HA 2026.11).
-5. Skopiuj `www/hp-poc-readonly-card.js` do
+5. Skopiuj `home-assistant/www/hp-poc-readonly-card.js` do
    `/config/www/hp-poc-readonly-card.js`. W zasobach dashboardów HA dodaj
    `/local/hp-poc-readonly-card.js?v=1` jako **moduł JavaScript**. Jeśli zasoby
    są zarządzane w YAML, dodaj ten adres z `type: module` do istniejącego
    `lovelace.resources`. Nie tworzy się drugiej sekcji `lovelace`.
-6. Utwórz dashboard i wklej `dashboards/heating_poc.yaml` jako jego surową
-   konfigurację. Nie wymaga kart HACS. Po dodaniu zasobu odśwież przeglądarkę.
+6. POC jest zakładką `co1` wspólnego dashboardu Historia w pliku
+   `home-assistant/dashboards/dashboard_historia.yaml`. Zaktualizuj tę zakładkę
+   w surowej konfiguracji dashboardu, zachowując istniejące widoki historii
+   i diagnostyki HiMitII oraz ich zasoby. Sam widok POC nie wymaga HACS.
+   Po dodaniu zasobu odśwież przeglądarkę.
 
 Przy pierwszym uruchomieniu cele zostaną ustawione na **21°C / 22°C**.
 Późniejsze zmiany z dashboardu są odtwarzane po restarcie. Nie wyłączaj
@@ -109,15 +112,21 @@ Polecenia idą wyłącznie do
 Nie używamy wyłącznika licznika Tuya ani nadrzędnego wyłącznika pompy.
 Hisense zachowuje własną obsługę sprężarki, CWU i ochrony urządzenia.
 
-POC wznawia tylko przerwę, którą sam zarządził i odnotował pomocniczą flagą.
-Ręcznie wyłączonego wcześniej CO1 nie uruchamia. Ręczne włączenie CO1
-kasuje tę flagę i uruchamia nowy minimalny czas pracy. Wyłączenie opcji
-auto STOP kasuje flagę i **pozostawia bieżący stan CO1**; w razie potrzeby
-włącz ogrzewanie ręcznie przełącznikiem CO1 na dashboardzie. Ponowne
-włączenie opcji nie przejmuje automatycznie już wyłączonego obiegu.
-Nie ustawiaj ręcznie flagi „CO1 wstrzymany przez POC”. Samo naciśnięcie OFF,
-gdy CO1 już jest OFF, nie jest rozpoznawalnym nowym zdarzeniem — do przejęcia
-sterowania służy wyłączenie opcji auto STOP.
+Przy włączonej opcji auto STOP **POC może wznowić także ręcznie wyłączony
+CO1**, gdy temperatury spełnią warunek START. Pochodzenie wyłączenia nie
+blokuje wznowienia według temperatur. Nadal obowiązują świeże dane,
+potwierdzenie 30 min, minimum 2 h przerwy i odstęp od ostatniej próby.
+
+Ręczne OFF jest więc przerwą tymczasową. Aby pozostawić CO1 wyłączony
+bez automatycznego wznowienia, wyłącz auto STOP i CO1. Wyłączenie opcji
+**pozostawia bieżący stan CO1**; ponowne jej włączenie ponownie zezwala
+na START według temperatur, również gdy obieg już jest wyłączony.
+
+Flaga „CO1 wstrzymany przez POC” pozostaje informacyjna dla zwykłego START.
+Ogranicza tylko powrót awaryjny przy utracie danych: ten powrót jest dozwolony
+wyłącznie po przerwie rozpoczętej przez POC. Brak danych po ręcznym OFF sam
+w sobie nie uruchomi ogrzewania. Ręczne włączenie CO1 lub wyłączenie opcji
+kasuje flagę; nie trzeba jej ustawiać ręcznie.
 
 Brak danych stref blokuje nowe wyłączenie. Obsługa ON/OFF opiera się na
 temperaturach wnętrza, niezależnie od dostępności outdoor i temperatury wody,

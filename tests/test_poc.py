@@ -165,7 +165,11 @@ class PocTests(unittest.TestCase):
             elif isinstance(value, str) and ('{{' in value or '{%' in value):
                 NativeEnvironment().parse(value)
         walk(PACKAGE)
-        walk(yaml.safe_load((ROOT / 'dashboards/heating_poc.yaml').read_text(encoding='utf-8')))
+        dashboard = next(p for p in [
+            ROOT / 'home-assistant/dashboards/dashboard_historia.yaml',
+            ROOT.parents[1] / 'home-assistant/dashboards/dashboard_historia.yaml',
+        ] if p.exists())
+        walk(yaml.safe_load(dashboard.read_text(encoding='utf-8')))
 
     def test_overheating_and_minimum(self):
         harness = Harness(fixture(23.5, 22.9))
@@ -325,14 +329,23 @@ class PocTests(unittest.TestCase):
         data['input_boolean.hp_poc_auto_stop_co1'].state = 'off'
         self.assertIsNone(harness.stop_start_command())
 
-    def test_resume_only_owned_stop_or_data_failure(self):
+    def test_resume_after_poc_or_manual_stop(self):
         data = self.stop_fixture(switch='off', owned='on')
         harness = Harness(data)
         self.assertIsNone(harness.stop_start_command())
         data['binary_sensor.hp_poc_potrzeba_grzania'].state = 'on'
         self.assertEqual(harness.stop_start_command(), 'switch.turn_on')
         data['input_boolean.hp_poc_co1_wylaczony_przez_poc'].state = 'off'
+        self.assertEqual(harness.stop_start_command(), 'switch.turn_on')
+        data['input_boolean.hp_poc_auto_stop_co1'].state = 'off'
         self.assertIsNone(harness.stop_start_command())
+        data['input_boolean.hp_poc_auto_stop_co1'].state = 'on'
+        data['binary_sensor.hp_poc_dane_stref_ok'].state = 'off'
+        self.assertIsNone(harness.stop_start_command())
+        # Brak danych nie jest nowym zapotrzebowaniem po ręcznym OFF.
+        data['binary_sensor.hp_poc_brak_danych_stref'].state = 'on'
+        self.assertIsNone(harness.stop_start_command())
+        # Powrót awaryjny pozostaje dostępny po przerwie rozpoczętej przez POC.
         data['input_boolean.hp_poc_co1_wylaczony_przez_poc'].state = 'on'
         data['binary_sensor.hp_poc_potrzeba_grzania'].state = 'off'
         data['binary_sensor.hp_poc_dane_stref_ok'].state = 'off'
@@ -341,6 +354,7 @@ class PocTests(unittest.TestCase):
 
     def test_stop_start_minimum_times_and_retry_cooldown(self):
         for state, owned, signal in [('on', 'off', 'hp_poc_obie_strefy_przegrzane'),
+                                     ('off', 'off', 'hp_poc_potrzeba_grzania'),
                                      ('off', 'on', 'hp_poc_potrzeba_grzania')]:
             with self.subTest(state=state):
                 data = self.stop_fixture(state, owned)
@@ -352,6 +366,15 @@ class PocTests(unittest.TestCase):
                 data['switch.garaz_pompa_ciepla_circuit_1_heating'].last_changed = NOW - timedelta(hours=3)
                 data['input_datetime.hp_poc_ostatnia_proba_co1_on_off'].state = NOW.isoformat()
                 self.assertIsNone(harness.stop_start_command())
+
+    def test_manual_stop_does_not_require_ownership_helper(self):
+        data = self.stop_fixture(switch='off')
+        del data['input_boolean.hp_poc_co1_wylaczony_przez_poc']
+        data['binary_sensor.hp_poc_potrzeba_grzania'].state = 'on'
+        harness = Harness(data)
+        self.assertEqual(harness.stop_start_command(), 'switch.turn_on')
+        data['switch.garaz_pompa_ciepla_circuit_1_heating'].state = 'unavailable'
+        self.assertIsNone(harness.stop_start_command())
 
     def test_stop_hysteresis_and_ventilation_from_actual_templates(self):
         data = self.stop_fixture()

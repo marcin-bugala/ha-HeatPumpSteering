@@ -2,6 +2,7 @@
 // No HA account, data, or service calls. Run: node tests/test_readonly_card.cjs
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const { chromium } = require('playwright');
 
 (async () => {
@@ -30,7 +31,12 @@ const { chromium } = require('playwright');
       customElements.define('fixture-card', FixtureCard);
       window.loadCardHelpers = async () => ({ createCardElement: () => document.createElement('fixture-card') });
     });
-    await page.addScriptTag({ path: path.resolve(__dirname, '../www/hp-poc-readonly-card.js') });
+    const script = [
+      path.resolve(__dirname, '../home-assistant/www/hp-poc-readonly-card.js'),
+      path.resolve(__dirname, '../../../home-assistant/www/hp-poc-readonly-card.js'),
+    ].find(p => fs.existsSync(p));
+    assert.ok(script, 'Missing shared dashboard resource');
+    await page.addScriptTag({ path: script });
     await page.evaluate(() => {
       const wrapper = document.createElement('hp-poc-readonly-card');
       wrapper.hass = { test: 1 };

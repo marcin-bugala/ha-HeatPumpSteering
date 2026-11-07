@@ -1,7 +1,51 @@
-# Wymagany zasób: /local/hp-poc-readonly-card.js?v=1 (moduł JavaScript).
-title: Ogrzewanie · POC
+title: Dom · historia
 views:
-  - title: Ogrzewanie
+  - title: Historia pomiarów
+    path: historia
+    icon: mdi:chart-timeline-variant
+    type: panel
+    cards:
+      - type: custom:dom-history-card
+        time_zone: Europe/Warsaw
+        refresh_seconds: 300
+        entities:
+          garden: sensor.ogrod_termometr_ogrod_temperatura
+          pressure: sensor.srednie_cisnienie_paczkomatow
+          ground_floor: sensor.salon_termometr_salon
+          first_floor: sensor.korytarz_termometr_pietro
+          attic: sensor.sypialnia_termometr_poddasze_temperatura
+          outdoor_average: sensor.pompa_ciepla_ta_srednia_2h
+          gradient: input_number.pompa_ciepla_gradient_curve
+          co: sensor.garaz_pompa_ciepla_circuit_1_water_temp
+          cwu: sensor.garaz_pompa_ciepla_dhw_water_temp
+          outdoor: sensor.garaz_pompa_ciepla_outdoor_ambient_temp
+          heat_pump_power: sensor.pompa_ciepla_moc
+          pv: sensor.inverter_pv_power
+          grid: sensor.inverter_grid_power
+          battery: sensor.inverter_battery_power
+          home: sensor.inverter_load_power
+          soc: sensor.inverter_battery
+          water: sensor.7938279_24332_1042_water_current_flow
+
+  - title: Pompa ciepła - HiMitII
+    path: pompa-diagnostyka
+    icon: mdi:heat-pump-outline
+    type: panel
+    cards:
+      - type: custom:heat-pump-diagnostics-card
+        time_zone: Europe/Warsaw
+        refresh_seconds: 120
+        entities:
+          power: sensor.pompa_ciepla_moc
+          co: sensor.garaz_pompa_ciepla_circuit_1_water_temp
+          dhw: sensor.garaz_pompa_ciepla_dhw_water_temp
+          outdoor: sensor.garaz_pompa_ciepla_outdoor_ambient_temp
+          co_target: number.garaz_pompa_ciepla_circuit_1_setpoint
+          dhw_target: number.garaz_pompa_ciepla_dhw_setpoint
+          co_enabled: switch.garaz_pompa_ciepla_circuit_1_heating
+          dhw_enabled: switch.garaz_pompa_ciepla_domestic_hot_water
+
+  - title: Pompa ciepła - POC
     path: co1
     icon: mdi:heat-pump
     type: sections
@@ -180,7 +224,7 @@ views:
                   | Nastawa odczytana z HiMitII | {{ temp('number.garaz_pompa_ciepla_circuit_1_setpoint') }} |
                   | Pomiar temperatury wody | {{ temp('sensor.garaz_pompa_ciepla_circuit_1_water_temp') }} |
 
-                  **Przerwa zarządzona przez POC:** {{ 'tak' if is_state('input_boolean.hp_poc_co1_wylaczony_przez_poc', 'on') else 'nie' }}.
+                  **Przerwę rozpoczął POC (informacja):** {{ 'tak' if is_state('input_boolean.hp_poc_co1_wylaczony_przez_poc', 'on') else 'nie' }}. Ręczne OFF nie blokuje automatycznego START przy zapotrzebowaniu.
               - type: markdown
                 title: Gotowość danych
                 content: |-
@@ -308,13 +352,15 @@ views:
                   - STOP: parter ≥ {{ (states('input_number.hp_poc_cel_parter') | float(21) + 0.4) | round(1) }}°C **i** piętro ≥ {{ (states('input_number.hp_poc_cel_pietro') | float(22) + 0.4) | round(1) }}°C.
                   - START: parter ≤ {{ (states('input_number.hp_poc_cel_parter') | float(21) - 0.2) | round(1) }}°C **lub** piętro ≤ {{ (states('input_number.hp_poc_cel_pietro') | float(22) - 0.2) | round(1) }}°C.
 
-                  Minimum **2 h pracy i 2 h przerwy**. Wznawia tylko własną przerwę. Nie odcina zasilania pompy ani CWU.
+                  Minimum **2 h pracy i 2 h przerwy**. Przy włączonym auto STOP wznawia CO1 także po ręcznym wyłączeniu, gdy spełniony jest warunek temperatury. Nie odcina zasilania pompy ani CWU.
               - type: markdown
                 title: Sterowanie ręczne i brak danych
                 content: |-
                   Automatyczna nastawa wody i auto STOP to **dwie niezależne funkcje**.
 
                   Wyłączenie auto STOP pozostawia CO1 w dotychczasowym stanie. Aby wznowić ogrzewanie od razu, użyj ręcznego ON/OFF CO1.
+
+                  Przy włączonym auto STOP ręczne OFF jest przerwą tymczasową: POC może ponownie włączyć CO1 według temperatur. Aby pozostawić ogrzewanie wyłączone na stałe, wyłącz auto STOP i CO1.
 
                   Brak danych blokuje nowe wyłączenie. Po 30 min utraty danych stref podczas przerwy POC następuje wznowienie po minimalnym czasie przerwy.
 

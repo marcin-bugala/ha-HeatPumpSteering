@@ -471,9 +471,9 @@ automation:
               - condition: state
                 entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
                 state: "off"
-              - condition: state
-                entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
-                state: "on"
+              # Zapotrzebowanie może wznowić także ręcznie wyłączony CO1.
+              # Flaga pochodzenia przerwy ogranicza wyłącznie powrót awaryjny
+              # przy braku danych, a nie zwykły START według temperatur.
               - condition: or
                 conditions:
                   - condition: and
@@ -484,9 +484,14 @@ automation:
                       - condition: state
                         entity_id: binary_sensor.hp_poc_potrzeba_grzania
                         state: "on"
-                  - condition: state
-                    entity_id: binary_sensor.hp_poc_brak_danych_stref
-                    state: "on"
+                  - condition: and
+                    conditions:
+                      - condition: state
+                        entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
+                        state: "on"
+                      - condition: state
+                        entity_id: binary_sensor.hp_poc_brak_danych_stref
+                        state: "on"
             sequence:
               - action: input_datetime.set_datetime
                 target:
@@ -507,7 +512,7 @@ automation:
                   name: Ogrzewanie POC
                   entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
                   message: >-
-                    Wysłano START CO1 po przerwie POC —
+                    Wysłano START CO1 —
                     {{ 'brak danych stref przez 30 min; powrót do ogrzewania Hisense'
                        if is_state('binary_sensor.hp_poc_brak_danych_stref', 'on')
                        else 'co najmniej jedna mediana ≤ cel −0,2°C przez 30 min' }}.

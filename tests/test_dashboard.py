@@ -3,7 +3,12 @@ import unittest
 import yaml
 from test_poc import ROOT, Harness, State, fixture
 
-DASHBOARD = yaml.safe_load((ROOT / 'dashboards/heating_poc.yaml').read_text(encoding='utf-8'))
+DASHBOARD_PATH = next(p for p in [
+    ROOT / 'home-assistant/dashboards/dashboard_historia.yaml',
+    ROOT.parents[1] / 'home-assistant/dashboards/dashboard_historia.yaml',
+] if p.exists())
+DASHBOARD = yaml.safe_load(DASHBOARD_PATH.read_text(encoding='utf-8'))
+POC_VIEW = next(view for view in DASHBOARD['views'] if view.get('path') == 'co1')
 
 
 def cards(value):
@@ -19,7 +24,7 @@ def cards(value):
 
 class DashboardTests(unittest.TestCase):
     def test_columns_and_controls(self):
-        view = DASHBOARD['views'][0]
+        view = POC_VIEW
         self.assertEqual(view['type'], 'sections')
         self.assertEqual(view['max_columns'], 3)
         left, middle, right = view['sections']
@@ -40,7 +45,7 @@ class DashboardTests(unittest.TestCase):
                 if scenario == 'ready': harness.decision()
                 data['sensor.hp_poc_status'] = State('sensor.hp_poc_status', 'brak_encji',
                     {'missing_entities': ['sensor.hp_poc_parter_komfort'] if scenario == 'missing' else []})
-                for card in cards(DASHBOARD):
+                for card in cards(POC_VIEW):
                     if card['type'] == 'markdown':
                         output = harness.render(card['content'], {})
                         self.assertIsInstance(output, str)
