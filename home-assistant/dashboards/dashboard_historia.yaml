@@ -1,0 +1,375 @@
+title: Dom · historia
+views:
+  - title: Historia pomiarów
+    path: historia
+    icon: mdi:chart-timeline-variant
+    type: panel
+    cards:
+      - type: custom:dom-history-card
+        time_zone: Europe/Warsaw
+        refresh_seconds: 300
+        entities:
+          garden: sensor.ogrod_termometr_ogrod_temperatura
+          pressure: sensor.srednie_cisnienie_paczkomatow
+          ground_floor: sensor.salon_termometr_salon
+          first_floor: sensor.korytarz_termometr_pietro
+          attic: sensor.sypialnia_termometr_poddasze_temperatura
+          outdoor_average: sensor.pompa_ciepla_ta_srednia_2h
+          gradient: input_number.pompa_ciepla_gradient_curve
+          co: sensor.garaz_pompa_ciepla_circuit_1_water_temp
+          cwu: sensor.garaz_pompa_ciepla_dhw_water_temp
+          outdoor: sensor.garaz_pompa_ciepla_outdoor_ambient_temp
+          heat_pump_power: sensor.pompa_ciepla_moc
+          pv: sensor.inverter_pv_power
+          grid: sensor.inverter_grid_power
+          battery: sensor.inverter_battery_power
+          home: sensor.inverter_load_power
+          soc: sensor.inverter_battery
+          water: sensor.7938279_24332_1042_water_current_flow
+
+  - title: Pompa ciepła - HiMitII
+    path: pompa-diagnostyka
+    icon: mdi:heat-pump-outline
+    type: panel
+    cards:
+      - type: custom:heat-pump-diagnostics-card
+        time_zone: Europe/Warsaw
+        refresh_seconds: 120
+        entities:
+          power: sensor.pompa_ciepla_moc
+          co: sensor.garaz_pompa_ciepla_circuit_1_water_temp
+          dhw: sensor.garaz_pompa_ciepla_dhw_water_temp
+          outdoor: sensor.garaz_pompa_ciepla_outdoor_ambient_temp
+          co_target: number.garaz_pompa_ciepla_circuit_1_setpoint
+          dhw_target: number.garaz_pompa_ciepla_dhw_setpoint
+          co_enabled: switch.garaz_pompa_ciepla_circuit_1_heating
+          dhw_enabled: switch.garaz_pompa_ciepla_domestic_hot_water
+
+  - title: Pompa ciepła - POC
+    path: co1
+    icon: mdi:heat-pump
+    type: sections
+    max_columns: 3
+    dense_section_placement: false
+    sections:
+      # LEWA KOLUMNA — wykresy bez akcji po kliknięciu.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Historia i temperatury
+            icon: mdi:chart-timeline-variant
+            heading_style: title
+          - type: custom:hp-poc-readonly-card
+            grid_options:
+              columns: full
+              rows: auto
+            card:
+              type: vertical-stack
+              cards:
+                - type: history-graph
+                  title: Parter · pomiar, regulacja i cel
+                  hours_to_show: 24
+                  entities:
+                    - entity: sensor.salon_termometr_salon
+                      name: Pomiar
+                    - entity: sensor.hp_poc_parter_komfort_trwaly
+                      name: Do regulacji · mediana 3 h
+                    - entity: input_number.hp_poc_cel_parter
+                      name: Temperatura zadana
+                - type: history-graph
+                  title: Piętro · pomiar, regulacja i cel
+                  hours_to_show: 24
+                  entities:
+                    - entity: sensor.korytarz_termometr_pietro
+                      name: Pomiar
+                    - entity: sensor.hp_poc_pietro_komfort_trwaly
+                      name: Do regulacji · mediana 3 h
+                    - entity: input_number.hp_poc_cel_pietro
+                      name: Temperatura zadana
+                - type: history-graph
+                  title: CO1 · temperatura wody
+                  hours_to_show: 24
+                  entities:
+                    - entity: sensor.hp_poc_co1_propozycja
+                      name: Cel obliczony przez POC
+                    - entity: number.garaz_pompa_ciepla_circuit_1_setpoint
+                      name: Nastawa w HiMitII
+                    - entity: sensor.garaz_pompa_ciepla_circuit_1_water_temp
+                      name: Zmierzona temperatura wody
+                - type: history-graph
+                  title: Na zewnątrz · pomiar i średnia
+                  hours_to_show: 24
+                  entities:
+                    - entity: sensor.garaz_pompa_ciepla_outdoor_ambient_temp
+                      name: Czujnik pompy
+                    - entity: sensor.hp_poc_outdoor_2h_trwaly
+                      name: Średnia do regulacji · 2 h
+                - type: history-graph
+                  title: CO1 · praca i przerwy
+                  hours_to_show: 24
+                  entities:
+                    - entity: switch.garaz_pompa_ciepla_circuit_1_heating
+                      name: Obieg CO1 włączony
+                    - entity: binary_sensor.hp_poc_obie_strefy_przegrzane
+                      name: Warunek STOP spełniony
+                    - entity: binary_sensor.hp_poc_potrzeba_grzania
+                      name: Warunek START spełniony
+
+      # ŚRODEK — jedyne miejsce z elementami edytowalnymi.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Sterowanie i stan
+            icon: mdi:tune-variant
+            heading_style: title
+          - type: vertical-stack
+            grid_options:
+              columns: full
+              rows: auto
+            cards:
+              - type: entities
+                title: Temperatury zadane w domu
+                show_header_toggle: false
+                entities:
+                  - entity: input_number.hp_poc_cel_parter
+                    name: Parter · cel
+                    icon: mdi:home-floor-0
+                    tap_action:
+                      action: none
+                    hold_action:
+                      action: none
+                  - entity: input_number.hp_poc_cel_pietro
+                    name: Piętro · cel
+                    icon: mdi:home-floor-1
+                    tap_action:
+                      action: none
+                    hold_action:
+                      action: none
+              - type: tile
+                entity: automation.ogrzewanie_poc_zapis_co1
+                name: Automatyczna nastawa wody CO1
+                icon: mdi:thermostat-auto
+                color: teal
+                tap_action:
+                  action: toggle
+                icon_tap_action:
+                  action: toggle
+                hold_action:
+                  action: none
+                double_tap_action:
+                  action: none
+                icon_hold_action:
+                  action: none
+                icon_double_tap_action:
+                  action: none
+              - type: tile
+                entity: input_boolean.hp_poc_auto_stop_co1
+                name: Auto STOP przy przegrzaniu
+                icon: mdi:pause-circle-outline
+                color: amber
+                tap_action:
+                  action: toggle
+                icon_tap_action:
+                  action: toggle
+                hold_action:
+                  action: none
+                double_tap_action:
+                  action: none
+                icon_hold_action:
+                  action: none
+                icon_double_tap_action:
+                  action: none
+              - type: tile
+                entity: switch.garaz_pompa_ciepla_circuit_1_heating
+                name: Ogrzewanie CO1 · ręczne ON/OFF
+                icon: mdi:radiator
+                color: orange
+                tap_action:
+                  action: toggle
+                icon_tap_action:
+                  action: toggle
+                hold_action:
+                  action: none
+                double_tap_action:
+                  action: none
+                icon_hold_action:
+                  action: none
+                icon_double_tap_action:
+                  action: none
+              - type: entities
+                title: Ręczna nastawa wody
+                show_header_toggle: false
+                entities:
+                  - entity: number.garaz_pompa_ciepla_circuit_1_setpoint
+                    name: CO1 · nastawa w HiMitII
+                    icon: mdi:thermometer-water
+                    tap_action:
+                      action: none
+                    hold_action:
+                      action: none
+              - type: markdown
+                title: Aktualne odczyty
+                content: |-
+                  {% macro temp(e) -%}
+                  {{ states(e) ~ ' °C' if is_number(states(e)) else 'Brak danych' }}
+                  {%- endmacro %}
+                  | Kondygnacja | Pomiar | Do regulacji · 3 h |
+                  | :--- | ---: | ---: |
+                  | Parter | {{ temp('sensor.salon_termometr_salon') }} | {{ temp('sensor.hp_poc_parter_komfort_trwaly') }} |
+                  | Piętro | {{ temp('sensor.korytarz_termometr_pietro') }} | {{ temp('sensor.hp_poc_pietro_komfort_trwaly') }} |
+
+                  | Woda CO1 | Temperatura |
+                  | :--- | ---: |
+                  | Cel obliczony przez POC | {{ temp('sensor.hp_poc_co1_propozycja') }} |
+                  | Nastawa odczytana z HiMitII | {{ temp('number.garaz_pompa_ciepla_circuit_1_setpoint') }} |
+                  | Pomiar temperatury wody | {{ temp('sensor.garaz_pompa_ciepla_circuit_1_water_temp') }} |
+
+                  **Przerwę rozpoczął POC (informacja):** {{ 'tak' if is_state('input_boolean.hp_poc_co1_wylaczony_przez_poc', 'on') else 'nie' }}. Ręczne OFF nie blokuje automatycznego START przy zapotrzebowaniu.
+              - type: markdown
+                title: Gotowość danych
+                content: |-
+                  {% set codes = {
+                    'brak_encji': 'Nie wszystkie encje zostały wczytane',
+                    'brak_inicjalizacji_celow': 'Cele temperatur nie zostały zainicjalizowane',
+                    'brak_swiezych_probek': 'Brakuje aktualnych próbek temperatury',
+                    'oczekiwanie_na_obliczenie': 'Oczekiwanie na najbliższe obliczenie',
+                    'blokada_danych_lub_rozgrzewanie': 'Zbieranie historii lub blokada danych wejściowych',
+                    'obliczenia_gotowe': 'Dane do obliczeń są gotowe',
+                    'unknown': 'Oczekiwanie na uruchomienie diagnostyki',
+                    'unavailable': 'Diagnostyka jest niedostępna'
+                  } %}
+                  **{{ codes.get(states('sensor.hp_poc_status'), 'Sprawdź stan danych') }}**
+
+                  | Próbki w oknie | Zebrane | Wymagane |
+                  | :--- | ---: | ---: |
+                  | Parter · 3 h | {{ states('sensor.hp_poc_parter_liczba_probek_trwaly') if is_number(states('sensor.hp_poc_parter_liczba_probek_trwaly')) else '—' }} | 29 |
+                  | Piętro · 3 h | {{ states('sensor.hp_poc_pietro_liczba_probek_trwaly') if is_number(states('sensor.hp_poc_pietro_liczba_probek_trwaly')) else '—' }} | 29 |
+                  | Zewnętrzna · 2 h | {{ states('sensor.hp_poc_outdoor_liczba_probek_trwaly') if is_number(states('sensor.hp_poc_outdoor_liczba_probek_trwaly')) else '—' }} | 20 |
+
+                  **Dane stref do STOP/START:** {{ 'gotowe' if is_state('binary_sensor.hp_poc_dane_stref_ok', 'on') else 'jeszcze niegotowe' }}.
+                  **Trend 12 h:** {{ 'gotowy' if state_attr('sensor.hp_poc_co1_propozycja', 'trend_ready') else 'jeszcze niegotowy' }}.
+
+                  {% set p = state_attr('sensor.hp_poc_pamiec', 'payload') or {} %}
+                  **Pamięć po restarcie:** {{ 'aktywna' if p.get('version') == 1 else 'jeszcze niewczytana' }}.
+                  **Potwierdzenie STOP / START:** {{ (p.get('hot_seconds', 0) / 60) | round(0) }} / {{ (p.get('cold_seconds', 0) / 60) | round(0) }} min z wymaganych 30 min.
+
+                  Krótki restart zachowuje ostatnio zapisany bufor. Większa luka w pomiarach może ponownie zablokować gotowość; brakujące minuty nie są dopisywane jako pomiary.
+
+                  {% for label, attr in [('Brakujące encje — sprawdź pakiet i restart HA', 'missing_entities'), ('Wejścia bez poprawnego odczytu', 'invalid_inputs')] %}
+                  {% set items = state_attr('sensor.hp_poc_status', attr) or [] %}
+                  {% if items %}
+                  **{{ label }}:**
+
+                  {% for e in items %}
+                  - `{{ e }}`
+                  {% endfor %}
+                  {% endif %}
+                  {% endfor %}
+
+              - type: markdown
+                title: Próby zapisu i diagnostyka
+                content: |-
+                  {% set power = 'sensor.pompa_ciepla_moc' %}
+                  **Pobór pompy:** {{ states(power) ~ ' ' ~ (state_attr(power, 'unit_of_measurement') or '') if is_number(states(power)) else 'Brak danych' }}.
+
+                  **Znacznik ostatniej próby nastawy CO1:**
+                  {{ states('input_datetime.hp_poc_ostatnia_proba') if states('input_datetime.hp_poc_ostatnia_proba') not in ['unknown', 'unavailable'] else 'Brak znacznika' }}.
+
+                  **Znacznik ostatniej próby START/STOP:**
+                  {{ states('input_datetime.hp_poc_ostatnia_proba_co1_on_off') if states('input_datetime.hp_poc_ostatnia_proba_co1_on_off') not in ['unknown', 'unavailable'] else 'Brak znacznika' }}.
+
+                  Znaczniki nie potwierdzają wykonania przez pompę. Pełne opisy wysłanych poleceń są w dzienniku HA.
+
+      # PRAWA KOLUMNA — decyzja, definicje i reguły POC.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Jak działa POC
+            icon: mdi:information-outline
+            heading_style: title
+          - type: vertical-stack
+            grid_options:
+              columns: full
+              rows: auto
+            cards:
+              - type: markdown
+                title: Bieżąca decyzja
+                content: |-
+                  {% set e = 'sensor.hp_poc_co1_propozycja' %}
+                  {% set reasons = {
+                    'ograniczenie_minimum_co1': 'Wynik osiągnął dolny limit nastawy HiMitII.',
+                    'ograniczenie_maksimum_co1': 'Wynik osiągnął górny limit nastawy.',
+                    'obnizanie_przegrzewanie': 'Co najmniej jedna kondygnacja jest przegrzana. Korekta obniża temperaturę wody.',
+                    'blokada_podnoszenia_zaklocenie_lub_cieplo': 'Podnoszenie nastawy jest wstrzymane: wykryto nagły spadek temperatury lub bieżące przegrzanie.',
+                    'korekta_niedogrzania': 'Korekta komfortu zwiększa temperaturę wody z powodu niedogrzania.',
+                    'pasmo_komfortu': 'Temperatury mieszczą się w paśmie komfortu. Nadal uwzględniana jest pogoda i dostępny trend.'
+                  } %}
+                  {% if is_number(states(e)) %}
+                  **Cel CO1: {{ states(e) }} °C**
+
+                  {{ reasons.get(state_attr(e, 'reason'), 'Algorytm obliczył nastawę wody.') }}
+
+                  | Składnik obliczenia | Wartość |
+                  | :--- | ---: |
+                  | Baza z temperatury zewnętrznej | {{ state_attr(e, 'base') }} °C |
+                  | Korekta komfortu i trendu | {{ state_attr(e, 'correction') }} °C |
+                  | Wynik przed limitami | {{ state_attr(e, 'unclamped') }} °C |
+                  | Dopuszczalny zakres | {{ state_attr(e, 'lower_limit') }}–{{ state_attr(e, 'upper_limit') }} °C |
+
+                  **Podnoszenie CO1:** {{ 'zablokowane' if state_attr(e, 'block_increase') else 'dozwolone przy spełnieniu pozostałych warunków' }}.
+                  {% else %}
+                  **Nie ma jeszcze poprawnego celu CO1.** Sprawdź „Gotowość danych”. Po pierwszej instalacji potrzeba około 2,5 h prawidłowych próbek.
+                  {% endif %}
+
+                  Cel obliczony nie oznacza, że polecenie zostało już wysłane.
+              - type: markdown
+                title: Co oznaczają temperatury?
+                content: |-
+                  **Pomiar** — aktualna temperatura z termometru kondygnacji.
+
+                  **Do regulacji · mediana 3 h** — środkowa wartość pomiarów z ostatnich 3 godzin. Tłumi krótkie skoki, ale uwzględnia trwałe przegrzewanie. Nie jest temperaturą zadaną.
+
+                  **Cel kondygnacji** — temperatura, którą chcesz uzyskać w domu.
+
+                  **Cel CO1 obliczony przez POC** — wynik algorytmu po limitach i zaokrągleniu.
+
+                  **Nastawa w HiMitII** — odczyt encji nastawy; po zapisie może być optymistyczny.
+
+                  **Pomiar wody CO1** — zmierzona temperatura wody, która może różnić się od nastawy.
+              - type: markdown
+                title: Jak zmienia się nastawa wody?
+                content: |-
+                  Baza: **20 + 0,2 × (20 − średnia zewnętrzna 2 h)**.
+
+                  Korekta uwzględnia wnętrza i dostępny trend 12 h; jej limit to ±2°C. Zapis: tylko inna nastawa, pełne stopnie, najwyżej **1°C co 2 godziny**, przy włączonym CO1 i poprawnych danych.
+
+                  Ręczna zmiana nastawy rozpoczyna nowy odstęp 2 h. Aby utrzymać ją ręcznie, wyłącz „Automatyczna nastawa wody CO1”.
+
+                  Krótki restart HA nie rozpoczyna odstępu od nowa. POC pamięta rzeczywistą zmianę nastawy i stanu CO1. Po luce ponad 20 min przyjmuje ostrożnie nowy początek odliczania.
+
+                  Wspólny obieg bez zaworów nie zapewnia niezależnego utrzymania obu temperatur.
+              - type: markdown
+                title: Kiedy auto STOP wyłącza grzanie?
+                content: |-
+                  **STOP:** obie mediany ≥ własny cel +0,4°C przez 30 minut.
+
+                  **START:** jedna mediana ≤ własny cel −0,2°C przez 30 minut, bez nagłego spadku wskazującego na wietrzenie.
+
+                  Dla obecnych celów:
+
+                  - STOP: parter ≥ {{ (states('input_number.hp_poc_cel_parter') | float(21) + 0.4) | round(1) }}°C **i** piętro ≥ {{ (states('input_number.hp_poc_cel_pietro') | float(22) + 0.4) | round(1) }}°C.
+                  - START: parter ≤ {{ (states('input_number.hp_poc_cel_parter') | float(21) - 0.2) | round(1) }}°C **lub** piętro ≤ {{ (states('input_number.hp_poc_cel_pietro') | float(22) - 0.2) | round(1) }}°C.
+
+                  Minimum **2 h pracy i 2 h przerwy**. Przy włączonym auto STOP wznawia CO1 także po ręcznym wyłączeniu, gdy spełniony jest warunek temperatury. Nie odcina zasilania pompy ani CWU.
+              - type: markdown
+                title: Sterowanie ręczne i brak danych
+                content: |-
+                  Automatyczna nastawa wody i auto STOP to **dwie niezależne funkcje**.
+
+                  Wyłączenie auto STOP pozostawia CO1 w dotychczasowym stanie. Aby wznowić ogrzewanie od razu, użyj ręcznego ON/OFF CO1.
+
+                  Przy włączonym auto STOP ręczne OFF jest przerwą tymczasową: POC może ponownie włączyć CO1 według temperatur. Aby pozostawić ogrzewanie wyłączone na stałe, wyłącz auto STOP i CO1.
+
+                  Brak danych blokuje nowe wyłączenie. Po 30 min utraty danych stref podczas przerwy POC następuje wznowienie po minimalnym czasie przerwy.
+
+                  Wykres pracy CO1 pokazuje włączenie obiegu, **nie pracę sprężarki**. Odczyt HiMitII nie jest niezależnym potwierdzeniem wykonania polecenia.

@@ -6,7 +6,9 @@ Hisense (`number.set_value`). Nie jest to jeszcze custom integration.
 
 **Po instalacji zapis jest aktywny**, gdy dane i filtry są gotowe.
 Nie przełącza trybu pracy pompy: Hisense należy ustawić na stałą temperaturę
-CO1. Nie zmienia CWU, sprężarki, pomp, zaworów ani demand.
+CO1. Opcjonalnie może wyłączać i włączać sam obieg CO1 przez jego przełącznik
+HiMitII. Nie odcina zasilania urządzenia ani nie zmienia CWU, sprężarki,
+pomp obiegowych, zaworów ani demand bezpośrednio.
 
 ## Instalacja
 
@@ -17,7 +19,10 @@ CO1. Nie zmienia CWU, sprężarki, pomp, zaworów ani demand.
    Nastawa musi być encją `number` w °C z krokiem 1 i liczbowymi min/max.
 2. Sprawdź, czy istniejąca automatyzacja nie zapisuje tej samej nastawy.
    W danym momencie powinien działać jeden regulator CO1.
-3. Skopiuj plik pakietu do `/config/packages/heat_pump_steering_poc.yaml`.
+3. Skopiuj oba pakiety do `/config/packages/`:
+   `heat_pump_steering_poc.yaml` i `heat_pump_steering_memory.yaml`.
+   Skopiuj też `custom_templates/hp_poc_memory.jinja` do
+   `/config/custom_templates/hp_poc_memory.jinja`.
    W `configuration.yaml` użyj istniejącej konfiguracji pakietów, np.:
 
    ```yaml
@@ -27,12 +32,20 @@ CO1. Nie zmienia CWU, sprężarki, pomp, zaworów ani demand.
 
    Nie twórz drugiej sekcji `homeassistant`. Jeśli używasz innego sposobu
    wczytywania pakietów, zachowaj go.
-4. W HA sprawdź konfigurację, a następnie uruchom HA ponownie.
+4. Przy pierwszej instalacji sprawdź konfigurację, a następnie uruchom HA ponownie.
    Pakiet tworzy sensory statystyczne i helpery; nie wystarczy przeładować
    samych automatyzacji. Potrzebna współczesna wersja HA obsługująca
    `default_entity_id` i `last_reported` (projekt przygotowany dla HA 2026.11).
-5. Utwórz dashboard i wklej `dashboards/heating_poc.yaml` jako jego surową
-   konfigurację. Nie wymaga kart HACS.
+5. Skopiuj `home-assistant/www/hp-poc-readonly-card.js` do
+   `/config/www/hp-poc-readonly-card.js`. W zasobach dashboardów HA dodaj
+   `/local/hp-poc-readonly-card.js?v=1` jako **moduł JavaScript**. Jeśli zasoby
+   są zarządzane w YAML, dodaj ten adres z `type: module` do istniejącego
+   `lovelace.resources`. Nie tworzy się drugiej sekcji `lovelace`.
+6. POC jest zakładką `co1` wspólnego dashboardu Historia w pliku
+   `home-assistant/dashboards/dashboard_historia.yaml`. Zaktualizuj tę zakładkę
+   w surowej konfiguracji dashboardu, zachowując istniejące widoki historii
+   i diagnostyki HiMitII oraz ich zasoby. Sam widok POC nie wymaga HACS.
+   Po dodaniu zasobu odśwież przeglądarkę.
 
 Przy pierwszym uruchomieniu cele zostaną ustawione na **21°C / 22°C**.
 Późniejsze zmiany z dashboardu są odtwarzane po restarcie. Nie wyłączaj
@@ -43,6 +56,143 @@ Encja automatyzacji powinna otrzymać nazwę
 wcześniej istniały encje o tych nazwach. Wyłączenie tej automatyzacji zatrzymuje
 zapis, ale pozostawia obliczenia i historię. Nie przywraca poprzedniej nastawy.
 **Usunięcie pakietu również pozostawia ostatnią nastawę w pompie.**
+
+## Układ dashboardu
+
+Na szerokim ekranie panel ma trzy stałe sekcje:
+
+- **Po lewej — Historia i temperatury.** Osobne wykresy parteru, piętra,
+  wody CO1, temperatury zewnętrznej i pracy/przerw obiegu. Wszystkie legendy
+  mają czytelne nazwy zamiast identyfikatorów `hp_poc_*`.
+- **Pośrodku — Sterowanie i stan.** Cele kondygnacji, automatyczna nastawa
+  wody, auto STOP, ręczne ON/OFF obiegu i ręczna nastawa wody. Pod nimi
+  znajdują się nieedytowalne tabele bieżących odczytów, gotowości danych
+  i diagnostyki. Znaczniki prób zapisu nie są już polami do edycji.
+- **Po prawej — Jak działa POC.** Bieżąca decyzja wyrażona po polsku,
+  składniki obliczenia, słownik temperatur i reguły STOP/START. Progi w opisie
+  uwzględniają aktualne cele kondygnacji.
+
+Na węższym ekranie sekcje układają się kolejno pod sobą. Kolumny nie mieszają
+kart automatycznie. Panel korzysta z bieżącego motywu HA.
+
+Karty tylko do odczytu nie otwierają okien ani nie przełączają encji.
+Wykresy zachowują podgląd po najechaniu. Mała lokalna karta
+`hp-poc-readonly-card` otacza natywne wykresy HA i blokuje kliknięcia,
+podwójne kliknięcia, aktywację klawiaturą i zdarzenia more-info; nie wywołuje
+żadnych usług i nie zmienia danych. Tabele są natywnymi kartami Markdown.
+
+Jeśli aktualizujesz wyłącznie układ panelu, wystarczy dodać powyższy plik
+JavaScript i zasób, podmienić YAML dashboardu i odświeżyć stronę.
+**Pakiet automatyzacji pozostaje ten sam — nie trzeba restartować HA ani
+ponownie rozgrzewać filtrów.** Komunikat „Custom element doesn't exist:
+hp-poc-readonly-card” oznacza, że zasób nie został załadowany.
+
+## Opcjonalny auto STOP CO1 przy przegrzaniu
+
+Nowy przełącznik dashboardu **„auto STOP przy przegrzaniu”**
+(`input_boolean.hp_poc_auto_stop_co1`) jest przy pierwszej instalacji wyłączony.
+Po włączeniu jego stan jest odtwarzany po restarcie. Moduł działa niezależnie
+od automatyzacji zapisu temperatury wody; wyłączenie samego zapisu CO1
+nie wyłącza auto STOP.
+
+| Działanie | Warunek |
+| --- | --- |
+| STOP CO1 | Mediany 3 h **obu** stref ≥ własny cel +0,4°C nieprzerwanie przez 30 min |
+| START CO1 | Mediana 3 h **co najmniej jednej** strefy ≤ własny cel −0,2°C przez 30 min; brak nagłego spadku pomiaru o ponad 0,7°C względem mediany |
+| Minimalny czas stanu | CO1 musi być w obecnym stanie przez co najmniej 2 h przed zmianą |
+| Ponowienie po błędzie | Najwcześniej po 15 min, nie co minutę |
+| Utrata danych podczas przerwy POC | Po 30 min nieprawidłowych danych powrót do grzania Hisense, z zachowaniem minimum 2 h przerwy |
+
+Dla celów 21/22°C STOP oznacza mediany ≥21,4/22,4°C. START oznacza
+≤20,8°C na parterze lub ≤21,8°C na piętrze. Progi są startowymi parametrami
+POC; edytuje się je w szablonach nowych `binary_sensor`. Reguła „obie strefy”
+chroni chłodniejszą kondygnację przed wyłączeniem przez cieplejszą. Przy
+wznowieniu z powodu jednej strefy druga może być cieplejsza — nadal jest to
+wspólny obieg bez zaworów.
+
+Polecenia idą wyłącznie do
+`switch.garaz_pompa_ciepla_circuit_1_heating` (w HiMitII: `c1_SW_ON`).
+Nie używamy wyłącznika licznika Tuya ani nadrzędnego wyłącznika pompy.
+Hisense zachowuje własną obsługę sprężarki, CWU i ochrony urządzenia.
+
+Przy włączonej opcji auto STOP **POC może wznowić także ręcznie wyłączony
+CO1**, gdy temperatury spełnią warunek START. Pochodzenie wyłączenia nie
+blokuje wznowienia według temperatur. Nadal obowiązują świeże dane,
+potwierdzenie 30 min, minimum 2 h przerwy i odstęp od ostatniej próby.
+
+Ręczne OFF jest więc przerwą tymczasową. Aby pozostawić CO1 wyłączony
+bez automatycznego wznowienia, wyłącz auto STOP i CO1. Wyłączenie opcji
+**pozostawia bieżący stan CO1**; ponowne jej włączenie ponownie zezwala
+na START według temperatur, również gdy obieg już jest wyłączony.
+
+Flaga „CO1 wstrzymany przez POC” pozostaje informacyjna dla zwykłego START.
+Ogranicza tylko powrót awaryjny przy utracie danych: ten powrót jest dozwolony
+wyłącznie po przerwie rozpoczętej przez POC. Brak danych po ręcznym OFF sam
+w sobie nie uruchomi ogrzewania. Ręczne włączenie CO1 lub wyłączenie opcji
+kasuje flagę; nie trzeba jej ustawiać ręcznie.
+
+Brak danych stref blokuje nowe wyłączenie. Obsługa ON/OFF opiera się na
+temperaturach wnętrza, niezależnie od dostępności outdoor i temperatury wody,
+żeby postój obiegu nie blokował wznowienia. Nieudana próba OFF nie oznacza
+przejęcia sterowania: flagę ustawiamy dopiero po powrocie akcji i stanie OFF
+encji HA. To nadal nie jest niezależne potwierdzenie z chmury — HiMitII
+może aktualizować optymistycznie. Dziennik opisuje wysłane polecenia.
+
+Pamięć POC odtwarza potwierdzenia temperatury, czasy zmiany CO1 i nastawy.
+Krótki restart nie rozpoczyna od nowa 2 h blokady ani 30 min potwierdzenia.
+Minuty bez obserwacji nie powiększają potwierdzenia. Luka ponad 20 min
+powoduje ostrożne rozpoczęcie potwierdzeń i blokad czasowych od nowa.
+Usunięcie pakietu nie włącza CO1, jeżeli moduł wcześniej go wyłączył.
+
+Aktualizacja działającego POC: patrz procedura pamięci poniżej. Opcja
+auto STOP pozostaje niezależnym przełącznikiem i zachowuje ustawienie użytkownika.
+
+## Pamięć odporna na krótkie restarty
+
+`sensor.hp_poc_pamiec` jest trigger-based template sensor, którego stan
+i atrybuty HA odtwarza. Przechowuje ograniczony bufor pełnych próbek
+co 5 min (także przy stałej temperaturze), historię median do trendu oraz
+czasy zmian i potwierdzeń. Obliczenia są współdzielone w makrach
+`custom_templates/hp_poc_memory.jinja`.
+
+Dotychczasowe sensory Statistics pozostają do porównania. Sterowanie
+i zakładka POC korzystają teraz z sensorów z końcówką `_trwaly`,
+wyliczanych z pełnego bufora. Nie odtwarzają próbek tylko ze zmian wartości
+w Recorderze. Identyfikatory istniejących urządzeń i automatyzacji zachowano.
+
+- Krótki restart zachowuje ostatnio utrwalone próbki i czasy zamiast
+  wymuszać ponowne 2,5–3 h zbierania oraz 2 h stabilnej nastawy.
+- Brakujące próbki nie są dopisywane. Luka ponad 20 min blokuje gotowość
+  danego okna do czasu jej wyjścia z okna. Progi pokrycia 80% i 29/29/20
+  rzeczywistych próbek nadal obowiązują.
+- Potwierdzenia STOP/START gromadzą 30 min poprawnych obserwacji. Przy
+  krótkiej przerwie czas jest zachowany i wstrzymany, a nie powiększany
+  o całą przerwę. Zmiana celów zeruje potwierdzenie, ale zachowuje pomiary.
+- Przy luce ponad 20 min POC nie zakłada, że stan urządzenia pozostał
+  niezmieniony: zaczyna blokadę czasową ostrożnie od nowego odczytu.
+- Odtwarzanie korzysta z punktu zapisu HA. Nagła utrata procesu/zasilania
+  może utracić najnowszy fragment od ostatniego zapisu. Bufor nie zastępuje
+  niezależnego zasilania ani ochrony sprzętowej.
+
+### Aktualizacja istniejącego POC bez pełnego restartu
+
+1. Zachowaj kopie aktualnych plików. Dodaj makro `.jinja` i drugi pakiet
+   pamięci, a następnie podmień główny pakiet.
+2. Wykonaj `homeassistant.check_config` i usuń ewentualne błędy przed
+   przeładowaniem.
+3. Wykonaj `homeassistant.reload_custom_templates`, potem `template.reload`,
+   a następnie `automation.reload`. Nie przeładowuj Statistics — stare
+   sensory zostają wyłącznie porównawcze. Nie jest potrzebny restart HA.
+4. Zaktualizuj tylko zakładkę POC w swoim wspólnym dashboardzie Historia.
+   Karta JavaScript pozostaje bez zmian.
+5. Sprawdź `sensor.hp_poc_pamiec` (atrybut `payload`, wersja 1) i nowe
+   sensory z końcówką `_trwaly`. Przy pierwszej migracji nowy bufor jest
+   pusty i zbiera historię jeden raz; późniejsze krótkie restarty go nie zerują.
+
+Cofnięcie migracji: przywróć poprzedni główny pakiet i zakładkę dashboardu,
+potem przeładuj szablony i automatyzacje. Nowy bufor może pozostać nieużywany;
+nie trzeba usuwać encji ani danych historii. W aktualizacji nie obniżamy
+limitów temperatury ani nie wydajemy testowych poleceń pompie.
 
 ## Algorytm
 
@@ -79,7 +229,7 @@ aktualnie 30°C, cel 27°C → zapis 29°C, po co najmniej 2 h następny krok.
 Odstęp liczony jest od późniejszego z: ostatniej próby zapisu POC oraz
 ostatniej zmiany encji nastawy (także ręcznej). Termin próby zapisywany jest
 przed poleceniem, więc błąd chmury nie wywołuje serii szybkich ponowień.
-Po restarcie HA obowiązuje ponownie minimum 2 h stabilnej nastawy. Jeżeli
+Po krótkim restarcie odliczanie jest kontynuowane z pamięci POC. Jeżeli
 bieżąca nastawa leży daleko poza zakresem POC, pakiet nie wykona kroku poza
 tym zakresem — wymaga doprowadzenia nastawy do zakresu ręcznie.
 
@@ -136,6 +286,20 @@ Testy wykonują szablony Jinja bez połączenia z HA: przegrzewanie, konflikt
 stref, trend, zaokrąglanie, kroki, filtry rozruchowe, brakujące/stare dane,
 limity, brak zmiany i odstępy zapisu. Nie zastępują sprawdzenia konfiguracji
 w docelowym HA ani testu komunikacji z pompą.
+
+Testy dashboardu sprawdzają również układ kolumn i renderowanie opisów
+przy kompletnych, brakujących i pustych danych. Test karty w prawdziwej
+przeglądarce (z lokalną atrapą karty natywnej, bez połączenia z HA):
+
+```text
+npm install --no-save playwright
+node tests/test_readonly_card.cjs
+```
+
+Wymaga zainstalowanego Chrome; dla Edge ustaw `POC_BROWSER_CHANNEL=msedge`.
+Sprawdza blokadę aktywacji, pozostawienie podglądu po najechaniu, aktualizację
+danych i brak wpływu na przyciski poza kartą. Nie jest wizualnym odbiorem
+dashboardu w działającej instancji HA.
 
 Dokumentacja HA: [Statistics](https://www.home-assistant.io/integrations/statistics/),
 [Template](https://www.home-assistant.io/integrations/template/),
