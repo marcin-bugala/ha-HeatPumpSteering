@@ -1,632 +1,549 @@
-# POC F02 — pakiet HA, nie YAML pojedynczej automatyzacji.
-# Wymaga trybu stałej temperatury CO1 w Hisense. Zapis jest AKTYWNY.
-# Aby zatrzymać zapis: wyłącz automation.ogrzewanie_poc_zapis_co1.
-# MAPOWANIE: przy zmianie encji źródłowej zamień jej wszystkie wystąpienia.
-# CO1: number.garaz_pompa_ciepla_circuit_1_setpoint
-# Wnętrza: sensor.salon_termometr_salon, sensor.korytarz_termometr_pietro
-# Outdoor: sensor.garaz_pompa_ciepla_outdoor_ambient_temp
-# Woda CO1: sensor.garaz_pompa_ciepla_circuit_1_water_temp
-
 input_number:
   hp_poc_cel_parter:
-    name: "Ogrzewanie POC · cel parter"
+    name: Ogrzewanie POC · cel parter
     min: 18
     max: 24
     step: 0.1
-    unit_of_measurement: "°C"
+    unit_of_measurement: °C
     mode: box
   hp_poc_cel_pietro:
-    name: "Ogrzewanie POC · cel piętro"
+    name: Ogrzewanie POC · cel piętro
     min: 18
     max: 24
     step: 0.1
-    unit_of_measurement: "°C"
+    unit_of_measurement: °C
     mode: box
-
 input_boolean:
   hp_poc_auto_stop_co1:
-    name: "Ogrzewanie POC · auto STOP przy przegrzaniu"
+    name: Ogrzewanie POC · auto STOP przy przegrzaniu
     icon: mdi:thermostat-auto
   hp_poc_co1_wylaczony_przez_poc:
-    name: "Ogrzewanie POC · CO1 wstrzymany przez POC"
+    name: Ogrzewanie POC · CO1 wstrzymany przez POC
     icon: mdi:pause-circle
   hp_poc_cele_zainicjalizowane:
-    name: "Ogrzewanie POC · cele zainicjalizowane"
-
+    name: Ogrzewanie POC · cele zainicjalizowane
 input_datetime:
   hp_poc_ostatnia_proba_co1_on_off:
-    name: "Ogrzewanie POC · ostatnia próba ON/OFF"
+    name: Ogrzewanie POC · ostatnia próba ON/OFF
     has_date: true
     has_time: true
   hp_poc_ostatnia_proba:
-    name: "Ogrzewanie POC · ostatnia próba zapisu"
+    name: Ogrzewanie POC · ostatnia próba zapisu
     has_date: true
     has_time: true
-
-# Regularne próbkowanie zapobiega nadaniu większej wagi czujnikowi,
-# który częściej raportuje. Brakujące/stare próbki nie stają się zerami.
 template:
-  # Działa także bez statystyk: odróżnia brak encji od pustej historii.
-  - binary_sensor:
-      - name: hp_poc_dane_stref_ok
-        unique_id: hp_poc_dane_stref_ok
-        default_entity_id: binary_sensor.hp_poc_dane_stref_ok
-        state: >-
-          {% set ns = namespace(ok=true) %}
-          {% for e in ['sensor.salon_termometr_salon', 'sensor.korytarz_termometr_pietro'] %}
-            {% set s = states[e] %}
-            {% if s is not defined or not is_number(s.state)
-                  or not (10 <= s.state | float(0) <= 35)
-                  or not (0 <= as_timestamp(now()) - as_timestamp(s.last_reported, 0) < 7200) %}
-              {% set ns.ok = false %}
-            {% endif %}
-          {% endfor %}
-          {{ ns.ok and is_state('input_boolean.hp_poc_cele_zainicjalizowane', 'on')
-             and is_number(states('input_number.hp_poc_cel_parter'))
-             and is_number(states('input_number.hp_poc_cel_pietro'))
-             and is_number(states('sensor.hp_poc_parter_komfort'))
-             and is_number(states('sensor.hp_poc_pietro_komfort'))
-             and state_attr('sensor.hp_poc_parter_komfort', 'age_coverage_ratio') | float(0) >= 0.8
-             and state_attr('sensor.hp_poc_pietro_komfort', 'age_coverage_ratio') | float(0) >= 0.8
-             and states('sensor.hp_poc_parter_liczba_probek') | int(0) >= 29
-             and states('sensor.hp_poc_pietro_liczba_probek') | int(0) >= 29 }}
-      - name: hp_poc_obie_strefy_przegrzane
-        unique_id: hp_poc_obie_strefy_przegrzane
-        default_entity_id: binary_sensor.hp_poc_obie_strefy_przegrzane
-        delay_on:
-          minutes: 30
-        state: >-
-          {{ is_state('binary_sensor.hp_poc_dane_stref_ok', 'on')
-             and states('sensor.hp_poc_parter_komfort') | float(0) >= states('input_number.hp_poc_cel_parter') | float(0) + 0.4
-             and states('sensor.hp_poc_pietro_komfort') | float(0) >= states('input_number.hp_poc_cel_pietro') | float(0) + 0.4 }}
-      - name: hp_poc_potrzeba_grzania
-        unique_id: hp_poc_potrzeba_grzania
-        default_entity_id: binary_sensor.hp_poc_potrzeba_grzania
-        delay_on:
-          minutes: 30
-        state: >-
-          {% set a = states('sensor.hp_poc_parter_komfort') | float(0) %}
-          {% set b = states('sensor.hp_poc_pietro_komfort') | float(0) %}
-          {{ is_state('binary_sensor.hp_poc_dane_stref_ok', 'on')
-             and (a <= states('input_number.hp_poc_cel_parter') | float(0) - 0.2
-                  or b <= states('input_number.hp_poc_cel_pietro') | float(0) - 0.2)
-             and states('sensor.salon_termometr_salon') | float(0) >= a - 0.7
-             and states('sensor.korytarz_termometr_pietro') | float(0) >= b - 0.7 }}
-      - name: hp_poc_brak_danych_stref
-        unique_id: hp_poc_brak_danych_stref
-        default_entity_id: binary_sensor.hp_poc_brak_danych_stref
-        delay_on:
-          minutes: 30
-        state: "{{ not is_state('binary_sensor.hp_poc_dane_stref_ok', 'on') }}"
-    sensor:
-      - name: hp_poc_status
-        unique_id: hp_poc_status
-        default_entity_id: sensor.hp_poc_status
-        state: >-
-          {% set required = ['sensor.hp_poc_probka_parter', 'sensor.hp_poc_probka_pietro',
-                             'sensor.hp_poc_probka_outdoor', 'sensor.hp_poc_parter_komfort',
-                             'sensor.hp_poc_pietro_komfort', 'sensor.hp_poc_outdoor_2h',
-                             'sensor.hp_poc_parter_liczba_probek', 'sensor.hp_poc_pietro_liczba_probek',
-                             'sensor.hp_poc_outdoor_liczba_probek', 'sensor.hp_poc_parter_zmiana_12h',
-                             'sensor.hp_poc_pietro_zmiana_12h'] %}
-          {% set existing = states | map(attribute='entity_id') | list %}
-          {% set ns = namespace(missing=false) %}
-          {% for e in required %}
-            {% if e not in existing %}{% set ns.missing = true %}{% endif %}
-          {% endfor %}
-          {% if ns.missing %}brak_encji
-          {% elif not is_state('input_boolean.hp_poc_cele_zainicjalizowane', 'on') %}brak_inicjalizacji_celow
-          {% elif states('sensor.hp_poc_probka_parter') in ['unknown', 'unavailable']
-               or states('sensor.hp_poc_probka_pietro') in ['unknown', 'unavailable']
-               or states('sensor.hp_poc_probka_outdoor') in ['unknown', 'unavailable'] %}brak_swiezych_probek
-          {% elif states('sensor.hp_poc_co1_propozycja') == 'unknown' %}oczekiwanie_na_obliczenie
-          {% elif not is_number(states('sensor.hp_poc_co1_propozycja')) %}blokada_danych_lub_rozgrzewanie
-          {% else %}obliczenia_gotowe{% endif %}
-        attributes:
-          missing_entities: >-
-            {% set existing = states | map(attribute='entity_id') | list %}
-            {% set required = ['sensor.hp_poc_probka_parter', 'sensor.hp_poc_probka_pietro',
-                               'sensor.hp_poc_probka_outdoor', 'sensor.hp_poc_parter_komfort',
-                               'sensor.hp_poc_pietro_komfort', 'sensor.hp_poc_outdoor_2h',
-                               'sensor.hp_poc_parter_liczba_probek', 'sensor.hp_poc_pietro_liczba_probek',
-                               'sensor.hp_poc_outdoor_liczba_probek', 'sensor.hp_poc_parter_zmiana_12h',
-                               'sensor.hp_poc_pietro_zmiana_12h'] %}
-            {% set ns = namespace(items=[]) %}
-            {% for e in required %}
-              {% if e not in existing %}{% set ns.items = ns.items + [e] %}{% endif %}
-            {% endfor %}
-            {{ ns.items }}
-          invalid_inputs: >-
-            {% set ns = namespace(items=[]) %}
-            {% for e in ['sensor.salon_termometr_salon', 'sensor.korytarz_termometr_pietro',
-                         'sensor.garaz_pompa_ciepla_outdoor_ambient_temp',
-                         'sensor.garaz_pompa_ciepla_circuit_1_water_temp',
-                         'number.garaz_pompa_ciepla_circuit_1_setpoint'] %}
-              {% if not is_number(states(e)) %}{% set ns.items = ns.items + [e] %}{% endif %}
-            {% endfor %}
-            {{ ns.items }}
-          next_calculation: "Co 5 minut, w 30. sekundzie minuty"
-
-  - triggers:
-      - trigger: time_pattern
-        minutes: "/5"
-        seconds: "0"
-    sensor:
-      - name: hp_poc_probka_parter
-        unique_id: hp_poc_probka_parter
-        default_entity_id: sensor.hp_poc_probka_parter
-        unit_of_measurement: "°C"
-        device_class: temperature
-        attributes:
-          sampled_at: "{{ now().isoformat() }}"
-        availability: >-
-          {% set s = states.sensor.salon_termometr_salon %}
-          {{ s is defined and is_number(s.state)
-             and 10 <= s.state | float <= 35
-             and 0 <= as_timestamp(now()) - as_timestamp(s.last_reported, 0) < 7200 }}
-        state: "{{ states('sensor.salon_termometr_salon') | float(0) }}"
-      - name: hp_poc_probka_pietro
-        unique_id: hp_poc_probka_pietro
-        default_entity_id: sensor.hp_poc_probka_pietro
-        unit_of_measurement: "°C"
-        device_class: temperature
-        attributes:
-          sampled_at: "{{ now().isoformat() }}"
-        availability: >-
-          {% set s = states.sensor.korytarz_termometr_pietro %}
-          {{ s is defined and is_number(s.state)
-             and 10 <= s.state | float <= 35
-             and 0 <= as_timestamp(now()) - as_timestamp(s.last_reported, 0) < 7200 }}
-        state: "{{ states('sensor.korytarz_termometr_pietro') | float(0) }}"
-      - name: hp_poc_probka_outdoor
-        unique_id: hp_poc_probka_outdoor
-        default_entity_id: sensor.hp_poc_probka_outdoor
-        unit_of_measurement: "°C"
-        device_class: temperature
-        attributes:
-          sampled_at: "{{ now().isoformat() }}"
-        availability: >-
-          {% set s = states.sensor.garaz_pompa_ciepla_outdoor_ambient_temp %}
-          {{ s is defined and is_number(s.state)
-             and -35 <= s.state | float <= 35
-             and 0 <= as_timestamp(now()) - as_timestamp(s.last_reported, 0) < 1800 }}
-        state: "{{ states('sensor.garaz_pompa_ciepla_outdoor_ambient_temp') | float(0) }}"
-
-  - triggers:
-      - trigger: time_pattern
-        minutes: "/5"
-        seconds: "30"
-    actions:
-      - variables:
-          # Minimum pochodzi wyłącznie z encji aktualnej integracji HiMitII.
-          # Górny limit POC dodatkowo ogranicza maksymalną nastawę do 35°C.
-          co1_entity: number.garaz_pompa_ciepla_circuit_1_setpoint
-          poc_max: 35
-          gradient: 0.2
-          deadband: 0.2
-          gain: 1.5
-          correction_limit: 2
-          ground: "{{ states('sensor.hp_poc_parter_komfort') | float(0) }}"
-          upper: "{{ states('sensor.hp_poc_pietro_komfort') | float(0) }}"
-          outdoor: "{{ states('sensor.hp_poc_outdoor_2h') | float(0) }}"
-          target_ground: "{{ states('input_number.hp_poc_cel_parter') | float(21) }}"
-          target_upper: "{{ states('input_number.hp_poc_cel_pietro') | float(22) }}"
-          trend_ready: >-
-            {{ is_number(states('sensor.hp_poc_parter_zmiana_12h'))
-               and is_number(states('sensor.hp_poc_pietro_zmiana_12h'))
-               and state_attr('sensor.hp_poc_parter_zmiana_12h', 'age_coverage_ratio') | float(0) >= 0.8
-               and state_attr('sensor.hp_poc_pietro_zmiana_12h', 'age_coverage_ratio') | float(0) >= 0.8 }}
-      - variables:
-          lower: >-
-            {{ state_attr(co1_entity, 'min') | float(0) | round(0, 'ceil') | int }}
-          ceiling: >-
-            {{ [poc_max, state_attr(co1_entity, 'max') | float(poc_max)] | min | round(0, 'floor') | int }}
-          error_ground: "{{ target_ground - ground }}"
-          error_upper: "{{ target_upper - upper }}"
-          base: "{{ 20 + gradient * (20 - outdoor) }}"
-          # Zmiana mediany komfortu w 12h, nie trend surowych pików.
-          warming: >-
-            {% set a = states('sensor.hp_poc_parter_zmiana_12h') | float(0) %}
-            {% set b = states('sensor.hp_poc_pietro_zmiana_12h') | float(0) %}
-            {{ [a, b] | max if trend_ready else 0 }}
-          data_ok: >-
-            {% set ns = namespace(ok=true) %}
-            {% for entity in ['sensor.hp_poc_probka_parter', 'sensor.hp_poc_probka_pietro',
-                              'sensor.hp_poc_probka_outdoor', 'sensor.hp_poc_parter_komfort',
-                              'sensor.hp_poc_pietro_komfort', 'sensor.hp_poc_outdoor_2h',
-                              'input_number.hp_poc_cel_parter', 'input_number.hp_poc_cel_pietro',
-                              'sensor.garaz_pompa_ciepla_circuit_1_water_temp', co1_entity] %}
-              {% if not is_number(states(entity)) %}{% set ns.ok = false %}{% endif %}
-            {% endfor %}
-            {% set water = states.sensor.garaz_pompa_ciepla_circuit_1_water_temp %}
-            {{ ns.ok and water is defined
-               and 0 <= as_timestamp(now()) - as_timestamp(water.last_reported, 0) < 1800
-               and 5 <= states(water.entity_id) | float(0) <= 65
-               and state_attr(co1_entity, 'unit_of_measurement') == '°C'
-               and is_number(state_attr(co1_entity, 'min'))
-               and is_number(state_attr(co1_entity, 'max'))
-               and state_attr(co1_entity, 'step') | float(0) == 1
-               and state_attr('sensor.hp_poc_parter_komfort', 'age_coverage_ratio') | float(0) >= 0.8
-               and state_attr('sensor.hp_poc_pietro_komfort', 'age_coverage_ratio') | float(0) >= 0.8
-               and state_attr('sensor.hp_poc_outdoor_2h', 'age_coverage_ratio') | float(0) >= 0.8
-               and states('sensor.hp_poc_parter_liczba_probek') | int(0) >= 29
-               and states('sensor.hp_poc_pietro_liczba_probek') | int(0) >= 29
-               and states('sensor.hp_poc_outdoor_liczba_probek') | int(0) >= 20
-               and is_state('input_boolean.hp_poc_cele_zainicjalizowane', 'on') }}
-      - variables:
-          # Jeśli któraś strefa przegrzana: ważniejszy jest jej błąd.
-          # W pozostałych przypadkach obie kondygnacje mają równą wagę.
-          error: >-
-            {{ [error_ground, error_upper] | min
-               if [error_ground, error_upper] | min < -deadband
-               else (error_ground + error_upper) / 2 }}
-          block_increase: >-
-            {{ states('sensor.hp_poc_probka_parter') | float(0) < ground - 0.7
-               or states('sensor.hp_poc_probka_pietro') | float(0) < upper - 0.7
-               or states('sensor.hp_poc_probka_parter') | float(0) > target_ground + deadband
-               or states('sensor.hp_poc_probka_pietro') | float(0) > target_upper + deadband }}
-      - variables:
-          correction: >-
-            {% set e = error | float %}
-            {% set comfort = 0 if e | abs <= deadband else gain * (e - deadband if e > 0 else e + deadband) %}
-            {% set trend = [0.5, [0, warming | float - 0.15] | max * 0.5] | min %}
-            {{ [-correction_limit, [correction_limit, comfort - trend] | min] | max }}
-      - variables:
-          unclamped: "{{ base + correction }}"
-          rounded: >-
-            {% set bounded = [lower, [ceiling, base + correction] | min] | max %}
-            {{ (bounded + 0.5) | round(0, 'floor') | int }}
-          ready: "{{ data_ok and lower <= ceiling }}"
-    sensor:
-      - name: hp_poc_co1_propozycja
-        unique_id: hp_poc_co1_propozycja
-        default_entity_id: sensor.hp_poc_co1_propozycja
-        unit_of_measurement: "°C"
-        device_class: temperature
-        availability: "{{ ready }}"
-        state: "{{ rounded }}"
-        attributes:
-          calculated_at: "{{ now().isoformat() }}"
-          co1_entity: "{{ co1_entity }}"
-          base: "{{ base | round(2) }}"
-          correction: "{{ correction | round(2) }}"
-          unclamped: "{{ unclamped | round(2) }}"
-          lower_limit: "{{ lower }}"
-          upper_limit: "{{ ceiling }}"
-          limited: "{{ unclamped < lower or unclamped > ceiling }}"
-          ground_comfort: "{{ ground }}"
-          upper_comfort: "{{ upper }}"
-          error_ground: "{{ error_ground | round(2) }}"
-          error_upper: "{{ error_upper | round(2) }}"
-          trend_ready: "{{ trend_ready }}"
-          warming_12h: "{{ warming | round(2) }}"
-          block_increase: "{{ block_increase }}"
-          water_actual: "{{ states('sensor.garaz_pompa_ciepla_circuit_1_water_temp') }}"
-          power_raw: "{{ states('sensor.pompa_ciepla_moc') }}"
-          # Moc tylko diagnostycznie: brak skalibrowanego progu sprężarki.
-          reason: >-
-            {% if not ready %}brak_danych_lub_rozgrzewanie_filtrow
-            {% elif lower > unclamped %}ograniczenie_minimum_co1
-            {% elif ceiling < unclamped %}ograniczenie_maksimum_co1
-            {% elif error < -deadband %}obnizanie_przegrzewanie
-            {% elif block_increase %}blokada_podnoszenia_zaklocenie_lub_cieplo
-            {% elif error > deadband %}korekta_niedogrzania
-            {% else %}pasmo_komfortu{% endif %}
-
-  # Osobne regularne próbki median: stały komfort też ma trafiać do trendu.
-  - triggers:
-      - trigger: time_pattern
-        minutes: "/5"
-        seconds: "15"
-    sensor:
-      - name: hp_poc_probka_trend_parter
-        unique_id: hp_poc_probka_trend_parter
-        default_entity_id: sensor.hp_poc_probka_trend_parter
-        unit_of_measurement: "°C"
-        device_class: temperature
-        availability: >-
-          {{ is_number(states('sensor.hp_poc_parter_komfort'))
-             and is_number(states('sensor.hp_poc_probka_parter')) }}
-        state: "{{ states('sensor.hp_poc_parter_komfort') | float(0) }}"
-        attributes:
-          sampled_at: "{{ now().isoformat() }}"
-      - name: hp_poc_probka_trend_pietro
-        unique_id: hp_poc_probka_trend_pietro
-        default_entity_id: sensor.hp_poc_probka_trend_pietro
-        unit_of_measurement: "°C"
-        device_class: temperature
-        availability: >-
-          {{ is_number(states('sensor.hp_poc_pietro_komfort'))
-             and is_number(states('sensor.hp_poc_probka_pietro')) }}
-        state: "{{ states('sensor.hp_poc_pietro_komfort') | float(0) }}"
-        attributes:
-          sampled_at: "{{ now().isoformat() }}"
-
-sensor:
-  - platform: statistics
-    name: hp_poc_parter_liczba_probek
-    unique_id: hp_poc_parter_liczba_probek
-    entity_id: sensor.hp_poc_probka_parter
-    state_characteristic: count
-    sampling_size: 1000
-    max_age:
-      hours: 3
-  - platform: statistics
-    name: hp_poc_pietro_liczba_probek
-    unique_id: hp_poc_pietro_liczba_probek
-    entity_id: sensor.hp_poc_probka_pietro
-    state_characteristic: count
-    sampling_size: 1000
-    max_age:
-      hours: 3
-  - platform: statistics
-    name: hp_poc_outdoor_liczba_probek
-    unique_id: hp_poc_outdoor_liczba_probek
-    entity_id: sensor.hp_poc_probka_outdoor
-    state_characteristic: count
-    sampling_size: 1000
-    max_age:
-      hours: 2
-  - platform: statistics
-    name: hp_poc_parter_komfort
-    unique_id: hp_poc_parter_komfort
-    entity_id: sensor.hp_poc_probka_parter
-    state_characteristic: median
-    sampling_size: 1000
-    max_age:
-      hours: 3
-    precision: 2
-  - platform: statistics
-    name: hp_poc_pietro_komfort
-    unique_id: hp_poc_pietro_komfort
-    entity_id: sensor.hp_poc_probka_pietro
-    state_characteristic: median
-    sampling_size: 1000
-    max_age:
-      hours: 3
-    precision: 2
-  - platform: statistics
-    name: hp_poc_outdoor_2h
-    unique_id: hp_poc_outdoor_2h
-    entity_id: sensor.hp_poc_probka_outdoor
-    state_characteristic: average_step
-    sampling_size: 1000
-    max_age:
-      hours: 2
-    precision: 2
-  - platform: statistics
-    name: hp_poc_parter_zmiana_12h
-    unique_id: hp_poc_parter_zmiana_12h
-    entity_id: sensor.hp_poc_probka_trend_parter
-    state_characteristic: change
-    sampling_size: 1000
-    max_age:
-      hours: 12
-    precision: 2
-  - platform: statistics
-    name: hp_poc_pietro_zmiana_12h
-    unique_id: hp_poc_pietro_zmiana_12h
-    entity_id: sensor.hp_poc_probka_trend_pietro
-    state_characteristic: change
-    sampling_size: 1000
-    max_age:
-      hours: 12
-    precision: 2
-
-automation:
-  # Osobny moduł opt-in. Pierwsza instalacja helpera auto_stop ma stan off.
-  # Kontrolujemy wyłącznie c1_SW_ON, nigdy zasilanie ani nadrzędny switch pompy.
-  - id: hp_poc_auto_stop_co1
-    alias: "Ogrzewanie POC · auto STOP CO1"
-    mode: single
-    triggers:
-      - trigger: time_pattern
-        minutes: "/1"
-        seconds: "10"
-    conditions:
-      - condition: state
-        entity_id: input_boolean.hp_poc_auto_stop_co1
-        state: "on"
-      - condition: template
-        value_template: >-
-          {% set s = states.switch.garaz_pompa_ciepla_circuit_1_heating %}
-          {{ s is defined and s.state in ['on', 'off']
-             and as_timestamp(now()) - as_timestamp(s.last_changed, 0) >= 7200
-             and as_timestamp(now()) - as_timestamp(states('input_datetime.hp_poc_ostatnia_proba_co1_on_off'), 0) >= 900 }}
-    actions:
-      - choose:
-          - conditions:
-              - condition: state
-                entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
-                state: "on"
-              - condition: state
-                entity_id: binary_sensor.hp_poc_obie_strefy_przegrzane
-                state: "on"
-              - condition: state
-                entity_id: binary_sensor.hp_poc_dane_stref_ok
-                state: "on"
-            sequence:
-              - action: input_datetime.set_datetime
-                target:
-                  entity_id: input_datetime.hp_poc_ostatnia_proba_co1_on_off
-                data:
-                  timestamp: "{{ as_timestamp(now()) }}"
-              - action: switch.turn_off
-                target:
-                  entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
-              - wait_template: "{{ is_state('switch.garaz_pompa_ciepla_circuit_1_heating', 'off') }}"
-                timeout: "00:00:30"
-                continue_on_timeout: false
-              - action: input_boolean.turn_on
-                target:
-                  entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
-              - action: logbook.log
-                data:
-                  name: Ogrzewanie POC
-                  entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
-                  message: >-
-                    Wysłano STOP CO1 — obie mediany komfortu ≥ cel +0,4°C
-                    przez 30 min. Pompa zachowuje własną logikę ochrony i CWU.
-          - conditions:
-              - condition: state
-                entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
-                state: "off"
-              # Zapotrzebowanie może wznowić także ręcznie wyłączony CO1.
-              # Flaga pochodzenia przerwy ogranicza wyłącznie powrót awaryjny
-              # przy braku danych, a nie zwykły START według temperatur.
-              - condition: or
-                conditions:
-                  - condition: and
-                    conditions:
-                      - condition: state
-                        entity_id: binary_sensor.hp_poc_dane_stref_ok
-                        state: "on"
-                      - condition: state
-                        entity_id: binary_sensor.hp_poc_potrzeba_grzania
-                        state: "on"
-                  - condition: and
-                    conditions:
-                      - condition: state
-                        entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
-                        state: "on"
-                      - condition: state
-                        entity_id: binary_sensor.hp_poc_brak_danych_stref
-                        state: "on"
-            sequence:
-              - action: input_datetime.set_datetime
-                target:
-                  entity_id: input_datetime.hp_poc_ostatnia_proba_co1_on_off
-                data:
-                  timestamp: "{{ as_timestamp(now()) }}"
-              - action: switch.turn_on
-                target:
-                  entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
-              - wait_template: "{{ is_state('switch.garaz_pompa_ciepla_circuit_1_heating', 'on') }}"
-                timeout: "00:00:30"
-                continue_on_timeout: false
-              - action: input_boolean.turn_off
-                target:
-                  entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
-              - action: logbook.log
-                data:
-                  name: Ogrzewanie POC
-                  entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
-                  message: >-
-                    Wysłano START CO1 —
-                    {{ 'brak danych stref przez 30 min; powrót do ogrzewania Hisense'
-                       if is_state('binary_sensor.hp_poc_brak_danych_stref', 'on')
-                       else 'co najmniej jedna mediana ≤ cel −0,2°C przez 30 min' }}.
-
-  - id: hp_poc_co1_kasuj_wlasnosc
-    alias: "Ogrzewanie POC · zwolnienie sterowania STOP"
-    mode: restart
-    triggers:
-      - trigger: state
-        entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
-        to: "on"
-      - trigger: state
-        entity_id: input_boolean.hp_poc_auto_stop_co1
-        to: "off"
-    actions:
-      - action: input_boolean.turn_off
-        target:
-          entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
-
-  - id: hp_poc_inicjalizacja_celow
-    alias: "Ogrzewanie POC · inicjalizacja celów"
-    mode: single
-    triggers:
-      - trigger: homeassistant
-        event: start
-    conditions:
-      - condition: state
-        entity_id: input_boolean.hp_poc_cele_zainicjalizowane
-        state: "off"
-    actions:
-      - action: input_number.set_value
-        target:
-          entity_id: input_number.hp_poc_cel_parter
-        data:
-          value: 21
-      - action: input_number.set_value
-        target:
-          entity_id: input_number.hp_poc_cel_pietro
-        data:
-          value: 22
-      - action: input_boolean.turn_on
-        target:
-          entity_id: input_boolean.hp_poc_cele_zainicjalizowane
-
-  - id: hp_poc_zapis_co1
-    alias: "Ogrzewanie POC · zapis CO1"
-    description: >-
-      Zwykły number.set_value przez HiMitII. Pełne stopnie, tylko zmiana,
-      najwyżej 1°C co 120 min. Nie steruje sprężarką, CWU, zaworami ani demand.
-      Wyłączenie tej automatyzacji zatrzymuje zapis; sensory nadal liczą.
-    mode: single
-    triggers:
-      - trigger: time_pattern
-        minutes: "/5"
-        seconds: "45"
-    variables:
+- binary_sensor:
+  - name: hp_poc_dane_stref_ok
+    unique_id: hp_poc_dane_stref_ok
+    default_entity_id: binary_sensor.hp_poc_dane_stref_ok
+    state: |-
+      {% set ns = namespace(ok=true) %} {% for e in ['sensor.salon_termometr_salon', 'sensor.korytarz_termometr_pietro'] %}
+        {% set s = states[e] %}
+        {% if s is not defined or not is_number(s.state)
+              or not (10 <= s.state | float(0) <= 35)
+              or not (0 <= as_timestamp(now()) - as_timestamp(s.last_reported, 0) < 7200) %}
+          {% set ns.ok = false %}
+        {% endif %}
+      {% endfor %} {{ ns.ok and is_state('input_boolean.hp_poc_cele_zainicjalizowane', 'on')
+         and is_number(states('input_number.hp_poc_cel_parter'))
+         and is_number(states('input_number.hp_poc_cel_pietro'))
+         and is_number(states('sensor.hp_poc_parter_komfort_trwaly'))
+         and is_number(states('sensor.hp_poc_pietro_komfort_trwaly'))
+         and state_attr('sensor.hp_poc_parter_komfort_trwaly', 'age_coverage_ratio') | float(0) >= 0.8
+         and state_attr('sensor.hp_poc_pietro_komfort_trwaly', 'age_coverage_ratio') | float(0) >= 0.8
+         and states('sensor.hp_poc_parter_liczba_probek_trwaly') | int(0) >= 29
+         and states('sensor.hp_poc_pietro_liczba_probek_trwaly') | int(0) >= 29 }}
+  - name: hp_poc_obie_strefy_przegrzane
+    unique_id: hp_poc_obie_strefy_przegrzane
+    default_entity_id: binary_sensor.hp_poc_obie_strefy_przegrzane
+    state: |-
+      {% set p = state_attr('sensor.hp_poc_pamiec', 'payload') or {} %}
+      {{ is_state('binary_sensor.hp_poc_dane_stref_ok', 'on') and p.get('hot_seconds', 0) | float(0) >= 1800 }}
+  - name: hp_poc_potrzeba_grzania
+    unique_id: hp_poc_potrzeba_grzania
+    default_entity_id: binary_sensor.hp_poc_potrzeba_grzania
+    state: |-
+      {% set p = state_attr('sensor.hp_poc_pamiec', 'payload') or {} %}
+      {{ is_state('binary_sensor.hp_poc_dane_stref_ok', 'on') and p.get('cold_seconds', 0) | float(0) >= 1800 }}
+  - name: hp_poc_brak_danych_stref
+    unique_id: hp_poc_brak_danych_stref
+    default_entity_id: binary_sensor.hp_poc_brak_danych_stref
+    delay_on:
+      minutes: 30
+    state: '{{ not is_state(''binary_sensor.hp_poc_dane_stref_ok'', ''on'') }}'
+  sensor:
+  - name: hp_poc_status
+    unique_id: hp_poc_status
+    default_entity_id: sensor.hp_poc_status
+    state: |-
+      {% set required = ['sensor.hp_poc_probka_parter', 'sensor.hp_poc_probka_pietro',
+                         'sensor.hp_poc_probka_outdoor', 'sensor.hp_poc_parter_komfort_trwaly',
+                         'sensor.hp_poc_pietro_komfort_trwaly', 'sensor.hp_poc_outdoor_2h_trwaly',
+                         'sensor.hp_poc_parter_liczba_probek_trwaly', 'sensor.hp_poc_pietro_liczba_probek_trwaly',
+                         'sensor.hp_poc_outdoor_liczba_probek_trwaly', 'sensor.hp_poc_parter_zmiana_12h_trwaly',
+                         'sensor.hp_poc_pietro_zmiana_12h_trwaly'] %}
+      {% set existing = states | map(attribute='entity_id') | list %} {% set ns = namespace(missing=false) %} {% for e in required %}
+        {% if e not in existing %}{% set ns.missing = true %}{% endif %}
+      {% endfor %} {% if ns.missing %}brak_encji {% elif not is_state('input_boolean.hp_poc_cele_zainicjalizowane', 'on') %}brak_inicjalizacji_celow {% elif states('sensor.hp_poc_probka_parter') in ['unknown', 'unavailable']
+           or states('sensor.hp_poc_probka_pietro') in ['unknown', 'unavailable']
+           or states('sensor.hp_poc_probka_outdoor') in ['unknown', 'unavailable'] %}brak_swiezych_probek
+      {% elif states('sensor.hp_poc_co1_propozycja') == 'unknown' %}oczekiwanie_na_obliczenie {% elif not is_number(states('sensor.hp_poc_co1_propozycja')) %}blokada_danych_lub_rozgrzewanie {% else %}obliczenia_gotowe{% endif %}
+    attributes:
+      missing_entities: |-
+        {% set existing = states | map(attribute='entity_id') | list %} {% set required = ['sensor.hp_poc_probka_parter', 'sensor.hp_poc_probka_pietro',
+                           'sensor.hp_poc_probka_outdoor', 'sensor.hp_poc_parter_komfort_trwaly',
+                           'sensor.hp_poc_pietro_komfort_trwaly', 'sensor.hp_poc_outdoor_2h_trwaly',
+                           'sensor.hp_poc_parter_liczba_probek_trwaly', 'sensor.hp_poc_pietro_liczba_probek_trwaly',
+                           'sensor.hp_poc_outdoor_liczba_probek_trwaly', 'sensor.hp_poc_parter_zmiana_12h_trwaly',
+                           'sensor.hp_poc_pietro_zmiana_12h_trwaly'] %}
+        {% set ns = namespace(items=[]) %} {% for e in required %}
+          {% if e not in existing %}{% set ns.items = ns.items + [e] %}{% endif %}
+        {% endfor %} {{ ns.items }}
+      invalid_inputs: |-
+        {% set ns = namespace(items=[]) %} {% for e in ['sensor.salon_termometr_salon', 'sensor.korytarz_termometr_pietro',
+                     'sensor.garaz_pompa_ciepla_outdoor_ambient_temp',
+                     'sensor.garaz_pompa_ciepla_circuit_1_water_temp',
+                     'number.garaz_pompa_ciepla_circuit_1_setpoint'] %}
+          {% if not is_number(states(e)) %}{% set ns.items = ns.items + [e] %}{% endif %}
+        {% endfor %} {{ ns.items }}
+      next_calculation: Co 5 minut, w 30. sekundzie minuty
+- triggers:
+  - trigger: time_pattern
+    minutes: /5
+    seconds: '0'
+  sensor:
+  - name: hp_poc_probka_parter
+    unique_id: hp_poc_probka_parter
+    default_entity_id: sensor.hp_poc_probka_parter
+    unit_of_measurement: °C
+    device_class: temperature
+    attributes:
+      sampled_at: '{{ now().isoformat() }}'
+    availability: |-
+      {% set s = states.sensor.salon_termometr_salon %} {{ s is defined and is_number(s.state)
+         and 10 <= s.state | float <= 35
+         and 0 <= as_timestamp(now()) - as_timestamp(s.last_reported, 0) < 7200 }}
+    state: '{{ states(''sensor.salon_termometr_salon'') | float(0) }}'
+  - name: hp_poc_probka_pietro
+    unique_id: hp_poc_probka_pietro
+    default_entity_id: sensor.hp_poc_probka_pietro
+    unit_of_measurement: °C
+    device_class: temperature
+    attributes:
+      sampled_at: '{{ now().isoformat() }}'
+    availability: |-
+      {% set s = states.sensor.korytarz_termometr_pietro %} {{ s is defined and is_number(s.state)
+         and 10 <= s.state | float <= 35
+         and 0 <= as_timestamp(now()) - as_timestamp(s.last_reported, 0) < 7200 }}
+    state: '{{ states(''sensor.korytarz_termometr_pietro'') | float(0) }}'
+  - name: hp_poc_probka_outdoor
+    unique_id: hp_poc_probka_outdoor
+    default_entity_id: sensor.hp_poc_probka_outdoor
+    unit_of_measurement: °C
+    device_class: temperature
+    attributes:
+      sampled_at: '{{ now().isoformat() }}'
+    availability: |-
+      {% set s = states.sensor.garaz_pompa_ciepla_outdoor_ambient_temp %} {{ s is defined and is_number(s.state)
+         and -35 <= s.state | float <= 35
+         and 0 <= as_timestamp(now()) - as_timestamp(s.last_reported, 0) < 1800 }}
+    state: '{{ states(''sensor.garaz_pompa_ciepla_outdoor_ambient_temp'') | float(0) }}'
+- triggers:
+  - trigger: time_pattern
+    minutes: /5
+    seconds: '30'
+  actions:
+  - variables:
       co1_entity: number.garaz_pompa_ciepla_circuit_1_setpoint
-      proposal_entity: sensor.hp_poc_co1_propozycja
-    conditions:
-      - condition: template
-        value_template: >-
-          {{ is_number(states(co1_entity)) and is_number(states(proposal_entity))
-             and state_attr(proposal_entity, 'co1_entity') == co1_entity
-             and 0 <= as_timestamp(now()) - as_timestamp(state_attr(proposal_entity, 'calculated_at'), 0) < 600
-             and is_state('switch.garaz_pompa_ciepla_circuit_1_heating', 'on') }}
-    actions:
-      - variables:
-          current: "{{ states(co1_entity) | float }}"
-          wanted: "{{ states(proposal_entity) | int }}"
-          lower: "{{ state_attr(proposal_entity, 'lower_limit') | int }}"
-          ceiling: "{{ state_attr(proposal_entity, 'upper_limit') | int }}"
-      - variables:
-          # Nie więcej niż 1 stopień względem aktualnej nastawy.
-          next_value: "{{ current + 1 if wanted > current else current - 1 if wanted < current else current }}"
-      - condition: template
-        value_template: >-
-          {% set s = states[co1_entity] %}
-          {% set last_try = as_timestamp(states('input_datetime.hp_poc_ostatnia_proba'), 0) %}
-          {% set ns = namespace(ok=true) %}
-          {% for entity, age in [('sensor.salon_termometr_salon', 7200),
-                                ('sensor.korytarz_termometr_pietro', 7200),
-                                ('sensor.garaz_pompa_ciepla_outdoor_ambient_temp', 1800),
-                                ('sensor.garaz_pompa_ciepla_circuit_1_water_temp', 1800)] %}
-            {% set source = states[entity] %}
-            {% if source is not defined or not is_number(source.state) or not (0 <= as_timestamp(now()) - as_timestamp(source.last_reported, 0) < age) %}
-              {% set ns.ok = false %}
-            {% endif %}
-          {% endfor %}
-          {{ ns.ok and current == current | round(0)
-             and current != wanted and lower <= next_value <= ceiling
-             and state_attr(co1_entity, 'unit_of_measurement') == '°C'
-             and state_attr(co1_entity, 'step') | float(0) == 1
-             and is_number(state_attr(co1_entity, 'min'))
-             and is_number(state_attr(co1_entity, 'max'))
-             and state_attr(co1_entity, 'min') | float <= next_value <= state_attr(co1_entity, 'max') | float
-             and (next_value < current or not state_attr(proposal_entity, 'block_increase'))
-             and as_timestamp(now()) - as_timestamp(s.last_changed, 0) >= 7200
-             and as_timestamp(now()) - last_try >= 7200 }}
-      # Przed poleceniem: błąd chmury także uruchamia odstęp, bez burzy ponowień.
+      poc_max: 35
+      gradient: 0.2
+      deadband: 0.2
+      gain: 1.5
+      correction_limit: 2
+      ground: '{{ states(''sensor.hp_poc_parter_komfort_trwaly'') | float(0) }}'
+      upper: '{{ states(''sensor.hp_poc_pietro_komfort_trwaly'') | float(0) }}'
+      outdoor: '{{ states(''sensor.hp_poc_outdoor_2h_trwaly'') | float(0) }}'
+      target_ground: '{{ states(''input_number.hp_poc_cel_parter'') | float(21) }}'
+      target_upper: '{{ states(''input_number.hp_poc_cel_pietro'') | float(22) }}'
+      trend_ready: |-
+        {{ is_number(states('sensor.hp_poc_parter_zmiana_12h_trwaly'))
+           and is_number(states('sensor.hp_poc_pietro_zmiana_12h_trwaly'))
+           and state_attr('sensor.hp_poc_parter_zmiana_12h_trwaly', 'age_coverage_ratio') | float(0) >= 0.8
+           and state_attr('sensor.hp_poc_pietro_zmiana_12h_trwaly', 'age_coverage_ratio') | float(0) >= 0.8 }}
+  - variables:
+      lower: '{{ state_attr(co1_entity, ''min'') | float(0) | round(0, ''ceil'') | int }}'
+      ceiling: '{{ [poc_max, state_attr(co1_entity, ''max'') | float(poc_max)] | min | round(0, ''floor'') | int
+        }}'
+      error_ground: '{{ target_ground - ground }}'
+      error_upper: '{{ target_upper - upper }}'
+      base: '{{ 20 + gradient * (20 - outdoor) }}'
+      warming: '{% set a = states(''sensor.hp_poc_parter_zmiana_12h_trwaly'') | float(0) %} {% set b = states(''sensor.hp_poc_pietro_zmiana_12h_trwaly'')
+        | float(0) %} {{ [a, b] | max if trend_ready else 0 }}'
+      data_ok: |-
+        {% set ns = namespace(ok=true) %} {% for entity in ['sensor.hp_poc_probka_parter', 'sensor.hp_poc_probka_pietro',
+                          'sensor.hp_poc_probka_outdoor', 'sensor.hp_poc_parter_komfort_trwaly',
+                          'sensor.hp_poc_pietro_komfort_trwaly', 'sensor.hp_poc_outdoor_2h_trwaly',
+                          'input_number.hp_poc_cel_parter', 'input_number.hp_poc_cel_pietro',
+                          'sensor.garaz_pompa_ciepla_circuit_1_water_temp', co1_entity] %}
+          {% if not is_number(states(entity)) %}{% set ns.ok = false %}{% endif %}
+        {% endfor %} {% set water = states.sensor.garaz_pompa_ciepla_circuit_1_water_temp %} {{ ns.ok and water is defined
+           and 0 <= as_timestamp(now()) - as_timestamp(water.last_reported, 0) < 1800
+           and 5 <= states(water.entity_id) | float(0) <= 65
+           and state_attr(co1_entity, 'unit_of_measurement') == '°C'
+           and is_number(state_attr(co1_entity, 'min'))
+           and is_number(state_attr(co1_entity, 'max'))
+           and state_attr(co1_entity, 'step') | float(0) == 1
+           and state_attr('sensor.hp_poc_parter_komfort_trwaly', 'age_coverage_ratio') | float(0) >= 0.8
+           and state_attr('sensor.hp_poc_pietro_komfort_trwaly', 'age_coverage_ratio') | float(0) >= 0.8
+           and state_attr('sensor.hp_poc_outdoor_2h_trwaly', 'age_coverage_ratio') | float(0) >= 0.8
+           and states('sensor.hp_poc_parter_liczba_probek_trwaly') | int(0) >= 29
+           and states('sensor.hp_poc_pietro_liczba_probek_trwaly') | int(0) >= 29
+           and states('sensor.hp_poc_outdoor_liczba_probek_trwaly') | int(0) >= 20
+           and is_state('input_boolean.hp_poc_cele_zainicjalizowane', 'on') }}
+  - variables:
+      error: |-
+        {{ [error_ground, error_upper] | min
+           if [error_ground, error_upper] | min < -deadband
+           else (error_ground + error_upper) / 2 }}
+      block_increase: |-
+        {{ states('sensor.hp_poc_probka_parter') | float(0) < ground - 0.7
+           or states('sensor.hp_poc_probka_pietro') | float(0) < upper - 0.7
+           or states('sensor.hp_poc_probka_parter') | float(0) > target_ground + deadband
+           or states('sensor.hp_poc_probka_pietro') | float(0) > target_upper + deadband }}
+  - variables:
+      correction: '{% set e = error | float %} {% set comfort = 0 if e | abs <= deadband else gain * (e - deadband
+        if e > 0 else e + deadband) %} {% set trend = [0.5, [0, warming | float - 0.15] | max * 0.5] | min %} {{
+        [-correction_limit, [correction_limit, comfort - trend] | min] | max }}'
+  - variables:
+      unclamped: '{{ base + correction }}'
+      rounded: '{% set bounded = [lower, [ceiling, base + correction] | min] | max %} {{ (bounded + 0.5) | round(0,
+        ''floor'') | int }}'
+      ready: '{{ data_ok and lower <= ceiling }}'
+  sensor:
+  - name: hp_poc_co1_propozycja
+    unique_id: hp_poc_co1_propozycja
+    default_entity_id: sensor.hp_poc_co1_propozycja
+    unit_of_measurement: °C
+    device_class: temperature
+    availability: '{{ ready }}'
+    state: '{{ rounded }}'
+    attributes:
+      calculated_at: '{{ now().isoformat() }}'
+      co1_entity: '{{ co1_entity }}'
+      base: '{{ base | round(2) }}'
+      correction: '{{ correction | round(2) }}'
+      unclamped: '{{ unclamped | round(2) }}'
+      lower_limit: '{{ lower }}'
+      upper_limit: '{{ ceiling }}'
+      limited: '{{ unclamped < lower or unclamped > ceiling }}'
+      ground_comfort: '{{ ground }}'
+      upper_comfort: '{{ upper }}'
+      error_ground: '{{ error_ground | round(2) }}'
+      error_upper: '{{ error_upper | round(2) }}'
+      trend_ready: '{{ trend_ready }}'
+      warming_12h: '{{ warming | round(2) }}'
+      block_increase: '{{ block_increase }}'
+      water_actual: '{{ states(''sensor.garaz_pompa_ciepla_circuit_1_water_temp'') }}'
+      power_raw: '{{ states(''sensor.pompa_ciepla_moc'') }}'
+      reason: '{% if not ready %}brak_danych_lub_rozgrzewanie_filtrow {% elif lower > unclamped %}ograniczenie_minimum_co1
+        {% elif ceiling < unclamped %}ograniczenie_maksimum_co1 {% elif error < -deadband %}obnizanie_przegrzewanie
+        {% elif block_increase %}blokada_podnoszenia_zaklocenie_lub_cieplo {% elif error > deadband %}korekta_niedogrzania
+        {% else %}pasmo_komfortu{% endif %}'
+- triggers:
+  - trigger: time_pattern
+    minutes: /5
+    seconds: '15'
+  sensor:
+  - name: hp_poc_probka_trend_parter
+    unique_id: hp_poc_probka_trend_parter
+    default_entity_id: sensor.hp_poc_probka_trend_parter
+    unit_of_measurement: °C
+    device_class: temperature
+    availability: |-
+      {{ is_number(states('sensor.hp_poc_parter_komfort_trwaly'))
+         and is_number(states('sensor.hp_poc_probka_parter')) }}
+    state: '{{ states(''sensor.hp_poc_parter_komfort_trwaly'') | float(0) }}'
+    attributes:
+      sampled_at: '{{ now().isoformat() }}'
+  - name: hp_poc_probka_trend_pietro
+    unique_id: hp_poc_probka_trend_pietro
+    default_entity_id: sensor.hp_poc_probka_trend_pietro
+    unit_of_measurement: °C
+    device_class: temperature
+    availability: |-
+      {{ is_number(states('sensor.hp_poc_pietro_komfort_trwaly'))
+         and is_number(states('sensor.hp_poc_probka_pietro')) }}
+    state: '{{ states(''sensor.hp_poc_pietro_komfort_trwaly'') | float(0) }}'
+    attributes:
+      sampled_at: '{{ now().isoformat() }}'
+sensor:
+- platform: statistics
+  name: hp_poc_parter_liczba_probek
+  unique_id: hp_poc_parter_liczba_probek
+  entity_id: sensor.hp_poc_probka_parter
+  state_characteristic: count
+  sampling_size: 1000
+  max_age:
+    hours: 3
+- platform: statistics
+  name: hp_poc_pietro_liczba_probek
+  unique_id: hp_poc_pietro_liczba_probek
+  entity_id: sensor.hp_poc_probka_pietro
+  state_characteristic: count
+  sampling_size: 1000
+  max_age:
+    hours: 3
+- platform: statistics
+  name: hp_poc_outdoor_liczba_probek
+  unique_id: hp_poc_outdoor_liczba_probek
+  entity_id: sensor.hp_poc_probka_outdoor
+  state_characteristic: count
+  sampling_size: 1000
+  max_age:
+    hours: 2
+- platform: statistics
+  name: hp_poc_parter_komfort
+  unique_id: hp_poc_parter_komfort
+  entity_id: sensor.hp_poc_probka_parter
+  state_characteristic: median
+  sampling_size: 1000
+  max_age:
+    hours: 3
+  precision: 2
+- platform: statistics
+  name: hp_poc_pietro_komfort
+  unique_id: hp_poc_pietro_komfort
+  entity_id: sensor.hp_poc_probka_pietro
+  state_characteristic: median
+  sampling_size: 1000
+  max_age:
+    hours: 3
+  precision: 2
+- platform: statistics
+  name: hp_poc_outdoor_2h
+  unique_id: hp_poc_outdoor_2h
+  entity_id: sensor.hp_poc_probka_outdoor
+  state_characteristic: average_step
+  sampling_size: 1000
+  max_age:
+    hours: 2
+  precision: 2
+- platform: statistics
+  name: hp_poc_parter_zmiana_12h
+  unique_id: hp_poc_parter_zmiana_12h
+  entity_id: sensor.hp_poc_probka_trend_parter
+  state_characteristic: change
+  sampling_size: 1000
+  max_age:
+    hours: 12
+  precision: 2
+- platform: statistics
+  name: hp_poc_pietro_zmiana_12h
+  unique_id: hp_poc_pietro_zmiana_12h
+  entity_id: sensor.hp_poc_probka_trend_pietro
+  state_characteristic: change
+  sampling_size: 1000
+  max_age:
+    hours: 12
+  precision: 2
+automation:
+- id: hp_poc_auto_stop_co1
+  alias: Ogrzewanie POC · auto STOP CO1
+  mode: single
+  triggers:
+  - trigger: time_pattern
+    minutes: /1
+    seconds: '10'
+  conditions:
+  - condition: state
+    entity_id: input_boolean.hp_poc_auto_stop_co1
+    state: 'on'
+  - condition: template
+    value_template: |-
+      {% set p = state_attr('sensor.hp_poc_pamiec', 'payload') or {} %}
+      {% set s = states.switch.garaz_pompa_ciepla_circuit_1_heating %} {{ s is defined and s.state in ['on', 'off'] and s.state == p.get('co1')
+         and 0 <= as_timestamp(now()) - p.get('updated', 0) < 600
+         and as_timestamp(now()) - p.get('co1_since', as_timestamp(now())) >= 7200
+         and as_timestamp(now()) - as_timestamp(states('input_datetime.hp_poc_ostatnia_proba_co1_on_off'), 0) >= 900 }}
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.hp_poc_obie_strefy_przegrzane
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.hp_poc_dane_stref_ok
+        state: 'on'
+      sequence:
       - action: input_datetime.set_datetime
         target:
-          entity_id: input_datetime.hp_poc_ostatnia_proba
+          entity_id: input_datetime.hp_poc_ostatnia_proba_co1_on_off
         data:
-          timestamp: "{{ as_timestamp(now()) }}"
-      - action: number.set_value
+          timestamp: '{{ as_timestamp(now()) }}'
+      - action: switch.turn_off
         target:
-          entity_id: "{{ co1_entity }}"
-        data:
-          value: "{{ next_value | int }}"
+          entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+      - wait_template: '{{ is_state(''switch.garaz_pompa_ciepla_circuit_1_heating'', ''off'') }}'
+        timeout: 00:00:30
+        continue_on_timeout: false
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
       - action: logbook.log
         data:
           name: Ogrzewanie POC
-          entity_id: "{{ co1_entity }}"
-          message: >-
-            Wysłano CO1 {{ current }} → {{ next_value | int }}°C;
-            docelowo {{ wanted }}°C. {{ state_attr(proposal_entity, 'reason') }}.
-            Przyjęcie przez pompę nie zostało niezależnie potwierdzone.
+          entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+          message: Wysłano STOP CO1 — obie mediany komfortu ≥ cel +0,4°C przez 30 min. Pompa zachowuje własną logikę
+            ochrony i CWU.
+    - conditions:
+      - condition: state
+        entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+        state: 'off'
+      - condition: or
+        conditions:
+        - condition: and
+          conditions:
+          - condition: state
+            entity_id: binary_sensor.hp_poc_dane_stref_ok
+            state: 'on'
+          - condition: state
+            entity_id: binary_sensor.hp_poc_potrzeba_grzania
+            state: 'on'
+        - condition: and
+          conditions:
+          - condition: state
+            entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
+            state: 'on'
+          - condition: state
+            entity_id: binary_sensor.hp_poc_brak_danych_stref
+            state: 'on'
+      sequence:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.hp_poc_ostatnia_proba_co1_on_off
+        data:
+          timestamp: '{{ as_timestamp(now()) }}'
+      - action: switch.turn_on
+        target:
+          entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+      - wait_template: '{{ is_state(''switch.garaz_pompa_ciepla_circuit_1_heating'', ''on'') }}'
+        timeout: 00:00:30
+        continue_on_timeout: false
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
+      - action: logbook.log
+        data:
+          name: Ogrzewanie POC
+          entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+          message: |-
+            Wysłano START CO1 — {{ 'brak danych stref przez 30 min; powrót do ogrzewania Hisense'
+               if is_state('binary_sensor.hp_poc_brak_danych_stref', 'on')
+               else 'co najmniej jedna mediana ≤ cel −0,2°C przez 30 min' }}.
+- id: hp_poc_co1_kasuj_wlasnosc
+  alias: Ogrzewanie POC · zwolnienie sterowania STOP
+  mode: restart
+  triggers:
+  - trigger: state
+    entity_id: switch.garaz_pompa_ciepla_circuit_1_heating
+    to: 'on'
+  - trigger: state
+    entity_id: input_boolean.hp_poc_auto_stop_co1
+    to: 'off'
+  actions:
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.hp_poc_co1_wylaczony_przez_poc
+- id: hp_poc_inicjalizacja_celow
+  alias: Ogrzewanie POC · inicjalizacja celów
+  mode: single
+  triggers:
+  - trigger: homeassistant
+    event: start
+  conditions:
+  - condition: state
+    entity_id: input_boolean.hp_poc_cele_zainicjalizowane
+    state: 'off'
+  actions:
+  - action: input_number.set_value
+    target:
+      entity_id: input_number.hp_poc_cel_parter
+    data:
+      value: 21
+  - action: input_number.set_value
+    target:
+      entity_id: input_number.hp_poc_cel_pietro
+    data:
+      value: 22
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.hp_poc_cele_zainicjalizowane
+- id: hp_poc_zapis_co1
+  alias: Ogrzewanie POC · zapis CO1
+  description: Zwykły number.set_value przez HiMitII. Pełne stopnie, tylko zmiana, najwyżej 1°C co 120 min. Nie
+    steruje sprężarką, CWU, zaworami ani demand. Wyłączenie tej automatyzacji zatrzymuje zapis; sensory nadal liczą.
+  mode: single
+  triggers:
+  - trigger: time_pattern
+    minutes: /5
+    seconds: '45'
+  variables:
+    co1_entity: number.garaz_pompa_ciepla_circuit_1_setpoint
+    proposal_entity: sensor.hp_poc_co1_propozycja
+  conditions:
+  - condition: template
+    value_template: |-
+      {{ is_number(states(co1_entity)) and is_number(states(proposal_entity))
+         and state_attr(proposal_entity, 'co1_entity') == co1_entity
+         and 0 <= as_timestamp(now()) - as_timestamp(state_attr(proposal_entity, 'calculated_at'), 0) < 600
+         and is_state('switch.garaz_pompa_ciepla_circuit_1_heating', 'on') }}
+  actions:
+  - variables:
+      current: '{{ states(co1_entity) | float }}'
+      wanted: '{{ states(proposal_entity) | int }}'
+      lower: '{{ state_attr(proposal_entity, ''lower_limit'') | int }}'
+      ceiling: '{{ state_attr(proposal_entity, ''upper_limit'') | int }}'
+  - variables:
+      next_value: '{{ current + 1 if wanted > current else current - 1 if wanted < current else current }}'
+  - condition: template
+    value_template: |-
+      {% set p = state_attr('sensor.hp_poc_pamiec', 'payload') or {} %}
+      {% set s = states[co1_entity] %} {% set last_try = as_timestamp(states('input_datetime.hp_poc_ostatnia_proba'), 0) %} {% set ns = namespace(ok=true) %} {% for entity, age in [('sensor.salon_termometr_salon', 7200),
+                            ('sensor.korytarz_termometr_pietro', 7200),
+                            ('sensor.garaz_pompa_ciepla_outdoor_ambient_temp', 1800),
+                            ('sensor.garaz_pompa_ciepla_circuit_1_water_temp', 1800)] %}
+        {% set source = states[entity] %}
+        {% if source is not defined or not is_number(source.state) or not (0 <= as_timestamp(now()) - as_timestamp(source.last_reported, 0) < age) %}
+          {% set ns.ok = false %}
+        {% endif %}
+      {% endfor %} {{ ns.ok and current == p.get('setpoint')
+         and 0 <= as_timestamp(now()) - p.get('updated', 0) < 600
+         and current == current | round(0)
+         and current != wanted and lower <= next_value <= ceiling
+         and state_attr(co1_entity, 'unit_of_measurement') == '°C'
+         and state_attr(co1_entity, 'step') | float(0) == 1
+         and is_number(state_attr(co1_entity, 'min'))
+         and is_number(state_attr(co1_entity, 'max'))
+         and state_attr(co1_entity, 'min') | float <= next_value <= state_attr(co1_entity, 'max') | float
+         and (next_value < current or not state_attr(proposal_entity, 'block_increase'))
+         and as_timestamp(now()) - p.get('setpoint_since', as_timestamp(now())) >= 7200
+         and as_timestamp(now()) - last_try >= 7200 }}
+  - action: input_datetime.set_datetime
+    target:
+      entity_id: input_datetime.hp_poc_ostatnia_proba
+    data:
+      timestamp: '{{ as_timestamp(now()) }}'
+  - action: number.set_value
+    target:
+      entity_id: '{{ co1_entity }}'
+    data:
+      value: '{{ next_value | int }}'
+  - action: logbook.log
+    data:
+      name: Ogrzewanie POC
+      entity_id: '{{ co1_entity }}'
+      message: Wysłano CO1 {{ current }} → {{ next_value | int }}°C; docelowo {{ wanted }}°C. {{ state_attr(proposal_entity,
+        'reason') }}. Przyjęcie przez pompę nie zostało niezależnie potwierdzone.

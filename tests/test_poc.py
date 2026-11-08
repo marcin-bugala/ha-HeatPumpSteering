@@ -74,14 +74,14 @@ def fixture(ground=21, upper=22, outdoor=-5, current=28):
         'sensor.hp_poc_probka_parter': ground,
         'sensor.hp_poc_probka_pietro': upper,
         'sensor.hp_poc_probka_outdoor': outdoor,
-        'sensor.hp_poc_parter_komfort': ground,
-        'sensor.hp_poc_pietro_komfort': upper,
-        'sensor.hp_poc_outdoor_2h': outdoor,
-        'sensor.hp_poc_parter_zmiana_12h': 0,
-        'sensor.hp_poc_pietro_zmiana_12h': 0,
-        'sensor.hp_poc_parter_liczba_probek': 36,
-        'sensor.hp_poc_pietro_liczba_probek': 36,
-        'sensor.hp_poc_outdoor_liczba_probek': 24,
+        'sensor.hp_poc_parter_komfort_trwaly': ground,
+        'sensor.hp_poc_pietro_komfort_trwaly': upper,
+        'sensor.hp_poc_outdoor_2h_trwaly': outdoor,
+        'sensor.hp_poc_parter_zmiana_12h_trwaly': 0,
+        'sensor.hp_poc_pietro_zmiana_12h_trwaly': 0,
+        'sensor.hp_poc_parter_liczba_probek_trwaly': 36,
+        'sensor.hp_poc_pietro_liczba_probek_trwaly': 36,
+        'sensor.hp_poc_outdoor_liczba_probek_trwaly': 24,
         'input_number.hp_poc_cel_parter': 21,
         'input_number.hp_poc_cel_pietro': 22,
         'input_boolean.hp_poc_cele_zainicjalizowane': 'on',
@@ -91,6 +91,11 @@ def fixture(ground=21, upper=22, outdoor=-5, current=28):
     }
     data = {key: State(key, value, {'age_coverage_ratio': 0.95}) for key, value in values.items()}
     data[CO1].attributes = {'min': 20, 'max': 55, 'step': 1, 'unit_of_measurement': '°C'}
+    data['sensor.hp_poc_pamiec'] = State('sensor.hp_poc_pamiec', NOW.timestamp(), {'payload': {
+        'updated': NOW.timestamp(), 'co1': 'on', 'co1_since': NOW.timestamp() - 10000,
+        'setpoint': current, 'setpoint_since': NOW.timestamp() - 10000,
+        'hot_seconds': 0, 'cold_seconds': 0,
+    }})
     return data
 
 
@@ -216,15 +221,15 @@ class PocTests(unittest.TestCase):
 
     def test_rising_trend_reduces_target(self):
         data = fixture(outdoor=-20)
-        data['sensor.hp_poc_parter_zmiana_12h'].state = '1.15'
+        data['sensor.hp_poc_parter_zmiana_12h_trwaly'].state = '1.15'
         result = Harness(data).decision()
         self.assertAlmostEqual(result['correction'], -0.5)
 
     def test_warmup_gaps_and_bad_inputs(self):
         cases = [
-            ('sensor.hp_poc_parter_komfort', 'unavailable'),
+            ('sensor.hp_poc_parter_komfort_trwaly', 'unavailable'),
             ('sensor.hp_poc_probka_outdoor', 'unknown'),
-            ('sensor.hp_poc_parter_liczba_probek', 12),
+            ('sensor.hp_poc_parter_liczba_probek_trwaly', 12),
             ('input_number.hp_poc_cel_parter', 'unavailable'),
         ]
         for entity, value in cases:
@@ -235,7 +240,7 @@ class PocTests(unittest.TestCase):
                 self.assertFalse(harness.decision()['ready'])
                 self.assertFalse(harness.write_allowed())
         data = fixture()
-        data['sensor.hp_poc_parter_komfort'].attributes['age_coverage_ratio'] = 0.1
+        data['sensor.hp_poc_parter_komfort_trwaly'].attributes['age_coverage_ratio'] = 0.1
         self.assertFalse(Harness(data).decision()['ready'])
 
     def test_write_guards(self):
@@ -246,7 +251,7 @@ class PocTests(unittest.TestCase):
                 harness = Harness(data)
                 harness.decision()
                 if mode == 'cooldown': data['input_datetime.hp_poc_ostatnia_proba'].state = NOW.isoformat()
-                if mode == 'manual_change': data[CO1].last_changed = NOW
+                if mode == 'manual_change': data['sensor.hp_poc_pamiec'].attributes['payload']['setpoint_since'] = NOW.timestamp()
                 if mode == 'disabled_co': data['switch.garaz_pompa_ciepla_circuit_1_heating'].state = 'off'
                 if mode == 'stale_source': data['sensor.salon_termometr_salon'].last_reported = NOW - timedelta(hours=3)
                 if mode == 'missing_source': del data['sensor.salon_termometr_salon']
@@ -291,15 +296,15 @@ class PocTests(unittest.TestCase):
         harness = Harness(data)
         harness.decision()
         self.assertEqual(harness.render(entity['state'], {}), 'obliczenia_gotowe')
-        del data['sensor.hp_poc_parter_liczba_probek']
+        del data['sensor.hp_poc_parter_liczba_probek_trwaly']
         self.assertEqual(harness.render(entity['state'], {}), 'brak_encji')
-        self.assertIn('sensor.hp_poc_parter_liczba_probek',
+        self.assertIn('sensor.hp_poc_parter_liczba_probek_trwaly',
                       harness.render(entity['attributes']['missing_entities'], {}))
 
     def test_existing_empty_statistics_are_not_missing(self):
         data = fixture()
         data[PROPOSAL] = State(PROPOSAL, 'unavailable')
-        data['sensor.hp_poc_parter_liczba_probek'].state = 'unknown'
+        data['sensor.hp_poc_parter_liczba_probek_trwaly'].state = 'unknown'
         entity = PACKAGE['template'][0]['sensor'][0]
         harness = Harness(data)
         self.assertEqual(harness.render(entity['state'], {}), 'blokada_danych_lub_rozgrzewanie')
@@ -318,6 +323,7 @@ class PocTests(unittest.TestCase):
         }.items():
             data[entity] = State(entity, state)
         data['switch.garaz_pompa_ciepla_circuit_1_heating'].state = switch
+        data['sensor.hp_poc_pamiec'].attributes['payload']['co1'] = switch
         return data
 
     def test_stop_only_both_overheated_and_option_enabled(self):
@@ -361,9 +367,9 @@ class PocTests(unittest.TestCase):
                 data['binary_sensor.' + signal].state = 'on'
                 harness = Harness(data)
                 self.assertIsNotNone(harness.stop_start_command())
-                data['switch.garaz_pompa_ciepla_circuit_1_heating'].last_changed = NOW - timedelta(minutes=119)
+                data['sensor.hp_poc_pamiec'].attributes['payload']['co1_since'] = NOW.timestamp() - 119 * 60
                 self.assertIsNone(harness.stop_start_command())
-                data['switch.garaz_pompa_ciepla_circuit_1_heating'].last_changed = NOW - timedelta(hours=3)
+                data['sensor.hp_poc_pamiec'].attributes['payload']['co1_since'] = NOW.timestamp() - 3 * 3600
                 data['input_datetime.hp_poc_ostatnia_proba_co1_on_off'].state = NOW.isoformat()
                 self.assertIsNone(harness.stop_start_command())
 
@@ -382,16 +388,16 @@ class PocTests(unittest.TestCase):
         harness = Harness(data)
         stop = sensors['hp_poc_obie_strefy_przegrzane']
         start = sensors['hp_poc_potrzeba_grzania']
-        self.assertEqual(stop['delay_on'], {'minutes': 30})
-        self.assertEqual(start['delay_on'], {'minutes': 30})
-        for a, b, expected in [(21, 22, False), (22, 22, False), (21, 23, False), (21.5, 22.5, True)]:
-            data['sensor.hp_poc_parter_komfort'].state = str(a)
-            data['sensor.hp_poc_pietro_komfort'].state = str(b)
-            self.assertEqual(harness.render(stop['state'], {}), expected)
-        data['sensor.hp_poc_parter_komfort'].state = '20.7'
-        data['sensor.hp_poc_pietro_komfort'].state = '22'
+        self.assertNotIn('delay_on', stop)
+        self.assertNotIn('delay_on', start)
+        payload = data['sensor.hp_poc_pamiec'].attributes['payload']
+        payload['hot_seconds'] = 1799
+        self.assertFalse(harness.render(stop['state'], {}))
+        payload['hot_seconds'] = 1800
+        self.assertTrue(harness.render(stop['state'], {}))
+        payload['cold_seconds'] = 1800
         self.assertTrue(harness.render(start['state'], {}))
-        data['sensor.salon_termometr_salon'].state = '17'
+        data['binary_sensor.hp_poc_dane_stref_ok'].state = 'off'
         self.assertFalse(harness.render(start['state'], {}))
 
     def test_stop_readiness_and_control_targets(self):

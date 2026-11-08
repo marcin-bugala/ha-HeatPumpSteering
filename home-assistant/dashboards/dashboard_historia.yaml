@@ -72,7 +72,7 @@ views:
                   entities:
                     - entity: sensor.salon_termometr_salon
                       name: Pomiar
-                    - entity: sensor.hp_poc_parter_komfort
+                    - entity: sensor.hp_poc_parter_komfort_trwaly
                       name: Do regulacji · mediana 3 h
                     - entity: input_number.hp_poc_cel_parter
                       name: Temperatura zadana
@@ -82,7 +82,7 @@ views:
                   entities:
                     - entity: sensor.korytarz_termometr_pietro
                       name: Pomiar
-                    - entity: sensor.hp_poc_pietro_komfort
+                    - entity: sensor.hp_poc_pietro_komfort_trwaly
                       name: Do regulacji · mediana 3 h
                     - entity: input_number.hp_poc_cel_pietro
                       name: Temperatura zadana
@@ -102,7 +102,7 @@ views:
                   entities:
                     - entity: sensor.garaz_pompa_ciepla_outdoor_ambient_temp
                       name: Czujnik pompy
-                    - entity: sensor.hp_poc_outdoor_2h
+                    - entity: sensor.hp_poc_outdoor_2h_trwaly
                       name: Średnia do regulacji · 2 h
                 - type: history-graph
                   title: CO1 · praca i przerwy
@@ -215,8 +215,8 @@ views:
                   {%- endmacro %}
                   | Kondygnacja | Pomiar | Do regulacji · 3 h |
                   | :--- | ---: | ---: |
-                  | Parter | {{ temp('sensor.salon_termometr_salon') }} | {{ temp('sensor.hp_poc_parter_komfort') }} |
-                  | Piętro | {{ temp('sensor.korytarz_termometr_pietro') }} | {{ temp('sensor.hp_poc_pietro_komfort') }} |
+                  | Parter | {{ temp('sensor.salon_termometr_salon') }} | {{ temp('sensor.hp_poc_parter_komfort_trwaly') }} |
+                  | Piętro | {{ temp('sensor.korytarz_termometr_pietro') }} | {{ temp('sensor.hp_poc_pietro_komfort_trwaly') }} |
 
                   | Woda CO1 | Temperatura |
                   | :--- | ---: |
@@ -242,12 +242,18 @@ views:
 
                   | Próbki w oknie | Zebrane | Wymagane |
                   | :--- | ---: | ---: |
-                  | Parter · 3 h | {{ states('sensor.hp_poc_parter_liczba_probek') if is_number(states('sensor.hp_poc_parter_liczba_probek')) else '—' }} | 29 |
-                  | Piętro · 3 h | {{ states('sensor.hp_poc_pietro_liczba_probek') if is_number(states('sensor.hp_poc_pietro_liczba_probek')) else '—' }} | 29 |
-                  | Zewnętrzna · 2 h | {{ states('sensor.hp_poc_outdoor_liczba_probek') if is_number(states('sensor.hp_poc_outdoor_liczba_probek')) else '—' }} | 20 |
+                  | Parter · 3 h | {{ states('sensor.hp_poc_parter_liczba_probek_trwaly') if is_number(states('sensor.hp_poc_parter_liczba_probek_trwaly')) else '—' }} | 29 |
+                  | Piętro · 3 h | {{ states('sensor.hp_poc_pietro_liczba_probek_trwaly') if is_number(states('sensor.hp_poc_pietro_liczba_probek_trwaly')) else '—' }} | 29 |
+                  | Zewnętrzna · 2 h | {{ states('sensor.hp_poc_outdoor_liczba_probek_trwaly') if is_number(states('sensor.hp_poc_outdoor_liczba_probek_trwaly')) else '—' }} | 20 |
 
                   **Dane stref do STOP/START:** {{ 'gotowe' if is_state('binary_sensor.hp_poc_dane_stref_ok', 'on') else 'jeszcze niegotowe' }}.
                   **Trend 12 h:** {{ 'gotowy' if state_attr('sensor.hp_poc_co1_propozycja', 'trend_ready') else 'jeszcze niegotowy' }}.
+
+                  {% set p = state_attr('sensor.hp_poc_pamiec', 'payload') or {} %}
+                  **Pamięć po restarcie:** {{ 'aktywna' if p.get('version') == 1 else 'jeszcze niewczytana' }}.
+                  **Potwierdzenie STOP / START:** {{ (p.get('hot_seconds', 0) / 60) | round(0) }} / {{ (p.get('cold_seconds', 0) / 60) | round(0) }} min z wymaganych 30 min.
+
+                  Krótki restart zachowuje ostatnio zapisany bufor. Większa luka w pomiarach może ponownie zablokować gotowość; brakujące minuty nie są dopisywane jako pomiary.
 
                   {% for label, attr in [('Brakujące encje — sprawdź pakiet i restart HA', 'missing_entities'), ('Wejścia bez poprawnego odczytu', 'invalid_inputs')] %}
                   {% set items = state_attr('sensor.hp_poc_status', attr) or [] %}
@@ -338,6 +344,8 @@ views:
                   Korekta uwzględnia wnętrza i dostępny trend 12 h; jej limit to ±2°C. Zapis: tylko inna nastawa, pełne stopnie, najwyżej **1°C co 2 godziny**, przy włączonym CO1 i poprawnych danych.
 
                   Ręczna zmiana nastawy rozpoczyna nowy odstęp 2 h. Aby utrzymać ją ręcznie, wyłącz „Automatyczna nastawa wody CO1”.
+
+                  Krótki restart HA nie rozpoczyna odstępu od nowa. POC pamięta rzeczywistą zmianę nastawy i stanu CO1. Po luce ponad 20 min przyjmuje ostrożnie nowy początek odliczania.
 
                   Wspólny obieg bez zaworów nie zapewnia niezależnego utrzymania obu temperatur.
               - type: markdown

@@ -1,0 +1,108 @@
+{# Versioned, bounded memory for the YAML POC. No invented measurements. #}
+{% macro metrics(rows, column, window, stamp, minimum, returns) -%}
+  {% set ns = namespace(rows=[], values=[], gap=0, area=0) %}
+  {% for row in rows %}
+    {% if row[0] >= stamp - window and row[0] <= stamp and is_number(row[column]) %}
+      {% set ns.rows = ns.rows + [row] %}
+      {% set ns.values = ns.values + [row[column] | float] %}
+    {% endif %}
+  {% endfor %}
+  {% set count = ns.rows | count %}
+  {% set coverage = (ns.rows[-1][0] - ns.rows[0][0]) / window if count > 1 else 0 %}
+  {% for row in ns.rows %}
+    {% if not loop.first %}
+      {% set delta = row[0] - ns.rows[loop.index0 - 1][0] %}
+      {% set ns.gap = [ns.gap, delta] | max %}
+      {% set ns.area = ns.area + ns.rows[loop.index0 - 1][column] * delta %}
+    {% endif %}
+  {% endfor %}
+  {% if count %}{% set ns.gap = [ns.gap, stamp - ns.rows[-1][0]] | max %}{% endif %}
+  {% set sorted = ns.values | sort %}
+  {% set median = (sorted[(count - 1) // 2] + sorted[count // 2]) / 2 if count else none %}
+  {% set average = ns.area / (ns.rows[-1][0] - ns.rows[0][0]) if coverage > 0 else (sorted[0] if count else none) %}
+  {% do returns(dict(value=median | round(3) if median is not none else none,
+                     average=average | round(3) if average is not none else none,
+                     count=count, coverage=coverage,
+                     max_gap=ns.gap, ready=count >= minimum and coverage >= 0.8 and ns.gap <= 1200,
+                     change=ns.values[-1] - ns.values[0] if count else none)) %}
+{%- endmacro %}
+
+{% macro fresh_temperature(entity, stamp, max_age, lower, upper, returns) -%}
+  {% set s = states[entity] %}
+  {% set valid = s is defined and s is not none and is_number(s.state)
+      and lower <= s.state | float(0) <= upper
+      and 0 <= stamp - as_timestamp(s.last_reported, 0) < max_age %}
+  {% do returns(s.state | float if valid else none) %}
+{%- endmacro %}
+
+{% macro next_memory(previous, stamp, ground, upper, outdoor, ground_target, upper_target, co1, setpoint, returns) -%}
+  {% set stamp = stamp | int %}
+  {% set old = previous if previous is mapping and previous.get('version') == 1 else {} %}
+  {% set ns = namespace(raw=[], trend=[]) %}
+  {# Keep complete repeated measurements, not only changed temperatures. #}
+  {% for row in old.get('raw', []) %}
+    {% if row is sequence and row | count == 4 and is_number(row[0])
+          and stamp - 10800 <= row[0] <= stamp %}
+      {% set ns.raw = ns.raw + [row] %}
+    {% endif %}
+  {% endfor %}
+  {# State events and startup must not add extra weight in the same 5-min slot. #}
+  {% if not ns.raw or (ns.raw[-1][0] // 300) < (stamp // 300) %}
+    {% set ns.raw = ns.raw + [[stamp, ground, upper, outdoor]] %}
+  {% endif %}
+  {% set measure = metrics | as_function %}
+  {% set a = measure(ns.raw, 1, 10800, stamp, 29) %}
+  {% set b = measure(ns.raw, 2, 10800, stamp, 29) %}
+  {% set o = measure(ns.raw, 3, 7200, stamp, 20) %}
+  {% for row in old.get('trend', []) %}
+    {% if row is sequence and row | count == 3 and is_number(row[0])
+          and stamp - 43200 <= row[0] <= stamp %}
+      {% set ns.trend = ns.trend + [row] %}
+    {% endif %}
+  {% endfor %}
+  {% if not ns.trend or (ns.trend[-1][0] // 300) < (stamp // 300) %}
+    {% set ns.trend = ns.trend + [[stamp, a.value if a.ready and ground is not none else none,
+                                       b.value if b.ready and upper is not none else none]] %}
+  {% endif %}
+  {% set ta = measure(ns.trend, 1, 43200, stamp, 116) %}
+  {% set tb = measure(ns.trend, 2, 43200, stamp, 116) %}
+
+  {# Retain real transition times across a short restart, not HA last_changed. #}
+  {% set known_switch = co1 in ['on', 'off'] %}
+  {% set switch_recent = 0 <= stamp - old.get('switch_seen', 0) <= 1200 %}
+  {% set switch_same = co1 == old.get('co1') %}
+  {% set switch_since = old.get('co1_since', stamp) if switch_recent and switch_same else stamp %}
+  {% set known_setpoint = is_number(setpoint) %}
+  {% set number_recent = 0 <= stamp - old.get('number_seen', 0) <= 1200 %}
+  {% set number_same = known_setpoint and is_number(old.get('setpoint')) and setpoint | float == old.get('setpoint') | float %}
+  {% set number_since = old.get('setpoint_since', stamp) if number_recent and number_same else stamp %}
+
+  {# Qualifying time pauses across short gaps; offline minutes never count. #}
+  {% set ready = a.ready and b.ready and ground is not none and upper is not none %}
+  {% set hot = ready and a.value >= ground_target + 0.4 and b.value >= upper_target + 0.4 %}
+  {% set cold = ready and (a.value <= ground_target - 0.2 or b.value <= upper_target - 0.2)
+                     and ground >= a.value - 0.7 and upper >= b.value - 0.7 %}
+  {% set elapsed = stamp - old.get('condition_seen', stamp) %}
+  {% set same_targets = old.get('ground_target') == ground_target and old.get('upper_target') == upper_target %}
+  {% set continuity = 0 <= elapsed <= 1200 and same_targets %}
+  {% set advance = elapsed if 0 <= elapsed <= 360 else 0 %}
+  {% set hot_seconds = ([1800, old.get('hot_seconds', 0) + advance] | min if continuity and old.get('hot') else 0) if hot else 0 %}
+  {% set cold_seconds = ([1800, old.get('cold_seconds', 0) + advance] | min if continuity and old.get('cold') else 0) if cold else 0 %}
+  {% if not ready and continuity %}
+    {% set hot_seconds = old.get('hot_seconds', 0) %}
+    {% set cold_seconds = old.get('cold_seconds', 0) %}
+  {% endif %}
+
+  {% do returns(dict(version=1, updated=stamp, raw=ns.raw[-37:], trend=ns.trend[-145:],
+       ground=a, upper=b, outdoor=o, trend_ground=ta, trend_upper=tb,
+       co1=co1 if known_switch else old.get('co1'),
+       co1_since=switch_since if known_switch else old.get('co1_since', stamp),
+       switch_seen=stamp if known_switch else old.get('switch_seen', 0),
+       setpoint=setpoint | float if known_setpoint else old.get('setpoint'),
+       setpoint_since=number_since if known_setpoint else old.get('setpoint_since', stamp),
+       number_seen=stamp if known_setpoint else old.get('number_seen', 0),
+       hot_seconds=hot_seconds, cold_seconds=cold_seconds,
+       ground_target=ground_target, upper_target=upper_target,
+       hot=hot if ready else old.get('hot', false), cold=cold if ready else old.get('cold', false),
+       condition_seen=stamp if ready else old.get('condition_seen', 0))) %}
+{%- endmacro %}
