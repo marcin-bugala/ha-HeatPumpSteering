@@ -7,7 +7,7 @@ import logging
 import voluptuous as vol
 from sqlalchemy import select
 
-from homeassistant.components.recorder import get_instance, history
+from homeassistant.components.recorder import get_instance, history as recorder_history
 from homeassistant.components.recorder.db_schema import RecorderRuns
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.recorder import session_scope
@@ -33,7 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def _read(hass, start, end, entities):
     """Use Recorder's executor/session; no direct database file or SQL writes."""
-    states = history.get_significant_states(
+    states = recorder_history.get_significant_states(
         hass, start, end, entity_ids=entities, include_start_time_state=True,
         significant_changes_only=False, minimal_response=False, no_attributes=True,
     )

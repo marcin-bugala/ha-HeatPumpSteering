@@ -1,7 +1,7 @@
 {
   "domain": "hp_poc_history",
   "name": "Heating POC history bootstrap",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "documentation": "https://github.com/marcin-bugala/ha-HeatPumpSteering",
   "codeowners": ["@marcin-bugala"],
   "dependencies": ["recorder"],
