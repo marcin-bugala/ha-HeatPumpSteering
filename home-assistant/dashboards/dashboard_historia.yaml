@@ -114,6 +114,14 @@ views:
                       name: Warunek STOP spełniony
                     - entity: binary_sensor.hp_poc_potrzeba_grzania
                       name: Warunek START spełniony
+          - type: markdown
+            title: Jak czytać wykresy filtrów?
+            content: |-
+              Parter i piętro: **mediana 3 h**. Na zewnątrz: **średnia czasowa 2 h**.
+
+              Odczyt historii przy starcie odtwarza pamięć algorytmu. Nie dopisuje wstecz punktów do historii nowych sensorów na wykresach HA. Krótka linia lub pojedynczy punkt po migracji nie oznacza utraty gotowości.
+
+              Aktualne wartości filtrów znajdziesz w „Aktualnych odczytach”, a gotowość obliczeń w „Gotowości danych”.
 
       # ŚRODEK — jedyne miejsce z elementami edytowalnymi.
       - type: grid
@@ -240,7 +248,7 @@ views:
                   } %}
                   **{{ codes.get(states('sensor.hp_poc_status'), 'Sprawdź stan danych') }}**
 
-                  | Próbki w oknie | Zebrane | Wymagane |
+                  | Odczyty w oknie | Dostępne | Wymagane |
                   | :--- | ---: | ---: |
                   | Parter · 3 h | {{ states('sensor.hp_poc_parter_liczba_probek_trwaly') if is_number(states('sensor.hp_poc_parter_liczba_probek_trwaly')) else '—' }} | 29 |
                   | Piętro · 3 h | {{ states('sensor.hp_poc_pietro_liczba_probek_trwaly') if is_number(states('sensor.hp_poc_pietro_liczba_probek_trwaly')) else '—' }} | 29 |
@@ -255,6 +263,8 @@ views:
                   **Potwierdzenie STOP / START:** {{ (p.get('hot_seconds', 0) / 60) | round(0) }} / {{ (p.get('cold_seconds', 0) / 60) | round(0) }} min z wymaganych 30 min.
 
                   Bufor łączy bieżące próbki z historią stanów HA. Niezmienna wartość w historii zachowuje czas obowiązywania. Niedostępność czujników i przerwy pracy HA pozostają lukami.
+
+                  Gotowość algorytmu nie zależy od długości linii widocznej na wykresie. Punkty nowych sensorów są zapisywane od momentu ich uruchomienia.
 
                   {% for label, attr in [('Brakujące encje — sprawdź pakiet i restart HA', 'missing_entities'), ('Wejścia bez poprawnego odczytu', 'invalid_inputs')] %}
                   {% set items = state_attr('sensor.hp_poc_status', attr) or [] %}
