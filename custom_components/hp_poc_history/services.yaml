@@ -1,0 +1,3 @@
+refresh:
+  name: Uzupełnij historię POC
+  description: Odczytuje ostatnie 15 godzin temperatur, stanu CO1 i nastawy z Recorder. Nie wysyła poleceń pompie.

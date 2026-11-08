@@ -251,9 +251,10 @@ views:
 
                   {% set p = state_attr('sensor.hp_poc_pamiec', 'payload') or {} %}
                   **Pamięć po restarcie:** {{ 'aktywna' if p.get('version') == 1 else 'jeszcze niewczytana' }}.
+                  **Uzupełnienie z historii HA:** {{ 'wczytano — gotowość zależy od kompletności danych' if p.get('history_generated_at', 0) > 0 else 'jeszcze niewczytane' }}.
                   **Potwierdzenie STOP / START:** {{ (p.get('hot_seconds', 0) / 60) | round(0) }} / {{ (p.get('cold_seconds', 0) / 60) | round(0) }} min z wymaganych 30 min.
 
-                  Krótki restart zachowuje ostatnio zapisany bufor. Większa luka w pomiarach może ponownie zablokować gotowość; brakujące minuty nie są dopisywane jako pomiary.
+                  Bufor łączy bieżące próbki z historią stanów HA. Niezmienna wartość w historii zachowuje czas obowiązywania. Niedostępność czujników i przerwy pracy HA pozostają lukami.
 
                   {% for label, attr in [('Brakujące encje — sprawdź pakiet i restart HA', 'missing_entities'), ('Wejścia bez poprawnego odczytu', 'invalid_inputs')] %}
                   {% set items = state_attr('sensor.hp_poc_status', attr) or [] %}
@@ -318,7 +319,7 @@ views:
 
                   **Podnoszenie CO1:** {{ 'zablokowane' if state_attr(e, 'block_increase') else 'dozwolone przy spełnieniu pozostałych warunków' }}.
                   {% else %}
-                  **Nie ma jeszcze poprawnego celu CO1.** Sprawdź „Gotowość danych”. Po pierwszej instalacji potrzeba około 2,5 h prawidłowych próbek.
+                  **Nie ma jeszcze poprawnego celu CO1.** Sprawdź „Gotowość danych”. Historia HA może uzupełnić okna przy starcie; bez wystarczającej historii potrzeba około 2,5 h prawidłowych próbek.
                   {% endif %}
 
                   Cel obliczony nie oznacza, że polecenie zostało już wysłane.

@@ -1,5 +1,16 @@
+hp_poc_history: {}
+
 template:
 - triggers:
+  - trigger: event
+    event_type: hp_poc_history_loaded
+    event_data:
+      entities:
+      - sensor.salon_termometr_salon
+      - sensor.korytarz_termometr_pietro
+      - sensor.garaz_pompa_ciepla_outdoor_ambient_temp
+      - switch.garaz_pompa_ciepla_circuit_1_heating
+      - number.garaz_pompa_ciepla_circuit_1_setpoint
   - trigger: time_pattern
     minutes: /5
     seconds: '0'
@@ -19,11 +30,15 @@ template:
     state: '{{ as_timestamp(now()) | int }}'
     attributes:
       payload: |-
-        {% from 'hp_poc_memory.jinja' import fresh_temperature, next_memory %}
+        {% from 'hp_poc_memory.jinja' import fresh_temperature, next_memory, merge_history %}
         {% set fresh = fresh_temperature | as_function %}
         {% set advance = next_memory | as_function %}
         {% set stamp = as_timestamp(now()) %}
         {% set old = this.attributes.get('payload', {}) %}
+        {% if trigger is defined and trigger.platform == 'event' %}
+          {% set merge = merge_history | as_function %}
+          {% set old = merge(old, trigger.event.data, stamp) %}
+        {% endif %}
         {{ advance(old, stamp,
            fresh('sensor.salon_termometr_salon', stamp, 7200, 10, 35),
            fresh('sensor.korytarz_termometr_pietro', stamp, 7200, 10, 35),

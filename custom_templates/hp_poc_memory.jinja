@@ -27,6 +27,57 @@
                      change=ns.values[-1] - ns.values[0] if count else none)) %}
 {%- endmacro %}
 
+{% macro merge_history(previous, seed, stamp, returns) -%}
+  {% set old = previous if previous is mapping and previous.get('version') == 1 else {} %}
+  {% set accepted = seed is mapping and is_number(seed.get('generated_at'))
+       and 0 <= stamp - seed.get('generated_at', 0) < 120
+       and seed.get('generated_at', 0) >= old.get('history_generated_at', 0) %}
+  {% if not accepted %}{% do returns(old) %}{% else %}
+    {% set ns = namespace(raw=[], trend=[]) %}
+    {# Same five-minute bucket has one vote. Live samples (including invalid)
+       take precedence; history only fills absent buckets. #}
+    {% for key, width, window in [('raw', 4, 10800), ('trend', 3, 43200)] %}
+      {% set merged = namespace(rows=[], buckets=[]) %}
+      {% for row in old.get(key, []) + seed.get(key, []) %}
+        {% if row is sequence and row | count == width and is_number(row[0])
+             and stamp - window <= row[0] <= stamp and row[0] // 300 not in merged.buckets %}
+          {% set merged.rows = merged.rows + [row] %}
+          {% set merged.buckets = merged.buckets + [row[0] // 300] %}
+        {% elif key == 'trend' and row is sequence and row | count == width and is_number(row[0])
+               and stamp - window <= row[0] <= stamp %}
+          {% set filled = namespace(rows=[]) %}
+          {% for existing in merged.rows %}
+            {% if existing[0] // 300 == row[0] // 300 %}
+              {% set filled.rows = filled.rows + [[existing[0],
+                  existing[1] if existing[1] is not none else row[1],
+                  existing[2] if existing[2] is not none else row[2]]] %}
+            {% else %}{% set filled.rows = filled.rows + [existing] %}{% endif %}
+          {% endfor %}
+          {% set merged.rows = filled.rows %}
+        {% endif %}
+      {% endfor %}
+      {% if key == 'raw' %}{% set ns.raw = merged.rows | sort(attribute=0) %}
+      {% else %}{% set ns.trend = merged.rows | sort(attribute=0) %}{% endif %}
+    {% endfor %}
+    {% set merged = dict(old, version=1, raw=ns.raw[-37:], trend=ns.trend[-145:],
+                          history_generated_at=seed.generated_at) %}
+    {% set result = namespace(data=merged) %}
+    {# Do not recover a timer over a live change that occurred during the query.
+       Recovered 'since' is only a conservative lower bound from Recorder. #}
+    {% if old.get('updated', 0) <= seed.generated_at %}
+      {% for field, clock, seen in [('co1', 'co1_since', 'switch_seen'),
+                                    ('setpoint', 'setpoint_since', 'number_seen')] %}
+        {% if is_number(seed.get(clock)) and 0 <= seed.get(clock) <= seed.generated_at
+             and (old.get(field) is none or old.get(field) == seed.get(field)) %}
+          {% set updates = {field: seed.get(field), clock: seed.get(clock), seen: seed.generated_at} %}
+          {% set result.data = dict(result.data, **updates) %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+    {% do returns(result.data) %}
+  {% endif %}
+{%- endmacro %}
+
 {% macro fresh_temperature(entity, stamp, max_age, lower, upper, returns) -%}
   {% set s = states[entity] %}
   {% set valid = s is defined and s is not none and is_number(s.state)
@@ -94,6 +145,7 @@
   {% endif %}
 
   {% do returns(dict(version=1, updated=stamp, raw=ns.raw[-37:], trend=ns.trend[-145:],
+       history_generated_at=old.get('history_generated_at', 0),
        ground=a, upper=b, outdoor=o, trend_ground=ta, trend_upper=tb,
        co1=co1 if known_switch else old.get('co1'),
        co1_since=switch_since if known_switch else old.get('co1_since', stamp),

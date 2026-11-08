@@ -2,7 +2,8 @@
 
 Pakiet YAML dla Home Assistant analizujący temperatury z HiMitII i dwóch
 kondygnacji. Zwykła automatyzacja zapisuje nastawę przez istniejącą integrację
-Hisense (`number.set_value`). Nie jest to jeszcze custom integration.
+Hisense (`number.set_value`). Regulacja pozostaje w automatyzacjach YAML.
+Mały moduł `hp_poc_history` wyłącznie odczytuje historię HA przy starcie.
 
 **Po instalacji zapis jest aktywny**, gdy dane i filtry są gotowe.
 Nie przełącza trybu pracy pompy: Hisense należy ustawić na stałą temperaturę
@@ -23,6 +24,9 @@ pomp obiegowych, zaworów ani demand bezpośrednio.
    `heat_pump_steering_poc.yaml` i `heat_pump_steering_memory.yaml`.
    Skopiuj też `custom_templates/hp_poc_memory.jinja` do
    `/config/custom_templates/hp_poc_memory.jinja`.
+   Skopiuj cały folder `custom_components/hp_poc_history/` do
+   `/config/custom_components/hp_poc_history/`. Pakiet pamięci zawiera
+   `hp_poc_history: {}`, więc nie trzeba dopisywać osobnej sekcji konfiguracji.
    W `configuration.yaml` użyj istniejącej konfiguracji pakietów, np.:
 
    ```yaml
@@ -157,14 +161,16 @@ czasy zmian i potwierdzeń. Obliczenia są współdzielone w makrach
 
 Dotychczasowe sensory Statistics pozostają do porównania. Sterowanie
 i zakładka POC korzystają teraz z sensorów z końcówką `_trwaly`,
-wyliczanych z pełnego bufora. Nie odtwarzają próbek tylko ze zmian wartości
-w Recorderze. Identyfikatory istniejących urządzeń i automatyzacji zachowano.
+wyliczanych z bufora regularnych próbek. Przy starcie brakujące sloty może
+uzupełnić Recorder: z uwzględnieniem czasu obowiązywania stanów, zamiast
+traktowania każdej zmiany temperatury jako jednej próbki. Identyfikatory
+istniejących urządzeń i automatyzacji zachowano.
 
 - Krótki restart zachowuje ostatnio utrwalone próbki i czasy zamiast
   wymuszać ponowne 2,5–3 h zbierania oraz 2 h stabilnej nastawy.
-- Brakujące próbki nie są dopisywane. Luka ponad 20 min blokuje gotowość
+- Brak danych nie jest zastępowany zerem. Luka ponad 20 min blokuje gotowość
   danego okna do czasu jej wyjścia z okna. Progi pokrycia 80% i 29/29/20
-  rzeczywistych próbek nadal obowiązują.
+  slotów z odczytem lub odtworzonym stanem historycznym nadal obowiązują.
 - Potwierdzenia STOP/START gromadzą 30 min poprawnych obserwacji. Przy
   krótkiej przerwie czas jest zachowany i wstrzymany, a nie powiększany
   o całą przerwę. Zmiana celów zeruje potwierdzenie, ale zachowuje pomiary.
@@ -174,24 +180,59 @@ w Recorderze. Identyfikatory istniejących urządzeń i automatyzacji zachowano.
   może utracić najnowszy fragment od ostatniego zapisu. Bufor nie zastępuje
   niezależnego zasilania ani ochrony sprzętowej.
 
-### Aktualizacja istniejącego POC bez pełnego restartu
+### Uzupełnianie historii — instalacja i aktualizacja
 
-1. Zachowaj kopie aktualnych plików. Dodaj makro `.jinja` i drugi pakiet
-   pamięci, a następnie podmień główny pakiet.
+1. Zachowaj kopie aktualnych plików. Skopiuj folder
+   `custom_components/hp_poc_history/`, podmień makro `.jinja` i pakiet
+   `heat_pump_steering_memory.yaml`. Główny pakiet regulacji nie zmienia się.
 2. Wykonaj `homeassistant.check_config` i usuń ewentualne błędy przed
    przeładowaniem.
-3. Wykonaj `homeassistant.reload_custom_templates`, potem `template.reload`,
-   a następnie `automation.reload`. Nie przeładowuj Statistics — stare
-   sensory zostają wyłącznie porównawcze. Nie jest potrzebny restart HA.
+3. Przy pierwszej instalacji modułu historii potrzebny jest pełny restart HA
+   po poprawnym sprawdzeniu konfiguracji. Nie uruchamiaj go automatycznie
+   bez decyzji administratora. Przy kolejnych zmianach tylko makra/pakietu
+   wystarcza `homeassistant.reload_custom_templates`, potem `template.reload`
+   i akcja `hp_poc_history.refresh`. Zmiana kodu Python wymaga restartu.
 4. Zaktualizuj tylko zakładkę POC w swoim wspólnym dashboardzie Historia.
    Karta JavaScript pozostaje bez zmian.
 5. Sprawdź `sensor.hp_poc_pamiec` (atrybut `payload`, wersja 1) i nowe
-   sensory z końcówką `_trwaly`. Przy pierwszej migracji nowy bufor jest
-   pusty i zbiera historię jeden raz; późniejsze krótkie restarty go nie zerują.
+   sensory z końcówką `_trwaly`. `payload.history_generated_at > 0` oznacza
+   przyjęty wynik odczytu historii, nie gwarancję gotowości wszystkich okien.
+   Przy wystarczającej historii obliczenia są dostępne po najbliższym cyklu
+   POC (do 5 min), bez ponownego czekania 2,5 h. START/STOP nadal wymaga
+   potwierdzenia warunków względem aktualnych celów przez 30 min.
 
-Cofnięcie migracji: przywróć poprzedni główny pakiet i zakładkę dashboardu,
-potem przeładuj szablony i automatyzacje. Nowy bufor może pozostać nieużywany;
-nie trzeba usuwać encji ani danych historii. W aktualizacji nie obniżamy
+Moduł czyta ostatnie **15 h** trzech temperatur, przełącznika CO1 i nastawy:
+3 h potrzebne do początkowych median oraz 12 h trendu. Czyta przez Recorder
+w jego executorze, bez tokena, żądań do chmury i bez bezpośredniego otwierania
+pliku bazy. Nie wysyła poleceń urządzeniom. Działa przy starcie HA; akcja
+`hp_poc_history.refresh` pozwala powtórzyć odczyt po przeładowaniu szablonów.
+Błąd startowy powoduje maksymalnie 3 próby co minutę. Zwykłe próbkowanie
+działa również, jeśli odczyt historii się nie powiedzie.
+
+Wartość niezmienna przez godzinę stanowi godzinę znanego stanu. Odtwarzanie
+stosuje schodkowo ostatni zapisany stan, bez interpolacji. `unknown`,
+`unavailable`, błędne zakresy i przerwy pracy Recordera pozostają brakami.
+To odtworzenie historii stanów HA, nie dowód ciągłych fizycznych pomiarów:
+czujnika, który zawiesił się bez zgłoszenia niedostępności, nie da się
+rozpoznać wyłącznie po tej historii. Źródła muszą być objęte Recorderem.
+
+Historia przełączeń i zmian nastawy odtwarza również blokadę 2 h. Powtórzony
+raport tej samej wartości nie zeruje licznika. Jeśli właściwa zmiana była
+przed początkiem okna, używamy początku potwierdzonego fragmentu, a nie
+zgadniętej godziny zmiany. Niedostępność i przerwa HA ponad 20 min przerywają
+ciągłość; obecny stan musi zgadzać się z historią. Zmiana w trakcie odczytu
+historii zachowuje nowszy licznik z działającego POC. Nie odtwarzamy z dawnych
+temperatur 30 min potwierdzenia STOP/START, bo cele mogły być wtedy inne.
+Odczyt stanu HiMitII nadal nie stanowi niezależnego potwierdzenia sprężarki.
+
+Jeśli zmieniasz identyfikatory źródeł, zmień je w obu pakietach oraz w filtrze
+`event_data.entities` w pakiecie pamięci. W sekcji `hp_poc_history` podaj
+odpowiednie klucze `ground`, `upper`, `outdoor`, `co1`, `setpoint`.
+
+Cofnięcie odczytu historii: przywróć poprzednie makro i pakiet pamięci bez
+sekcji `hp_poc_history`, sprawdź konfigurację i uruchom HA ponownie. Pozostawione
+pliki modułu nie są wtedy wczytywane. Nie trzeba usuwać danych historii.
+W aktualizacji nie obniżamy
 limitów temperatury ani nie wydajemy testowych poleceń pompie.
 
 ## Algorytm
@@ -235,9 +276,10 @@ tym zakresem — wymaga doprowadzenia nastawy do zakresu ręcznie.
 
 Zapis wymaga włączonego CO1, kompletnego wyniku nie starszego niż 10 min,
 świeżych źródeł (wnętrza do 2 h, pompa do 30 min), prawidłowych jednostek
-i limitów. Przed pierwszym wynikiem filtry potrzebują około **2,5 h** próbek
-(pokrycie okna ≥80% oraz co najmniej 29/29/20 próbek). Trend zaczyna działać
-później. Recorder powinien przechowywać sensory POC, aby zachować historię.
+i limitów. Bez wystarczającej historii filtry potrzebują około **2,5 h** próbek
+(pokrycie okna ≥80% oraz co najmniej 29/29/20 slotów). Przy kompletnej historii
+moduł startowy odtwarza te okna i trend. Recorder powinien przechowywać
+źródłowe temperatury, CO1, nastawę oraz sensory POC.
 
 `last_reported` oznacza świeżość raportu w HA, nie dowód nowego fizycznego
 pomiaru ani udanego pobrania danych przez chmurę. HiMitII aktualizuje nastawę
