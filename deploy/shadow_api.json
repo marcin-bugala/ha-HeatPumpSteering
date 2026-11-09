@@ -1,0 +1,157 @@
+{
+  "storage_helpers": [
+    {
+      "helper_type": "input_text",
+      "name": "hp_poc_porownanie_dane",
+      "config": {
+        "max": 255,
+        "mode": "text"
+      }
+    },
+    {
+      "helper_type": "input_text",
+      "name": "hp_poc_porownanie_pamiec",
+      "config": {
+        "max": 255,
+        "mode": "text"
+      }
+    }
+  ],
+  "automation": {
+    "alias": "Ogrzewanie POC · porównanie filtrów bez sterowania",
+    "description": "Obserwacja median 2 h/3 h, szybkiego filtra 45 min i trendu 2 h. Zapisuje wyłącznie dane porównania; nie wysyła poleceń urządzeniom.",
+    "mode": "single",
+    "triggers": [
+      {
+        "trigger": "time_pattern",
+        "minutes": "/1",
+        "seconds": "20"
+      },
+      {
+        "trigger": "homeassistant",
+        "event": "start"
+      }
+    ],
+    "actions": [
+      {
+        "variables": {
+          "observation": "{# Inlined by tools/build_shadow.py into a UI-managed automation, not imported in HA.\n   One shared calculation, no device actions. All timestamps are Unix seconds. #}\n{% macro window(rows, column, stamp, length, minimum, gap_limit, returns) -%}\n  {% set ns = namespace(values=[], times=[], gap=0) %}\n  {% for row in rows %}\n    {% if stamp - length <= row[0] <= stamp and is_number(row[column]) %}\n      {% set ns.values = ns.values + [row[column] | float] %}\n      {% set ns.times = ns.times + [row[0]] %}\n    {% endif %}\n  {% endfor %}\n  {% for t in ns.times %}\n    {% if not loop.first %}{% set ns.gap = [ns.gap, t-ns.times[loop.index0-1]] | max %}{% endif %}\n  {% endfor %}\n  {% set n = ns.values | count %}\n  {% set sorted = ns.values | sort %}\n  {% set coverage = (ns.times[-1]-ns.times[0])/length if n > 1 else 0 %}\n  {% set gap = [ns.gap, stamp-ns.times[-1]] | max if n else length %}\n  {% set value = (sorted[(n-1)//2]+sorted[n//2])/2 if n else none %}\n  {% do returns(dict(value=value, ready=n>=minimum and coverage>=0.8 and gap<=gap_limit)) %}\n{%- endmacro %}\n\n{% macro observe(p, old, stamp, tg, tu, liveg, liveu, indoor_fresh, co1_valid,\n                 auto_enabled, actual_co1, last_try, returns) -%}\n  {% set rows = p.get('raw', []) %}\n  {% set sample = p.get('updated', 0) | int %}\n  {% set fresh = 0 <= stamp-sample < 600 %}\n  {% set measure = window | as_function %}\n  {% set g2 = measure(rows,1,stamp,7200,20,1200) %}\n  {% set u2 = measure(rows,2,stamp,7200,20,1200) %}\n  {% set gf = measure(rows,1,stamp,2700,8,600) %}\n  {% set uf = measure(rows,2,stamp,2700,8,600) %}\n  {% set ga = measure(rows,1,stamp-5400,1800,5,600) %}\n  {% set gb = measure(rows,1,stamp,1800,5,600) %}\n  {% set ua = measure(rows,2,stamp-5400,1800,5,600) %}\n  {% set ub = measure(rows,2,stamp,1800,5,600) %}\n  {# Compare two 30-min medians, centered 90 min apart: rate in degrees/hour. #}\n  {% set dg = (gb.value-ga.value)/1.5 if fresh and indoor_fresh and g2.ready and ga.ready and gb.ready else none %}\n  {% set du = (ub.value-ua.value)/1.5 if fresh and indoor_fresh and u2.ready and ua.ready and ub.ready else none %}\n  {% set latest_ok = rows and is_number(rows[-1][1]) and is_number(rows[-1][2]) %}\n  {% set fast_ready = fresh and indoor_fresh and latest_ok and gf.ready and uf.ready %}\n  {% set hot = fast_ready and gf.value >= tg+0.4 and uf.value >= tu+0.4 %}\n  {% set cold = fast_ready and (gf.value <= tg-0.2 or uf.value <= tu-0.2)\n      and liveg >= gf.value-0.7 and liveu >= uf.value-0.7 %}\n  {% set same = old.get('g') == tg and old.get('u') == tu %}\n  {% set elapsed = sample-old.get('t',sample) %}\n  {% set continuous = same and 0 <= elapsed <= 1200 %}\n  {% set advance = elapsed if 0 <= elapsed <= 360 else 0 %}\n  {% set h = ([1800,old.get('h',0)+advance] | min if continuous and old.get('hv') else 0) if hot else 0 %}\n  {% set c = ([1800,old.get('c',0)+advance] | min if continuous and old.get('cv') else 0) if cold else 0 %}\n  {% set clock = dict(t=sample,g=tg,u=tu,h=h,c=c,hv=hot,cv=cold) %}\n  {% if not fast_ready and continuous %}\n    {# Keep the last valid timestamp: unknown intervals must not accrue time. #}\n    {% set clock = old %}\n    {% set h = old.get('h',0) %}{% set c = old.get('c',0) %}\n  {% endif %}\n  {% set locks_ok = fresh and actual_co1 in ['on','off'] and actual_co1 == p.get('co1')\n       and stamp-p.get('co1_since',stamp) >= 7200 and stamp-last_try >= 900 %}\n  {% set wants_stop = actual_co1 == 'on' and hot and h >= 1800 %}\n  {% set wants_start = actual_co1 == 'off' and cold and c >= 1800 %}\n  {% set decision = 'data' if not fast_ready or actual_co1 not in ['on','off'] else ('disabled' if not auto_enabled else\n      ('lock' if (wants_start or wants_stop) and not locks_ok else\n       ('start' if wants_start else ('stop' if wants_stop else\n        ('confirm' if (actual_co1 == 'on' and hot) or (actual_co1 == 'off' and cold) else 'hold'))))) %}\n\n  {% set rising = namespace(value=0) %}\n  {% if dg is not none and du is not none and p.get('trend_ground',{}).get('ready') and p.get('trend_upper',{}).get('ready') %}\n    {% set rising.value = [0,\n       p.trend_ground.change if dg > 0.03 else 0,\n       p.trend_upper.change if du > 0.03 else 0] | max %}\n  {% endif %}\n  {% set penalty = [0.5, [0,rising.value-0.15] | max * 0.5] | min %}\n  {% set proposal = namespace(c2=none,c3=none) %}\n  {% if fresh and indoor_fresh and latest_ok and co1_valid and p.get('outdoor',{}).get('ready') %}\n    {% set base = 20+0.2*(20-p.outdoor.average) %}\n    {% set lo = state_attr('number.garaz_pompa_ciepla_circuit_1_setpoint','min') | float(0) | round(0,'ceil') | int %}\n    {% set hi = [35,state_attr('number.garaz_pompa_ciepla_circuit_1_setpoint','max') | float(35)] | min | round(0,'floor') | int %}\n    {% for label, a, b in [('c2',g2,u2),('c3',p.get('ground',{}),p.get('upper',{}))] %}\n      {% if a.get('ready') and b.get('ready') and lo <= hi %}\n        {% set eg = tg-a.value %}{% set eu = tu-b.value %}\n        {% set error = [eg,eu] | min if [eg,eu] | min < -0.2 else (eg+eu)/2 %}\n        {% set comfort = 0 if error | abs <= 0.2 else 1.5*(error-0.2 if error>0 else error+0.2) %}\n        {% set correction = [-2,[2,comfort-penalty] | min] | max %}\n        {% set result = ([lo,[hi,base+correction] | min] | max + 0.5) | round(0,'floor') | int %}\n        {% if label == 'c2' %}{% set proposal.c2 = result %}{% else %}{% set proposal.c3 = result %}{% endif %}\n      {% endif %}\n    {% endfor %}\n  {% endif %}\n  {% do returns(dict(clock=clock, data=dict(t=sample,\n       g2=g2.value | round(2) if fresh and indoor_fresh and latest_ok and g2.ready else none,\n       u2=u2.value | round(2) if fresh and indoor_fresh and latest_ok and u2.ready else none,\n       gf=gf.value | round(2) if fast_ready else none,uf=uf.value | round(2) if fast_ready else none,\n       dg=dg | round(3) if dg is not none else none,du=du | round(3) if du is not none else none,\n       c2=proposal.c2,c3=proposal.c3,q=decision,h=h,c=c))) %}\n{%- endmacro %}\n\n{% set p=state_attr('sensor.hp_poc_pamiec','payload') or {} %}\n{% set old=states('input_text.hp_poc_porownanie_pamiec') | from_json({}) %}\n{% set ns=namespace(fresh=true) %}\n{% if not is_state('input_boolean.hp_poc_cele_zainicjalizowane','on')\n      or not is_number(states('input_number.hp_poc_cel_parter'))\n      or not is_number(states('input_number.hp_poc_cel_pietro')) %}{% set ns.fresh=false %}{% endif %}\n{% for entity in ['sensor.salon_termometr_salon','sensor.korytarz_termometr_pietro'] %}\n  {% set s=states[entity] %}\n  {% if s is not defined or not is_number(s.state) or not (10 <= s.state|float(0) <= 35)\n        or not (0 <= as_timestamp(now())-as_timestamp(s.last_reported,0) < 7200) %}\n    {% set ns.fresh=false %}\n  {% endif %}\n{% endfor %}\n{% set valid=is_number(states('sensor.hp_poc_co1_propozycja'))\n    and is_number(state_attr('number.garaz_pompa_ciepla_circuit_1_setpoint','min'))\n    and is_number(state_attr('number.garaz_pompa_ciepla_circuit_1_setpoint','max'))\n    and 0 <= as_timestamp(now())-as_timestamp(state_attr('sensor.hp_poc_co1_propozycja','calculated_at'),0) < 600 %}\n{% set compute=observe | as_function %}\n{{ compute(p,old,as_timestamp(now())|int,\n    states('input_number.hp_poc_cel_parter')|float(21),states('input_number.hp_poc_cel_pietro')|float(22),\n    states('sensor.salon_termometr_salon')|float(0),states('sensor.korytarz_termometr_pietro')|float(0),\n    ns.fresh,valid,is_state('input_boolean.hp_poc_auto_stop_co1','on'),\n    states('switch.garaz_pompa_ciepla_circuit_1_heating'),\n    as_timestamp(states('input_datetime.hp_poc_ostatnia_proba_co1_on_off'),0)) }}\n"
+        }
+      },
+      {
+        "action": "input_text.set_value",
+        "target": {
+          "entity_id": "input_text.hp_poc_porownanie_pamiec"
+        },
+        "data": {
+          "value": "{{ observation.clock | to_json }}"
+        }
+      },
+      {
+        "action": "input_text.set_value",
+        "target": {
+          "entity_id": "input_text.hp_poc_porownanie_dane"
+        },
+        "data": {
+          "value": "{{ observation.data | to_json }}"
+        }
+      }
+    ]
+  },
+  "helpers": [
+    {
+      "helper_type": "template",
+      "name": "hp_poc_porownanie_parter_2h",
+      "config": {
+        "next_step_id": "sensor",
+        "state": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ d.get('g2') if 0 <= as_timestamp(now())-d.get('t',0) < 600 else none }}",
+        "availability": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ 0 <= as_timestamp(now())-d.get('t',0) < 600 and is_number(d.get('g2')) }}",
+        "unit_of_measurement": "°C",
+        "device_class": "temperature"
+      }
+    },
+    {
+      "helper_type": "template",
+      "name": "hp_poc_porownanie_pietro_2h",
+      "config": {
+        "next_step_id": "sensor",
+        "state": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ d.get('u2') if 0 <= as_timestamp(now())-d.get('t',0) < 600 else none }}",
+        "availability": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ 0 <= as_timestamp(now())-d.get('t',0) < 600 and is_number(d.get('u2')) }}",
+        "unit_of_measurement": "°C",
+        "device_class": "temperature"
+      }
+    },
+    {
+      "helper_type": "template",
+      "name": "hp_poc_porownanie_parter_45min",
+      "config": {
+        "next_step_id": "sensor",
+        "state": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ d.get('gf') if 0 <= as_timestamp(now())-d.get('t',0) < 600 else none }}",
+        "availability": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ 0 <= as_timestamp(now())-d.get('t',0) < 600 and is_number(d.get('gf')) }}",
+        "unit_of_measurement": "°C",
+        "device_class": "temperature"
+      }
+    },
+    {
+      "helper_type": "template",
+      "name": "hp_poc_porownanie_pietro_45min",
+      "config": {
+        "next_step_id": "sensor",
+        "state": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ d.get('uf') if 0 <= as_timestamp(now())-d.get('t',0) < 600 else none }}",
+        "availability": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ 0 <= as_timestamp(now())-d.get('t',0) < 600 and is_number(d.get('uf')) }}",
+        "unit_of_measurement": "°C",
+        "device_class": "temperature"
+      }
+    },
+    {
+      "helper_type": "template",
+      "name": "hp_poc_porownanie_parter_trend_2h",
+      "config": {
+        "next_step_id": "sensor",
+        "state": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ d.get('dg') if 0 <= as_timestamp(now())-d.get('t',0) < 600 else none }}",
+        "availability": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ 0 <= as_timestamp(now())-d.get('t',0) < 600 and is_number(d.get('dg')) }}",
+        "unit_of_measurement": "°C/h"
+      }
+    },
+    {
+      "helper_type": "template",
+      "name": "hp_poc_porownanie_pietro_trend_2h",
+      "config": {
+        "next_step_id": "sensor",
+        "state": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ d.get('du') if 0 <= as_timestamp(now())-d.get('t',0) < 600 else none }}",
+        "availability": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ 0 <= as_timestamp(now())-d.get('t',0) < 600 and is_number(d.get('du')) }}",
+        "unit_of_measurement": "°C/h"
+      }
+    },
+    {
+      "helper_type": "template",
+      "name": "hp_poc_porownanie_co1_2h",
+      "config": {
+        "next_step_id": "sensor",
+        "state": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ d.get('c2') if 0 <= as_timestamp(now())-d.get('t',0) < 600 else none }}",
+        "availability": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ 0 <= as_timestamp(now())-d.get('t',0) < 600 and is_number(d.get('c2')) }}",
+        "unit_of_measurement": "°C",
+        "device_class": "temperature"
+      }
+    },
+    {
+      "helper_type": "template",
+      "name": "hp_poc_porownanie_co1_3h",
+      "config": {
+        "next_step_id": "sensor",
+        "state": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ d.get('c3') if 0 <= as_timestamp(now())-d.get('t',0) < 600 else none }}",
+        "availability": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ 0 <= as_timestamp(now())-d.get('t',0) < 600 and is_number(d.get('c3')) }}",
+        "unit_of_measurement": "°C",
+        "device_class": "temperature"
+      }
+    },
+    {
+      "helper_type": "template",
+      "name": "hp_poc_porownanie_decyzja",
+      "config": {
+        "next_step_id": "sensor",
+        "state": "{% set d=states('input_text.hp_poc_porownanie_dane')|from_json({}) %}{{ d.get('q','data') if 0 <= as_timestamp(now())-d.get('t',0) < 600 else 'data' }}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{# Inlined by tools/build_shadow.py into a UI-managed automation, not imported in HA.
+   One shared calculation, no device actions. All timestamps are Unix seconds. #}
+{% macro window(rows, column, stamp, length, minimum, gap_limit, returns) -%}
+  {% set ns = namespace(values=[], times=[], gap=0) %}
+  {% for row in rows %}
+    {% if stamp - length <= row[0] <= stamp and is_number(row[column]) %}
+      {% set ns.values = ns.values + [row[column] | float] %}
+      {% set ns.times = ns.times + [row[0]] %}
+    {% endif %}
+  {% endfor %}
+  {% for t in ns.times %}
+    {% if not loop.first %}{% set ns.gap = [ns.gap, t-ns.times[loop.index0-1]] | max %}{% endif %}
+  {% endfor %}
+  {% set n = ns.values | count %}
+  {% set sorted = ns.values | sort %}
+  {% set coverage = (ns.times[-1]-ns.times[0])/length if n > 1 else 0 %}
+  {% set gap = [ns.gap, stamp-ns.times[-1]] | max if n else length %}
+  {% set value = (sorted[(n-1)//2]+sorted[n//2])/2 if n else none %}
+  {% do returns(dict(value=value, ready=n>=minimum and coverage>=0.8 and gap<=gap_limit)) %}
+{%- endmacro %}
+
+{% macro observe(p, old, stamp, tg, tu, liveg, liveu, indoor_fresh, co1_valid,
+                 auto_enabled, actual_co1, last_try, returns) -%}
+  {% set rows = p.get('raw', []) %}
+  {% set sample = p.get('updated', 0) | int %}
+  {% set fresh = 0 <= stamp-sample < 600 %}
+  {% set measure = window | as_function %}
+  {% set g2 = measure(rows,1,stamp,7200,20,1200) %}
+  {% set u2 = measure(rows,2,stamp,7200,20,1200) %}
+  {% set gf = measure(rows,1,stamp,2700,8,600) %}
+  {% set uf = measure(rows,2,stamp,2700,8,600) %}
+  {% set ga = measure(rows,1,stamp-5400,1800,5,600) %}
+  {% set gb = measure(rows,1,stamp,1800,5,600) %}
+  {% set ua = measure(rows,2,stamp-5400,1800,5,600) %}
+  {% set ub = measure(rows,2,stamp,1800,5,600) %}
+  {# Compare two 30-min medians, centered 90 min apart: rate in degrees/hour. #}
+  {% set dg = (gb.value-ga.value)/1.5 if fresh and indoor_fresh and g2.ready and ga.ready and gb.ready else none %}
+  {% set du = (ub.value-ua.value)/1.5 if fresh and indoor_fresh and u2.ready and ua.ready and ub.ready else none %}
+  {% set latest_ok = rows and is_number(rows[-1][1]) and is_number(rows[-1][2]) %}
+  {% set fast_ready = fresh and indoor_fresh and latest_ok and gf.ready and uf.ready %}
+  {% set hot = fast_ready and gf.value >= tg+0.4 and uf.value >= tu+0.4 %}
+  {% set cold = fast_ready and (gf.value <= tg-0.2 or uf.value <= tu-0.2)
+      and liveg >= gf.value-0.7 and liveu >= uf.value-0.7 %}
+  {% set same = old.get('g') == tg and old.get('u') == tu %}
+  {% set elapsed = sample-old.get('t',sample) %}
+  {% set continuous = same and 0 <= elapsed <= 1200 %}
+  {% set advance = elapsed if 0 <= elapsed <= 360 else 0 %}
+  {% set h = ([1800,old.get('h',0)+advance] | min if continuous and old.get('hv') else 0) if hot else 0 %}
+  {% set c = ([1800,old.get('c',0)+advance] | min if continuous and old.get('cv') else 0) if cold else 0 %}
+  {% set clock = dict(t=sample,g=tg,u=tu,h=h,c=c,hv=hot,cv=cold) %}
+  {% if not fast_ready and continuous %}
+    {# Keep the last valid timestamp: unknown intervals must not accrue time. #}
+    {% set clock = old %}
+    {% set h = old.get('h',0) %}{% set c = old.get('c',0) %}
+  {% endif %}
+  {% set locks_ok = fresh and actual_co1 in ['on','off'] and actual_co1 == p.get('co1')
+       and stamp-p.get('co1_since',stamp) >= 7200 and stamp-last_try >= 900 %}
+  {% set wants_stop = actual_co1 == 'on' and hot and h >= 1800 %}
+  {% set wants_start = actual_co1 == 'off' and cold and c >= 1800 %}
+  {% set decision = 'data' if not fast_ready or actual_co1 not in ['on','off'] else ('disabled' if not auto_enabled else
+      ('lock' if (wants_start or wants_stop) and not locks_ok else
+       ('start' if wants_start else ('stop' if wants_stop else
+        ('confirm' if (actual_co1 == 'on' and hot) or (actual_co1 == 'off' and cold) else 'hold'))))) %}
+
+  {% set rising = namespace(value=0) %}
+  {% if dg is not none and du is not none and p.get('trend_ground',{}).get('ready') and p.get('trend_upper',{}).get('ready') %}
+    {% set rising.value = [0,
+       p.trend_ground.change if dg > 0.03 else 0,
+       p.trend_upper.change if du > 0.03 else 0] | max %}
+  {% endif %}
+  {% set penalty = [0.5, [0,rising.value-0.15] | max * 0.5] | min %}
+  {% set proposal = namespace(c2=none,c3=none) %}
+  {% if fresh and indoor_fresh and latest_ok and co1_valid and p.get('outdoor',{}).get('ready') %}
+    {% set base = 20+0.2*(20-p.outdoor.average) %}
+    {% set lo = state_attr('number.garaz_pompa_ciepla_circuit_1_setpoint','min') | float(0) | round(0,'ceil') | int %}
+    {% set hi = [35,state_attr('number.garaz_pompa_ciepla_circuit_1_setpoint','max') | float(35)] | min | round(0,'floor') | int %}
+    {% for label, a, b in [('c2',g2,u2),('c3',p.get('ground',{}),p.get('upper',{}))] %}
+      {% if a.get('ready') and b.get('ready') and lo <= hi %}
+        {% set eg = tg-a.value %}{% set eu = tu-b.value %}
+        {% set error = [eg,eu] | min if [eg,eu] | min < -0.2 else (eg+eu)/2 %}
+        {% set comfort = 0 if error | abs <= 0.2 else 1.5*(error-0.2 if error>0 else error+0.2) %}
+        {% set correction = [-2,[2,comfort-penalty] | min] | max %}
+        {% set result = ([lo,[hi,base+correction] | min] | max + 0.5) | round(0,'floor') | int %}
+        {% if label == 'c2' %}{% set proposal.c2 = result %}{% else %}{% set proposal.c3 = result %}{% endif %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+  {% do returns(dict(clock=clock, data=dict(t=sample,
+       g2=g2.value | round(2) if fresh and indoor_fresh and latest_ok and g2.ready else none,
+       u2=u2.value | round(2) if fresh and indoor_fresh and latest_ok and u2.ready else none,
+       gf=gf.value | round(2) if fast_ready else none,uf=uf.value | round(2) if fast_ready else none,
+       dg=dg | round(3) if dg is not none else none,du=du | round(3) if du is not none else none,
+       c2=proposal.c2,c3=proposal.c3,q=decision,h=h,c=c))) %}
+{%- endmacro %}

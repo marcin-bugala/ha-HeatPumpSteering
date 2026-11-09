@@ -74,6 +74,10 @@ views:
                       name: Pomiar
                     - entity: sensor.hp_poc_parter_komfort_trwaly
                       name: Do regulacji · mediana 3 h
+                    - entity: sensor.hp_poc_porownanie_parter_2h
+                      name: Porównanie · 2 h
+                    - entity: sensor.hp_poc_porownanie_parter_45min
+                      name: Porównanie · 45 min
                     - entity: input_number.hp_poc_cel_parter
                       name: Temperatura zadana
                 - type: history-graph
@@ -84,6 +88,10 @@ views:
                       name: Pomiar
                     - entity: sensor.hp_poc_pietro_komfort_trwaly
                       name: Do regulacji · mediana 3 h
+                    - entity: sensor.hp_poc_porownanie_pietro_2h
+                      name: Porównanie · 2 h
+                    - entity: sensor.hp_poc_porownanie_pietro_45min
+                      name: Porównanie · 45 min
                     - entity: input_number.hp_poc_cel_pietro
                       name: Temperatura zadana
                 - type: history-graph
@@ -92,6 +100,10 @@ views:
                   entities:
                     - entity: sensor.hp_poc_co1_propozycja
                       name: Cel obliczony przez POC
+                    - entity: sensor.hp_poc_porownanie_co1_3h
+                      name: Porównanie · 3 h i krótki trend
+                    - entity: sensor.hp_poc_porownanie_co1_2h
+                      name: Porównanie · 2 h i krótki trend
                     - entity: number.garaz_pompa_ciepla_circuit_1_setpoint
                       name: Nastawa w HiMitII
                     - entity: sensor.garaz_pompa_ciepla_circuit_1_water_temp
@@ -114,10 +126,12 @@ views:
                       name: Warunek STOP spełniony
                     - entity: binary_sensor.hp_poc_potrzeba_grzania
                       name: Warunek START spełniony
+                    - entity: sensor.hp_poc_porownanie_decyzja
+                      name: Zalecenie porównawcze · bez sterowania
           - type: markdown
             title: Jak czytać wykresy filtrów?
             content: |-
-              Parter i piętro: **mediana 3 h**. Na zewnątrz: **średnia czasowa 2 h**.
+              Aktywne sterowanie: **mediana 3 h** wewnątrz i **średnia czasowa 2 h** na zewnątrz. Linie oznaczone „Porównanie” nie sterują pompą.
 
               Odczyt historii przy starcie odtwarza pamięć algorytmu. Nie dopisuje wstecz punktów do historii nowych sensorów na wykresach HA. Krótka linia lub pojedynczy punkt po migracji nie oznacza utraty gotowości.
 
@@ -233,6 +247,36 @@ views:
                   | Pomiar temperatury wody | {{ temp('sensor.garaz_pompa_ciepla_circuit_1_water_temp') }} |
 
                   **Przerwę rozpoczął POC (informacja):** {{ 'tak' if is_state('input_boolean.hp_poc_co1_wylaczony_przez_poc', 'on') else 'nie' }}. Ręczne OFF nie blokuje automatycznego START przy zapotrzebowaniu.
+              - type: markdown
+                title: Porównanie filtrów · bez sterowania
+                content: |-
+                  {% macro value(e, unit='°C') -%}
+                  {{ states(e) ~ ' ' ~ unit if is_number(states(e)) else 'Brak danych' }}
+                  {%- endmacro %}
+                  | Kondygnacja | Aktywne 3 h | Porównanie 2 h | Szybkie 45 min |
+                  | :--- | ---: | ---: | ---: |
+                  | Parter | {{ value('sensor.hp_poc_parter_komfort_trwaly') }} | {{ value('sensor.hp_poc_porownanie_parter_2h') }} | {{ value('sensor.hp_poc_porownanie_parter_45min') }} |
+                  | Piętro | {{ value('sensor.hp_poc_pietro_komfort_trwaly') }} | {{ value('sensor.hp_poc_porownanie_pietro_2h') }} | {{ value('sensor.hp_poc_porownanie_pietro_45min') }} |
+
+                  **Krótki trend parter / piętro:** {{ value('sensor.hp_poc_porownanie_parter_trend_2h', '°C/h') }} / {{ value('sensor.hp_poc_porownanie_pietro_trend_2h', '°C/h') }}.
+
+                  | Obliczony cel CO1 | Temperatura |
+                  | :--- | ---: |
+                  | Aktywny algorytm · 3 h | {{ value('sensor.hp_poc_co1_propozycja') }} |
+                  | 3 h · z kontrolą krótkiego trendu | {{ value('sensor.hp_poc_porownanie_co1_3h') }} |
+                  | 2 h · z kontrolą krótkiego trendu | {{ value('sensor.hp_poc_porownanie_co1_2h') }} |
+
+                  {% set d=states('input_text.hp_poc_porownanie_dane') | from_json({}) %}
+                  {% set labels={'data':'Brak kompletu świeżych danych','disabled':'Auto STOP wyłączone',
+                    'hold':'Pozostaw aktualny stan CO1','confirm':'Potwierdzanie warunku temperatury',
+                    'lock':'Warunek spełniony; trwa blokada czasu pracy, przerwy lub ponowienia',
+                    'start':'Nowe reguły zalecają START','stop':'Nowe reguły zalecają STOP'} %}
+                  **Szybki START/STOP:** {{ labels.get(states('sensor.hp_poc_porownanie_decyzja'),'Brak danych') }}.
+                  {% if states('sensor.hp_poc_porownanie_decyzja') != 'data' %}
+                  Potwierdzenie STOP / START: {{ (d.get('h',0)/60) | round(0) }} / {{ (d.get('c',0)/60) | round(0) }} min z 30 min.
+                  {% endif %}
+
+                  To zalecenia przy rzeczywistym stanie CO1. Porównanie nie wysyła nastaw ani poleceń START/STOP. Cele CO1 również nie oznaczają zgody na podnoszenie nastawy.
               - type: markdown
                 title: Gotowość danych
                 content: |-
@@ -384,3 +428,13 @@ views:
                   Brak danych blokuje nowe wyłączenie. Po 30 min utraty danych stref podczas przerwy POC następuje wznowienie po minimalnym czasie przerwy.
 
                   Wykres pracy CO1 pokazuje włączenie obiegu, **nie pracę sprężarki**. Odczyt HiMitII nie jest niezależnym potwierdzeniem wykonania polecenia.
+              - type: markdown
+                title: Jak działa porównanie?
+                content: |-
+                  **Mediana 2 h** jest porównywana z aktywną medianą 3 h. **Mediana 45 min** służy do obserwacyjnej oceny START/STOP z dotychczasowymi progami +0,4 / −0,2°C, potwierdzeniem 30 min, minimum 2 h pracy/przerwy i blokadą ponowienia 15 min.
+
+                  **Krótki trend 2 h** porównuje mediany dwóch 30-minutowych fragmentów, których środki dzieli 90 min. Wynik podajemy w °C/h. Korekta za dawny wzrost 12 h jest uwzględniana tylko dla kondygnacji, która nadal rośnie szybciej niż 0,03°C/h. Jest to początkowy próg do oceny, a nie wyuczona cecha domu.
+
+                  Wymagane pokrycie to co najmniej 80% okna. Filtr 45 min wymaga co najmniej 8 próbek i przerw nie większych niż 10 min, a 2 h co najmniej 20 próbek i przerw do 20 min. Dane starsze niż 10 min są odrzucane. Zmiana celu zeruje potwierdzenie; restart nie dopisuje czasu bez obserwacji.
+
+                  Obecne automatyzacje nadal sterują pompą. Moduł porównania zapisuje tylko własną pamięć i sensory. Jego wyłączenie nie zmienia CO1.
