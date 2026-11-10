@@ -1,6 +1,6 @@
 # Etapy wydań, weryfikacja i migracja
 
-Projekt v0.2, 10 listopada 2026, po rundzie modelu instalacji i stref. Nie ustalamy dat realizacji ani nie obiecujemy niezweryfikowanych funkcji. Numeracja poniżej opisuje etapy, nie opublikowane wersje programu.
+Projekt v0.3, 10 listopada 2026, po rundach modelu instalacji/stref i codziennej obsługi. Nie ustalamy dat realizacji ani nie obiecujemy niezweryfikowanych funkcji. Numeracja poniżej opisuje etapy, nie opublikowane wersje programu.
 
 ## Kolejność
 
@@ -21,7 +21,7 @@ Nie rozpoczynamy kodowania produktu przy otwartych decyzjach istotnych dla daneg
 
 ## Postęp doprecyzowania wymagań
 
-Runda 1 — model instalacji i stref: uzgodniona, szczegóły i scenariusze w [osobnym zapisie](round-01-installation-zones.md). Nie oznacza zakończenia R0 ani odbioru funkcji. Kolejne rundy: codzienna obsługa; reguły regulacji; awarie i restarty; szczegółowe user stories i odbiór; architektura/migracja/wydania. Agregację pomiarów, czasy ruchu i awarie doprecyzujemy we właściwych rundach.
+Runda 1 — model instalacji i stref: uzgodniona, szczegóły i scenariusze w [osobnym zapisie](round-01-installation-zones.md). Nie oznacza zakończenia R0 ani odbioru funkcji. Runda 2 — codzienna obsługa: uzgodniona, [zapis](round-02-daily-operation.md). Kolejne rundy: reguły regulacji; awarie i restarty; szczegółowe user stories i odbiór; architektura/migracja/wydania. Agregację pomiarów, czasy ruchu i awarie doprecyzujemy we właściwych rundach.
 
 ## Scenariusze odbioru
 
@@ -36,7 +36,8 @@ Runda 1 — model instalacji i stref: uzgodniona, szczegóły i scenariusze w [o
 - NC i NO, wyjście grupy lub kilka wyjść; samo zapisanie konfiguracji nie uruchamia urządzeń.
 - Restart, przeładowanie, zmiana ustawień i usunięcie integracji według uzgodnionej polityki.
 - Zachowanie celów i potrzebnej pamięci; brak fikcyjnych próbek po przerwie.
-- Obserwacja bez poleceń; aktywacja bez odtwarzania zaległej kolejki.
+- Dwie niezależne obserwacje CO/CWU bez poleceń; aktywacja bez odtwarzania zaległej kolejki.
+- Zmiana celu jednej strefy CO to trwała nastawa tylko tej strefy, zachowana po restarcie.
 
 ### CO1 i strefy
 
@@ -49,7 +50,10 @@ Runda 1 — model instalacji i stref: uzgodniona, szczegóły i scenariusze w [o
 
 ### CWU, prognozy i skropliny — przed wdrożeniem danego modułu
 
-- CWU: granice przedziałów, osobne dni, temperatura na przedział, tryb stały, restart, zmiana czasu, nadpisanie i niedostępność pompy.
+- CWU: trzy tryby, granice przedziałów, osobne dni i temperatura na przedział.
+- Ręczne włączenie w przerwie harmonogramu, podpowiedź ostatniej nastawy, nadpisanie do rzeczywistej zmiany i brak kasowania przez identyczne pola.
+- Zbiorczy Zapisz tylko CWU: robocze zmiany nie sterują urządzeniem, walidacja całości, potwierdzenie odrzucenia; w obserwacji brak poleceń również po zapisie.
+- CWU: restart, zmiana czasu, edycja harmonogramu podczas nadpisania i niedostępność pompy — oczekiwania do dopracowania.
 - Prognozy: luki, zasięg krótszy od oczekiwanego, przeterminowanie, zmieniona prognoza, brak PV, podwójne źródła słońca i konflikt komfortu.
 - F01: stop przed 30 min, wybieg ≥20 min, restart PC w wybiegu, restart HA, brak poboru grzałki, ocieplenie i nieznana praca PC.
 
