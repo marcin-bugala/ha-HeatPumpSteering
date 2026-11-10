@@ -1,6 +1,6 @@
 # Rejestr decyzji i pytań
 
-Stan: 10 listopada 2026, po rundzie 1. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
+Stan: 10 listopada 2026, po rundach 1 i 2. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
 
 ## Przyjęte decyzje
 
@@ -29,6 +29,15 @@ Stan: 10 listopada 2026, po rundzie 1. „Przyjęte” oznacza potwierdzony kier
 | D21 | NC/NO osobno dla strefy, wspólne dla wszystkich jej wyjść; bez globalnego typu i wyjątków na wyjściach | US10 |
 | D22 | Opcjonalne oznaczenie części pętli stale otwartych; bez obowiązkowego rejestru i przepływów | US05, US15 |
 | D23 | Encja nastawy PC wymagana już przy konfiguracji obserwacji; minimum także outdoor i aktywna strefa z termometrem/celem | US03, US16 |
+| D24 | Osobne przełączniki obserwacja/sterowanie dla CO i CWU | US03 |
+| D25 | Ręczna zmiana celu CO to trwała nastawa konkretnej strefy, także po restarcie; brak harmonogramu CO | US02, US07, US11 |
+| D26 | CWU: Wyłączone, Stałe i Harmonogram; przedział może wyłączać CWU | US13, US14 |
+| D27 | Nadpisanie CWU działa po Zapisz do następnej rzeczywistej zmiany harmonogramu; identyczne pola 30 min go nie kasują | US07, US13, US14 |
+| D28 | Ręczne włączenie CWU omija zaplanowaną przerwę do końca okresu; podpowiedź ostatniej temperatury z edycją przed zapisem | US07, US13 |
+| D29 | Jeden panel i Zapisz tylko dla ustawień CWU; edycja robocza, walidacja całości, bez częściowego zapisu ustawień | US13, US14 |
+| D30 | Zamknięcie panelu z niezapisanymi zmianami wymaga potwierdzenia odrzucenia; brak osobnego potwierdzenia Wyłączone | US13 |
+
+D24–D30 uzgodniono w [rundzie 2](round-02-daily-operation.md) 10 listopada 2026. D26 rozszerza D13 o jawny tryb Wyłączone; D27–D28 odrzucają błędną interpretację, że harmonogram blokuje ręczne włączenie. D29 dotyczy spójności zapisu ustawień, nie transakcji sprzętowej pompy.
 
 Decyzje D17–D23 przyjęto 10 listopada 2026 w [rundzie 1](round-01-installation-zones.md), aktualizacja w [PR #27](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/27). D21 doprecyzowuje D08; nie przyjęto proponowanego wariantu globalnego NC/NO z wyjątkami na wyjściach.
 
@@ -50,17 +59,17 @@ Wartości POC, w tym minimum raportowane przez encję 20°C i limit POC 35°C, n
 
 | ID | Pytanie | Gdzie doprecyzować |
 | --- | --- | --- |
-| Q01 | Czy obserwacja/aktywacja obejmuje CWU i F01? Jak odtwarzać tryb po restarcie? | US03, US13 |
+| Q01 — częściowo rozstrzygnięte | D24: osobne przełączniki CO/CWU. Pozostaje F01 i odtwarzanie trybów po restarcie | US03, US13 |
 | Q02 — częściowo rozstrzygnięte | Model stref i wyłączność wyjść rozstrzygnięte przez D18–D20. Pozostaje dokładna agregacja/filtracja i częściowa niedostępność termometrów | US01; rundy regulacji/awarii |
 | Q03 — częściowo rozstrzygnięte | Zakres NC/NO rozstrzygnięty przez D21. Pozostają odwrócona logika przekaźnika i czasy ruchu | US05, US10; dalsze rundy |
 | Q04 | Agregacja komfortu, normalizacja wag, priorytet przegrzania, wpływ pętli niesterowanych | US17–US19 |
 | Q05 | Próg świeżości i jakość każdego źródła, luki oraz reakcje wyjść na awarie | US05, US16, US19 |
-| Q06 | Pierwszeństwo ręcznej zmiany, czas nadpisania, powrót do automatyki | US07, US13, US14 |
+| Q06 — częściowo rozstrzygnięte | D25: trwały cel CO; D27–D28: CWU do kolejnej zmiany harmonogramu. Pozostają zmiany spoza panelu, demand, restart i przypadki brzegowe | US07, US13, US14 |
 | Q07 | Opcjonalność i wydanie CWU; harmonogram po restarcie, zmiana czasu, higiena | US13, US14 |
 | Q08 | Fizyczny/logiczy demand, polaryzacja, timery, potwierdzenia i sekwencje | US09 |
 | Q09 | Potwierdzenie świeżego odczytu HiMitII i zakresów realnego urządzenia | US04, US17, US19 |
 | Q10 | Profile prognoz, zakres v1, ograniczenia korekt, archiwizacja, ewentualne uczenie | US16, US18 |
-| Q11 | Encje climate/number, rodzaj dashboardu, historia decyzji i eksport | US04, US11, US12 |
+| Q11 — częściowo rozstrzygnięte | D29–D30: wspólny zapis panelu CWU i potwierdzenie odrzucenia. Technologia UI, encje, historia i eksport nadal otwarte | US04, US11–US14 |
 | Q12 | Minimalna wersja HA, domena, obsługiwane wersje integracji źródłowych i migracja | US08, US19 |
 | Q13 | Czy F01 może działać samodzielnie, bez konfiguracji regulatora CO1? | E05 |
 | Q14 | Kalibracja F01, faktyczna praca PC, temperatura/histereza, powrót i awarie | E05 |
@@ -70,6 +79,12 @@ Otwarte pytania nie są poleceniem dobrania domyślnych wartości podczas implem
 ## Rozstrzygnięcia rundy 1
 
 Nie ma już otwartego pytania o dopuszczenie konfiguracji bez encji nastawy PC: D23 wymaga jej wskazania również dla obserwacji. Późniejsza niedostępność źródła jest innym zagadnieniem, do rundy awarii. Zamknięcie rundy modelu nie oznacza zakończenia wszystkich powiązanych user stories.
+
+## Rozstrzygnięcia rundy 2
+
+Runda codziennej obsługi uzgodniona. Tryb CWU Wyłączone nie jest trybem obserwacji: pierwszy opisuje żądany stan CWU, drugi zezwolenie integracji na wykonywanie poleceń. W obserwacji zapis ustawień nie uruchamia CWU.
+
+Nie wprowadzamy harmonogramu CO ani tymczasowych celów pokojowych. Trwałe cele CO, dwa przełączniki CO/CWU i panel ustawień CWU są odrębnymi elementami obsługi.
 
 ## Jak aktualizować
 

@@ -1,6 +1,6 @@
 # User stories
 
-Baza v0.2 z 10 listopada 2026, uzupełniona o [rundę 1](round-01-installation-zones.md). Treść poniżej zawiera wstępne kryteria do uzgodnienia; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md).
+Baza v0.3 z 10 listopada 2026, uzupełniona o [rundę 1](round-01-installation-zones.md) i [rundę 2](round-02-daily-operation.md). Treść poniżej zawiera wstępne kryteria do uzgodnienia; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md).
 
 <a id="us01"></a>
 
@@ -35,6 +35,8 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 ### Wstępne kryteria akceptacji
 
 - Każda aktywna strefa ma własny cel temperatury.
+- Ręczna zmiana celu CO jest nową, trwałą nastawą tej strefy, nie czasowym nadpisaniem. Harmonogram dotyczy tylko CWU.
+- Cele CO są obsługiwane poza wspólnym panelem zapisu CWU.
 - Zmiana celu jest uwzględniana w kolejnej ocenie regulatora; nie omija ograniczeń zapisu CO1.
 - Cel pozostaje zachowany po restarcie i przeładowaniu integracji.
 - Zmiana celu nie usuwa historii pomiarów.
@@ -57,7 +59,8 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 
 - Nowa konfiguracja rozpoczyna w obserwacji; obserwowane wyjścia nie otrzymują automatycznych poleceń.
 - Encja nastawy PC jest obowiązkowo wskazywana również dla obserwacji; odczyt służy porównaniu z propozycją algorytmu.
-- Tryb można zmienić z dashboardu i jest on wyraźnie widoczny.
+- Na dashboardzie są dwa niezależne przełączniki obserwacja/sterowanie: CO i CWU. Aktywacja jednego nie aktywuje drugiego.
+- Przełączniki są poza zbiorczym panelem ustawień CWU; zapis tego panelu nie zmienia trybu obserwacja/sterowanie.
 - W obu trybach widoczne są proponowana decyzja, jej powód i rzeczywisty stan instalacji.
 - Powrót do obserwacji zatrzymuje następne automatyczne polecenia i nie cofa ostatnich nastaw.
 - Aktywacja ponownie ocenia aktualne dane; nie odtwarza kolejki decyzji z obserwacji.
@@ -65,8 +68,7 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 
 ### Do doprecyzowania
 
-- Czy wspólny tryb obejmuje również CWU i późniejsze F01?
-- Czy tryb jest wspólny dla wszystkich wyjść CO, czy dopuszczamy osobne uprawnienia?
+- Relacja przełączników do późniejszego F01 i ewentualne dodatkowe uprawnienia wyjść CO.
 - Czy i jak odtwarzać aktywny tryb po restarcie?
 
 Powiązania: brak dodatkowych powiązań.
@@ -151,14 +153,18 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 
 - Ręczna zmiana jest rozpoznawana w zakresie pozwalającym na to przez encje HA.
 - Dashboard pokazuje obowiązujący tryb i ewentualne nadpisanie.
+- Cel CO zmieniony ręcznie jest trwałą nastawą konkretnej strefy.
+- W CWU/Harmonogram ręczne nadpisanie stanu lub temperatury obowiązuje po Zapisz do następnej zaplanowanej zmiany; identyczne sąsiednie pola nie kończą nadpisania.
+- Ręczne włączenie CWU może ominąć aktualnie zaplanowany okres wyłączenia, bez przełączania do Stałe.
+- Panel podpowiada ostatnią nastawę CWU do edycji przed zatwierdzeniem włączenia.
 - Reguły pierwszeństwa są jawne i spójne dla danego modułu.
 - Odzyskanie kontroli nie wykonuje nieaktualnych poleceń.
 
 ### Do doprecyzowania
 
-- Nadpisanie do odwołania, do terminu czy do kolejnego przedziału harmonogramu?
+- Edycja harmonogramu przy aktywnym nadpisaniu i przypadek braku przyszłych zmian w cyklicznym harmonogramie.
 - Czy zmiana poza dashboardem integracji wstrzymuje regulator i na jak długo?
-- Zachowanie przy ręcznym OFF demandu i CWU.
+- Zachowanie przy ręcznym OFF demandu; odtwarzanie nadpisania CWU po restarcie.
 
 Powiązania: [US03](#us03)
 
@@ -243,7 +249,8 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 
 ### Wstępne kryteria akceptacji
 
-- Dostępne są odczyt i edycja celu każdej aktywnej strefy.
+- Dostępne są odczyt i edycja celu każdej aktywnej strefy; zmiana tworzy trwałą nastawę tej strefy.
+- Cele CO i niezależne przełączniki obserwacja/sterowanie CO/CWU są poza panelem zbiorczego zapisu CWU.
 - Brak danych, nieaktywność i oczekiwanie na filtry są czytelnie rozróżnione.
 - Panel działa dla jednej strefy Dom i dla wielu pomieszczeń lub kondygnacji.
 - Nie wymaga ręcznego tworzenia helperów do podstawowej obsługi celów.
@@ -287,7 +294,14 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 
 ### Wstępne kryteria akceptacji
 
+- Dostępne są trzy tryby CWU: Wyłączone, Stałe i Harmonogram. Wyłączone nie wyłącza ogrzewania domu.
 - Tryb stały używa jednej ustawionej temperatury CWU niezależnie od harmonogramu.
+- W Harmonogramie można nadpisać stan i temperaturę do następnej rzeczywistej zmiany harmonogramu; dotyczy również włączenia w zaplanowanej przerwie.
+- Ręczne włączenie podpowiada ostatnią nastawę CWU, edytowalną przed zapisem.
+- Tryb, ręczny stan, temperatury i harmonogram są w jednym panelu, ze zmianami roboczymi i jednym przyciskiem Zapisz.
+- Całość ustawień jest walidowana przed zatwierdzeniem; błąd nie zapisuje części zmian. Nie jest to gwarancja atomowego wykonania poleceń pompy.
+- Przy zamknięciu z niezapisanymi zmianami pojawia się pytanie Odrzucić niezapisane zmiany?; brak osobnego potwierdzenia samego Wyłączone.
+- Panel nie obejmuje celów CO ani dwóch przełączników obserwacja/sterowanie. Zapis w obserwacji nie wykonuje poleceń urządzenia.
 - Tryb harmonogramu korzysta z aktualnego przedziału.
 - Włączenie CWU oznacza zezwolenie na podgrzewanie; pompa zachowuje własną regulację i zabezpieczenia.
 - Dashboard pokazuje aktualny tryb, nastawę i najbliższą zmianę.
@@ -296,7 +310,8 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 ### Do doprecyzowania
 
 - Opcjonalność modułu i wydanie docelowe.
-- Współpraca z obserwacją US03, ręczne nadpisanie, brak danych i funkcje higieniczne producenta.
+- Restart, brak danych, funkcje higieniczne producenta i obsługa częściowego błędu wykonania poleceń.
+- Podpowiedź temperatury przy pierwszym uruchomieniu bez ostatniej nastawy; edycja harmonogramu podczas nadpisania.
 - Wymagane encje i sposób potwierdzania poleceń CWU.
 
 Powiązania: [US14](#us14), [US16](#us16)
@@ -314,6 +329,9 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 - Każdy dzień ma 48 logicznych przedziałów półgodzinnych.
 - Przedział oznacza wyłączone albo zezwolenie na grzanie do wskazanej temperatury.
 - Harmonogram i nastawy są zachowane po restarcie.
+- Ręczne nadpisanie działa po zatwierdzeniu do następnej zaplanowanej zmiany stanu/temperatury, nie do dowolnej granicy 30 minut.
+- Sąsiednie identyczne pola tworzą ciągły okres; nie kasują nadpisania.
+- Harmonogram edytujemy razem z pozostałymi ustawieniami CWU, z jednym Zapisz i potwierdzeniem odrzucenia niezapisanej edycji.
 - Harmonogram CWU nie steruje ogrzewaniem pomieszczeń ani ich celami.
 - Wartości temperatur są walidowane względem urządzenia.
 
@@ -321,7 +339,7 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 
 - Strefa czasowa i zmiana czasu, granice przedziałów, edycja/kopiowanie dni.
 - Stan początkowego harmonogramu i uzgadnianie po restarcie lub przerwie łączności.
-- Zakres ręcznego nadpisania harmonogramu.
+- Edycja harmonogramu przy aktywnym nadpisaniu i brak następnej zmiany w całym tygodniu.
 
 Powiązania: [US13](#us13), [US07](#us07)
 

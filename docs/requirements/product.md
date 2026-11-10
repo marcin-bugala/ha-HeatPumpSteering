@@ -1,4 +1,4 @@
-# Specyfikacja produktu — projekt v0.2
+# Specyfikacja produktu — projekt v0.3
 
 Stan wymagań: 10 listopada 2026. Uzgodnienia i propozycje rozróżnia [rejestr decyzji](decisions.md). Statusy realizacji znajdują się w [Issues](README.md). Brak implementacji produktu.
 
@@ -81,11 +81,19 @@ Planowana agregacja demandu: OR zapotrzebowań aktywnych stref, ze stanem niepew
 
 ### F06 — CWU
 
-- Osobny panel sterowania: tryb stały z jedną temperaturą albo harmonogram.
+Uzgodnienia codziennej obsługi: [runda 2](round-02-daily-operation.md).
+
+- Trzy tryby: Wyłączone (bez podgrzewania CWU, bez wyłączania CO), Stałe (jedna nastawa) i Harmonogram.
 - Harmonogram dotyczy wyłącznie CWU; nie wprowadza harmonogramu ogrzewania pomieszczeń.
 - Każdy dzień tygodnia ma 48 logicznych przedziałów 30 min; przedział wyłączony albo włączony z własną temperaturą.
 - Włączenie oznacza zezwolenie na podgrzewanie; pompa zachowuje swój cykl pracy i zabezpieczenia.
-- Zachowanie po restarcie, zmiana czasu, ręczne nadpisania, opcjonalność modułu, higiena zasobnika i relacja do obserwacji US03 pozostają otwarte. Nie deklarujemy zastępowania programów higienicznych producenta.
+- Ręczne nadpisanie stanu lub temperatury w trybie Harmonogram działa po zatwierdzeniu do następnej zaplanowanej zmiany stanu/temperatury; identyczne półgodzinne pola nie kasują nadpisania. Tryb pozostaje Harmonogram.
+- Można ręcznie włączyć CWU w zaplanowanym okresie wyłączenia. Przy włączeniu panel podpowiada ostatnią temperaturę zadaną z możliwością edycji przed zapisem.
+- Jeden panel CWU obejmuje tryb, temperatury, ręczny stan i harmonogram. Zmiany są robocze do jednego „Zapisz”; walidacja dotyczy całości i nie dopuszcza częściowego zapisu ustawień. Nie oznacza to atomowego wykonania kilku poleceń przez pompę.
+- Zamknięcie panelu z niezapisanymi zmianami wymaga potwierdzenia ich odrzucenia. Nie wprowadzamy dodatkowego potwierdzenia samego wyboru Wyłączone.
+- Panel nie obejmuje celów CO ani przełączników obserwacja/sterowanie.
+- CO i CWU mają oddzielne przełączniki obserwacja/sterowanie. Zapis ustawień CWU w obserwacji nie zezwala na wykonanie poleceń urządzenia.
+- Restart, zmiana czasu, opcjonalność modułu i wydanie, inicjalizacja temperatury bez wcześniejszej nastawy, błędy wykonania i higiena pozostają do dopracowania. Nie zastępujemy programów higienicznych producenta.
 
 ### F07 — prognozy i wagi
 
@@ -110,7 +118,7 @@ Propozycja łączenia timerów: wyłączenie nie wcześniej niż późniejszy z 
 - Start nowej konfiguracji w obserwacji. Wyjścia objęte obserwacją nie otrzymują poleceń; algorytm nadal oblicza decyzje.
 - Użytkownik sam aktywuje sterowanie. Powrót do obserwacji zatrzymuje kolejne polecenia i nie cofa ostatnich nastaw.
 - Przy aktywacji ponowna ocena aktualnych danych zamiast wykonywania historycznej kolejki.
-- Relacja tego trybu do CWU i F01 wymaga rozstrzygnięcia przed implementacją.
+- CO i CWU mają dwa niezależne przełączniki obserwacja/sterowanie; włączenie jednego nie aktywuje drugiego. Relacja do F01 i odtwarzanie trybów po restarcie pozostają do uzgodnienia.
 - Pamięć zachowuje cele i potrzebny stan; nie dopisuje fikcyjnych pomiarów ani potwierdzeń podczas przerw.
 - Wymagane jawne reguły dla restartu, przeładowania, wyłączenia/usunięcia integracji, braku termometrów, chmury i ręcznej zmiany.
 - Ograniczone ponowienia; brak dwóch aktywnych regulatorów na tym samym wyjściu.
@@ -118,6 +126,10 @@ Propozycja łączenia timerów: wyłączenie nie wcześniej niż późniejszy z 
 - Dashboard: cele i pomiary, zawory, dostępny stan pompy, moc i energia, jakość danych, filtry/trendy, decyzje, nastawy proponowane/wysłane/potwierdzone, limity i timery.
 - Encje produktu mają umożliwiać także własny dashboard. Nie rozstrzygnięto wyboru climate/number ani konieczności własnej karty.
 - Diagnostyka bez sekretów; bez obowiązkowej telemetrii produktu.
+
+## Codzienna obsługa CO
+
+Zmiana celu CO jest nową, trwałą nastawą konkretnej strefy, zachowaną po restarcie. Nie jest czasowym nadpisaniem i nie ma harmonogramu CO. Obsługa celu jest poza panelem zbiorczego zapisu CWU; nie omija ograniczeń regulatora.
 
 ## Referencyjna instalacja użytkownika — nie ograniczenie produktu
 
