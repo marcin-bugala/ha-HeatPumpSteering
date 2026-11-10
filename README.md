@@ -5,6 +5,9 @@ kondygnacji. Zwykła automatyzacja zapisuje nastawę przez istniejącą integrac
 Hisense (`number.set_value`). Regulacja pozostaje w automatyzacjach YAML.
 Mały moduł `hp_poc_history` wyłącznie odczytuje historię HA przy starcie.
 
+Plan pełnej integracji: [prognoza pogody, PV i zyski słoneczne](docs/full-integration-forecast.md).
+To wymagania przyszłego etapu; aktualny POC nie korzysta z tych prognoz.
+
 **Po instalacji zapis jest aktywny**, gdy dane i filtry są gotowe.
 Nie przełącza trybu pracy pompy: Hisense należy ustawić na stałą temperaturę
 CO1. Opcjonalnie może wyłączać i włączać sam obieg CO1 przez jego przełącznik
