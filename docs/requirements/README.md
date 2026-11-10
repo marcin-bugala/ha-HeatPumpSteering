@@ -1,17 +1,18 @@
 # Wymagania HA HeatPumpSteering
 
-Wersja dokumentacji: 0.3, 10 listopada 2026; uzgodniono model instalacji/stref oraz codzienną obsługę. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
+Wersja dokumentacji: 0.4, 10 listopada 2026; uzgodniono model instalacji/stref, codzienną obsługę i reguły regulacji. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
 
 ## Dokumenty
 
 | Dokument | Zawartość |
 | --- | --- |
 | [Produkt](product.md) | Cel, konfiguracja, moduły, wejścia/wyjścia, ograniczenia |
-| [User stories](user-stories.md) | US01–US19, kryteria akceptacji, zależności i pytania |
+| [User stories](user-stories.md) | US01–US21, kryteria akceptacji, zależności i pytania |
 | [Decyzje](decisions.md) | Ustalenia przyjęte, propozycje i kwestie nierozstrzygnięte |
 | [Etapy](roadmap.md) | Zakres wydań, testy, migracja i bramki aktywacji |
 | [Runda 1](round-01-installation-zones.md) | Uzgodniony model instalacji i stref oraz scenariusze konfiguracji |
 | [Runda 2](round-02-daily-operation.md) | Cele CO, tryby CO/CWU, nadpisania i wspólny zapis ustawień CWU |
+| [Runda 3](round-03-regulation.md) | Pomiary, progi, korekty, demand, ostrzeżenia i modularność; prognozy odłożone |
 
 ## Źródło prawdy i sposób pracy
 
@@ -69,8 +70,10 @@ Przy utworzeniu bazy wszystkie historie i obszary były do doprecyzowania. Po ko
 | [US15](user-stories.md#us15) | Dom, kondygnacje lub pomieszczenia jako strefy | E02 | [#22](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/22) |
 | [US16](user-stories.md#us16) | Wybór wymaganych i opcjonalnych źródeł | E04 | [#23](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/23) |
 | [US17](user-stories.md#us17) | Konfigurowalna krzywa grzewcza A, B i Tref | E01 | [#24](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/24) |
-| [US18](user-stories.md#us18) | Wagi stref i opcjonalnych prognoz | E04 | [#25](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/25) |
+| [US18](user-stories.md#us18) | Priorytety stref i ważony komfort | E04 | [#25](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/25) |
 | [US19](user-stories.md#us19) | Przeniesienie doświadczeń POC do produktu | E01 | [#26](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/26) |
+| [US20](user-stories.md#us20) | Modułowy regulator i wybór aktywnych korekt | E01 | [#29](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/29) |
+| [US21](user-stories.md#us21) | Prognozy pogody, nasłonecznienia i PV — przyszła wersja | E04 | [#30](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/30) |
 
 US02 i US11, US01 i US15 oraz US06 i US19 częściowo się uzupełniają. Zachowujemy identyfikatory, a odpowiedzialność rozdzielamy w opisach. Zależności w tej fazie są powiązaniami wymagań, nie ścisłą kolejnością implementacji.
 
@@ -82,3 +85,9 @@ US02 i US11, US01 i US15 oraz US06 i US19 częściowo się uzupełniają. Zachow
 - [Konfiguracja UI HA](https://contributors.home-assistant.io/core/integrations/config-flow/) i [wymagania publikacji HACS](https://www.hacs.xyz/docs/publish/integration/).
 
 Dokumentacja nie potwierdza aktualnego montażu urządzeń, parametrów hydraulicznych ani wersji działającego HA. Nie zawiera danych dostępowych ani prywatnej konfiguracji serwera.
+
+
+
+## Zakres po rundzie 3
+
+Prognozy zachowujemy w US21 ze statusem prowadzonym w Issue (Odłożone przy tej decyzji); w bieżącym programie nie są aktywne. US20 wymaga modularności korekt od początku. Pole o stale otwartych pętlach z rundy 1 zostało zastąpione ostrzeżeniem hydraulicznym. Starsze zapisy rund są historyczne, z odnośnikiem do aktualnych reguł.

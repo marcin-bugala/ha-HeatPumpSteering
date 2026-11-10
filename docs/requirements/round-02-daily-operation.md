@@ -1,5 +1,7 @@
 # Runda 2 — codzienna obsługa
 
+> Zapis historyczny. Runda 3 zastępuje wcześniejsze wymaganie pola o stale otwartych pętlach, doprecyzowuje funkcje/okna i wspólny czas otwierania; aktualne zasady: [runda 3](round-03-regulation.md). Pozostałe ustalenia tej rundy pozostają w mocy.
+
 Uzgodniono z właścicielem produktu 10 listopada 2026. Runda codziennej obsługi zakończona; pozostają szczegóły regulacji, awarii oraz technicznego wykonania. To wymagania, nie działająca implementacja.
 
 ## CO i CWU — niezależne zezwolenia

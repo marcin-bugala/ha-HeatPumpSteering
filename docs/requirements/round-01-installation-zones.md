@@ -1,5 +1,7 @@
 # Runda 1 — model instalacji i stref
 
+> Zapis historyczny. Runda 3 zastępuje wcześniejsze wymaganie pola o stale otwartych pętlach, doprecyzowuje funkcje/okna i wspólny czas otwierania; aktualne zasady: [runda 3](round-03-regulation.md). Pozostałe ustalenia tej rundy pozostają w mocy.
+
 Uzgodniono z właścicielem produktu: 10 listopada 2026. Aktualizacja dokumentacji w [PR #27](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/27). Runda zakończona w zakresie modelu; nie jest to implementacja ani zamknięcie wszystkich user stories.
 
 ## Przyjęty model
