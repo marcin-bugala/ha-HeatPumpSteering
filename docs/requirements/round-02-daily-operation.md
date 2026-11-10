@@ -1,5 +1,7 @@
 # Runda 2 — codzienna obsługa
 
+> Zapis historyczny. Runda 3 zastępuje wcześniejsze wymaganie pola o stale otwartych pętlach, doprecyzowuje funkcje/okna i wspólny czas otwierania; aktualne zasady: [runda 3](round-03-regulation.md). Pozostałe ustalenia tej rundy pozostają w mocy.
+
 Uzgodniono z właścicielem produktu 10 listopada 2026. Runda codziennej obsługi zakończona; pozostają szczegóły regulacji, awarii oraz technicznego wykonania. To wymagania, nie działająca implementacja.
 
 ## CO i CWU — niezależne zezwolenia
@@ -40,6 +42,8 @@ Panel obejmuje wyłącznie ustawienia CWU: tryb, ręczny stan, temperatury i har
 Zmiany podczas edycji są robocze. Dopiero jeden Zapisz zatwierdza całość, po sprawdzeniu poprawności wszystkich ustawień. Błąd nie może zapisać części edycji. Spójny zapis konfiguracji nie oznacza gwarancji atomowego wykonania kilku poleceń przez pompę — błędy urządzenia wymagają osobnej polityki.
 
 Przy zamykaniu panelu z niezapisanymi zmianami pojawia się pytanie „Odrzucić niezapisane zmiany?”. Rezygnacja z odrzucenia zachowuje edycję. Nie dodajemy osobnego potwierdzenia wyboru Wyłączone; wybór wymaga zatwierdzenia Zapisz jak inne ustawienia CWU.
+
+Odtworzenie trybu i nadpisania CWU, reakcje na błąd zapisu i kolejność poleceń opisuje [runda 4](round-04-failures-restarts.md#cwu-po-awarii-i-restarcie).
 
 ## Scenariusze do przyszłego odbioru
 

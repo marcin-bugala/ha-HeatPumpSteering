@@ -8,13 +8,13 @@ Publiczna, planowana integracja niestandardowa Home Assistant do regulacji ogrze
 
 - [Indeks wymagań i Issues](docs/requirements/README.md)
 - [Specyfikacja produktu](docs/requirements/product.md)
-- [User stories US01–US19](docs/requirements/user-stories.md)
+- [User stories US01–US21](docs/requirements/user-stories.md)
 - [Decyzje i pytania otwarte](docs/requirements/decisions.md)
 - [Etapy wydań, testy i migracja](docs/requirements/roadmap.md)
 
-Planowany produkt korzysta z encji HA, bez wymogu jednej marki sterowników. Hisense/HiMitII będzie pierwszą sprawdzaną konfiguracją. Podstawą jest regulacja nastawy temperatury PC; sterowanie strefami i demandem wybiera się niezależnie. Prognozy i dodatkowa telemetria są opcjonalne.
+Planowany produkt korzysta z encji HA, bez wymogu jednej marki sterowników. Hisense/HiMitII będzie pierwszą sprawdzaną konfiguracją. Podstawą jest regulacja nastawy temperatury PC; sterowanie strefami i demandem wybiera się niezależnie. Dodatkowa telemetria jest opcjonalna; prognozy pogody/słońca/PV są odłożone do przyszłej wersji. Regulator ma od początku modułową architekturę korekt.
 
-Pierwsza publiczna wersja testowa ma objąć CO1 i strefy. CWU, prognozy, demand oraz ogrzewanie odpływu mają własne wymagania i bramki wdrożenia; ich obecność w specyfikacji nie oznacza dostępności w pierwszym wydaniu.
+Pierwsza publiczna wersja testowa ma objąć CO1 i strefy, z regułami uzgodnionymi w [rundzie 3](docs/requirements/round-03-regulation.md). CWU, prognozy, demand oraz ogrzewanie odpływu mają własne wymagania i bramki wdrożenia; ich obecność w specyfikacji nie oznacza dostępności w pierwszym wydaniu.
 
 ## Gałęzie
 

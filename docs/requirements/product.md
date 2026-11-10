@@ -1,4 +1,4 @@
-# Specyfikacja produktu — projekt v0.3
+# Specyfikacja produktu — projekt v0.5
 
 Stan wymagań: 10 listopada 2026. Uzgodnienia i propozycje rozróżnia [rejestr decyzji](decisions.md). Statusy realizacji znajdują się w [Issues](README.md). Brak implementacji produktu.
 
@@ -24,7 +24,7 @@ Dwie niezależne opcje konfiguracji: sterowanie strefami oraz sterowanie demande
 | Nastawa PC | Obowiązkowo wskazana już podczas konfiguracji, również dla obserwacji; bez wskazania nie można jej zakończyć |
 | Wyjścia zaworów | Tylko przy włączeniu sterowania zaworami danej strefy; NC/NO wybierane osobno dla tej strefy |
 | Wyjście demand | Tylko po włączeniu funkcji demand |
-| Prognozy pogody, nasłonecznienia/PV | Opcjonalne |
+| Prognozy pogody, nasłonecznienia/PV | Odłożone do przyszłej wersji; nie konfigurujemy ani nie używamy w bieżącej |
 | Moc/energia PC, zasilanie i powrót | Opcjonalna diagnostyka |
 | Sterowanie i nastawa CWU | Warunki opcjonalności modułu do uzgodnienia przed aktywacją CWU |
 
@@ -38,10 +38,10 @@ Pełny zapis uzgodnień i scenariuszy: [runda 1](round-01-installation-zones.md)
 - Wymagane minimum konfiguracji: wskazana encja nastawy PC, czujnik bieżącej temperatury zewnętrznej oraz co najmniej jedna aktywna strefa z termometrem i celem.
 - W obserwacji odczytujemy nastawę PC i porównujemy z propozycją, bez wysyłania zmian. Późniejsza niedostępność encji należy do rundy awarii.
 - Strefy są niezależne. Grupy porządkowe, np. Parter, służą prezentacji; nie mają odrębnych celów, wyjść ani dodatkowego udziału w regulacji.
-- Strefa może mieć jeden lub kilka termometrów, z wyborem pomiaru głównego albo agregacji średnią/medianą. Dokładne reguły filtracji i braków danych pozostają na rundy regulacji i awarii.
+- Strefa może mieć jeden lub kilka termometrów: główny albo agregacja, domyślnie średnia. Funkcje i okna są wspólne dla programu; progi reakcji i priorytety są ustawieniami strefy. Reguły liczbowe ustalono w rundzie 3, a zachowanie przy brakach danych w rundzie 4.
 - Wyjście zaworów należy do dokładnie jednej strefy i nie może być współdzielone z inną. Strefa może mieć kilka wyjść; jeden przekaźnik może obsługiwać grupę pętli.
 - NC/NO wybieramy osobno dla każdej strefy sterującej zaworami, wspólnie dla wszystkich jej wyjść. Typy mogą różnić się między strefami.
-- Opcjonalna informacja „część pętli pozostaje otwarta” nie tworzy wyjść ani obowiązku wpisywania liczby pętli i przepływów.
+- Runda 3 zastępuje wcześniejsze pole o części pętli otwartych: program nie modeluje pętli, przepływów i częściowego odcięcia. Przy konfiguracji zaworów pokazuje ostrzeżenie o obowiązku zapewnienia drogi przepływu także przy zamkniętych strefach.
 
 ## Moduły
 
@@ -54,30 +54,43 @@ Pełny zapis uzgodnień i scenariuszy: [runda 1](round-01-installation-zones.md)
 | F04 | Demand | Opcjonalne zezwolenie na ogrzewanie, agregacja i sekwencje do dopracowania |
 | F05 | Obsługa i diagnostyka | Dashboard, wyjaśnienia, obserwacja, historia i ręczna kontrola |
 | F06 | CWU | Praca stała lub tygodniowy harmonogram z temperaturą na przedział |
-| F07 | Prognozy | Opcjonalne korekty pogody i słońca/PV; zakres wydania do ustalenia |
+| F07 | Prognozy — odłożone | Wymagania zachowane dla kolejnej wersji; brak konfiguracji i wpływu w bieżącej |
 
 ### F02 — regulacja CO1
 
-- PC pracuje w trybie stałej nastawy zasilania kontrolowanej przez HA; aktywna pogodówka producenta nie powinna równolegle nadpisywać tej samej nastawy.
-- Baza: `Tbase = A + B × (Tref − Ta)`. A, B i Tref konfigurowane oddzielnie. Propozycja początkowa: A=20°C, B=0,2, Tref=20°C, Ta jako średnia 2 h.
-- Komfort pomieszczeń jest istotnym wejściem, a nie wyłącznie dodatkiem do dokładnej krzywej Hisense. Osobno pokazywane są baza i korekty komfortu, trendu oraz prognoz.
-- Krótkie gotowanie/słońce i wietrzenie mają ograniczony wpływ na CO1. Nie wolno bezterminowo ignorować trwałego wzrostu temperatury.
-- Szybszy odporny pomiar strefy dla zaworów, wolniejszy filtr komfortu oraz trend są odrębnymi sygnałami.
-- Konflikt stref bez fizycznego odcięcia wymaga jawnego kompromisu. Jedna chłodna strefa nie może bez ograniczeń wymuszać przegrzewania innych; dokładna reguła i wpływ wag pozostają do uzgodnienia.
-- Temperatura jest ograniczona zakresem urządzenia i instalacji. Osiągnięcie limitu jest pokazywane; nie omijamy go przez nieuzgodnione przełączanie PC.
-- Martwa strefa ±0,2°C, filtry 3–6 h, trend 12–24 h, korekta ±2°C i zmiany 1°C/około 120 min to kandydaci do kalibracji, nie uniwersalne obietnice produktu.
-- POC opisuje minimum encji HiMitII MB 20°C; wcześniejsze przypuszczenie 27°C nie jest uniwersalnym limitem produktu. Zakres realnej pompy i wiarygodność raportowanych limitów wymagają weryfikacji.
-- Natychmiastowa zmiana encji po zapisie może być optymistyczna. Potrzebny jest niezależny dowód odczytu; zwykłe zdarzenie stanu, last_reported lub upływ czasu nie dowodzą wykonania.
+Szczegółowe reguły, zakresy ustawień i scenariusze: [runda 3](round-03-regulation.md).
+
+- PC ma stałą nastawę zasilania kontrolowaną przez HA; nie zakładamy równoległej pogodówki nadpisującej tę nastawę.
+- Baza A+B×(Tref−Ta); początkowo A=20°C, B=0,2, Tref=20°C. Outdoor domyślnie średnia 2 h, wybór średnia/mediana i okna 30 min–6 h co 30 min.
+- Najpierw agregujemy termometry strefy (domyślnie średnia), potem filtrujemy historię. Do zaworów domyślnie średnia 30 min, do komfortu mediana 3 h; każde okno konfigurowalne 30 min–6 h co 30 min.
+- Funkcje i okna są wspólne dla programu. Priorytety stref 1–5, domyślnie 3, są wagami odchyleń cel−temperatura komfortowa.
+- Stosujemy średnią ważoną odchyleń. Martwa strefa ±0,2°C, współczynnik 1,5 poza martwą strefą, limit korekty komfortu ±2°C; parametry algorytmu w konfiguracji zaawansowanej.
+- Lokalna możliwość zamknięcia strefy ma pierwszeństwo przy przegrzaniu. Po zamknięciu wszystkich przypisanych wyjść strefę pomijamy w korekcie CO1, nadal monitorując. Strefa bez wyjść pozostaje w ocenie i ochronie.
+- Ochrona stref bez sterowanych wyjść: ≥cel+0,5°C przez 60 min blokuje wzrost CO1; ≤cel+0,2°C przez 30 min zwalnia. Progi i czasy osobno dla strefy. Blokada nie wyłącza demandu.
+- Trend długoterminowy porównuje temperaturę komfortową teraz i 12 h wcześniej, dla tego samego zestawu stref i z ich priorytetami. Przy braku ważonego niedogrzania: wzrost ≤0,2°C daje 0, od 0,2 do 0,5°C liniowo 0 do −0,5°C, ≥0,5°C daje −0,5°C. Bez historii ta korekta nie działa, bez blokowania gotowej podstawy regulatora. Parametry konfigurowalne w programie.
+- Suma aktywnych korekt ma konfigurowalny limit, domyślnie ±2°C; może być zwiększony. Nie znosi oddzielnych limitów ani zabezpieczeń.
+- Zakres temperatur odczytujemy z ustawień PC przez integrację źródłową; użytkownik może opcjonalnie zawęzić, nigdy rozszerzyć. Nie narzucamy stałego 27°C ani 35°C.
+- Obliczenia z pełną precyzją, końcowy wynik do najbliższej dozwolonej wartości kroku PC, połówki w górę, w granicach zakresu.
+- Zmiana najwyżej 1°C co 120 min w obu kierunkach; krok zmiany i odstęp w konfiguracji zaawansowanej, zgodne z możliwościami PC. Nie zapisujemy identycznej nastawy.
+- Ocena co 5 min, dodatkowo po zmianie celu/trybu; timery działają według terminów bez dodatkowego czekania na cykl. Częstotliwość wspólna dla domu, konfigurowalna.
+- Raport HA, last_reported i aktualizacja optymistyczna nie dowodzą wykonania przez urządzenie. Polityka potwierdzeń i awarii należy do następnej rundy.
+- Architektura oddziela bazę, moduły korekt i wspólne ograniczenia. Bieżące moduły: komfort i trend, wybiórczo uruchamiane; diagnostyka pokazuje ich wkład. Limity i obserwacja nie są wyłączalnymi korektami.
 
 ### F03/F04 — strefy, zawory i demand
 
-Strefa może oznaczać dom, kondygnację albo pomieszczenie. Strefy mają niezależne cele; grupy są wyłącznie porządkowe i nie tworzą hierarchii regulatorów. Dopuszczamy jeden lub kilka termometrów, z pomiarem głównym albo średnią/medianą. Szczegóły obliczeń pozostają do ustalenia. Nie narzucamy trzech pięter jako limitu produktu.
+Strefy są niezależne; grupy tylko porządkowe. Jedno wyjście należy do jednej strefy, strefa może mieć kilka wyjść. NC/NO wybieramy dla strefy: NC zasilanie otwiera, NO zasilanie zamyka. Bez sprzężenia zwrotnego położenie jest przewidywane.
 
-Strefa może mieć jeden przełącznik grupy pętli albo kilka wyjść; każde wyjście należy tylko do jednej strefy. Pętle stale dostępne i ręcznie zdławione pozostają poza sterowaniem; opcjonalnie oznaczamy ich obecność przy strefie bez tworzenia pełnego rejestru pętli i przepływów. Otwarcie siłownika nie usuwa nastawy przepływu na rotametrze.
+Trend zaworów to różnica dwóch okien, ze wspólną funkcją średnia/mediana i niezależnymi czasami. Domyślnie średnie 30 min / 4 h; krótsze 15 min–2 h co 15 min, dłuższe 2–12 h co 30 min, 2 h / 2 h niedozwolone. Próg trendu strefy domyślnie ±0,2°C.
 
-NC: zasilanie otwiera, brak zasilania zamyka. NO: odwrotnie. Typ wybierany jest osobno dla każdej strefy i dotyczy wszystkich jej wyjść; nie stosujemy globalnego typu ani wyjątków NC/NO na pojedynczych wyjściach. Ewentualne odwrócenie logiki przekaźnika musi być rozróżnione od typu siłownika. Bez sprzężenia zwrotnego stan zaworu jest przewidywany, po uwzględnieniu czasu ruchu, nie sprzętowo potwierdzony.
+Dla temperatury do zaworów T i celu S: rosnący trend zamyka przy T≥S, malejący otwiera przy T≤S, niejasny zamyka przy T≥S+0,2°C i otwiera przy T≤S−0,2°C. W innych warunkach poprzednie żądanie. Progi konfigurowalne w strefie.
 
-Planowana agregacja demandu: OR zapotrzebowań aktywnych stref, ze stanem niepewności zamiast uznawania braku danych za brak zapotrzebowania. Progi, czasy i kolejność zaworów/demandu wymagają specyfikacji. Stałe otwarte pętle nie oznaczają automatycznie ciągłego zapotrzebowania; decyzja o ich wpływie na model pozostaje otwarta.
+Nie ignorujemy całkowicie zakłóceń. Gotowanie/słońce może zamknąć strefę; nagły spadek wymaga 30 min potwierdzonego niedogrzania przed otwarciem. Ustąpienie warunku zeruje potwierdzenie. Minimum zamknięcia 30 min przed ponownym otwarciem, bez analogicznej blokady zamknięcia przy przegrzaniu. Czasy strefy mogą biec równolegle.
+
+Ostrzeżenie po upływie czasu zamykania i 120 min utrzymania zamknięcia, temperatury komfortowej ≥cel+0,5°C oraz rosnącego trendu: „Strefa nadal się nagrzewa mimo polecenia zamknięcia. Sprawdź zawory i inne źródła ciepła.” Czas i próg konfigurowalne dla strefy. To nie diagnoza uszkodzenia ani automatyczny STOP całej PC.
+
+Demand jest OR żądań otwarcia aktywnych stref, w tym wirtualnych dla stref bez zaworów. Przed ON otwieramy wyjścia; wystarczy przewidywane otwarcie jednej potrzebującej ciepła strefy. Czas otwierania 3 min, wspólny dla domu i konfigurowalny. Strefa już otwarta nie czeka od nowa; strefa bez wyjść nie wymaga tego opóźnienia. Brak wszystkich zapotrzebowań wyłącza demand bez dodatkowego opóźnienia. Przed ponownym ON minimum 15 min od OFF, konfigurowalne dla domu; zawory mogą otworzyć się wcześniej. Nie ma minimum ON opóźniającego wyłączenie. Nie sterujemy zasilaniem PC i wybiegiem producenta. Bez wyjścia demand jest tylko diagnostyczny.
+
+Pętle stale otwarte i częściowe odcięcie hydrauliczne nie są modelowane, nie ma dla nich ustawień ani wpływu na algorytm. Przy konfiguracji zaworów wyświetlamy ostrzeżenie z [rundy 3](round-03-regulation.md) o obowiązku zapewnienia drogi przepływu również przy zamkniętych strefach. To zastępuje wcześniejsze pole informacyjne o pętlach.
 
 ### F06 — CWU
 
@@ -93,11 +106,14 @@ Uzgodnienia codziennej obsługi: [runda 2](round-02-daily-operation.md).
 - Zamknięcie panelu z niezapisanymi zmianami wymaga potwierdzenia ich odrzucenia. Nie wprowadzamy dodatkowego potwierdzenia samego wyboru Wyłączone.
 - Panel nie obejmuje celów CO ani przełączników obserwacja/sterowanie.
 - CO i CWU mają oddzielne przełączniki obserwacja/sterowanie. Zapis ustawień CWU w obserwacji nie zezwala na wykonanie poleceń urządzenia.
-- Restart, zmiana czasu, opcjonalność modułu i wydanie, inicjalizacja temperatury bez wcześniejszej nastawy, błędy wykonania i higiena pozostają do dopracowania. Nie zastępujemy programów higienicznych producenta.
+- Po restarcie wraca ważne nadpisanie lub obowiązuje aktualny przedział. Włączenie CWU następuje po potwierdzeniu docelowej temperatury. Wyłączenie nie czeka na zapis temperatury. Przy częściowym wykonaniu ponawiamy brakujące aktualnie potrzebne działanie.
+- Zmiana czasu, opcjonalność i wydanie modułu, pierwsza nastawa bez historii i współpraca z funkcjami higienicznymi pozostają do dopracowania.
 
-### F07 — prognozy i wagi
+### F07 — prognozy odłożone do przyszłej wersji
 
-- Konfigurujemy znaczenie stref oraz osobno siłę wpływu pogody i słońca/PV. Nie definiujemy wag mieszania zewnętrznych źródeł celów komfortu.
+Decyzja rundy 3: brak obsługi prognoz w bieżącej wersji. Poniższe kierunki zachowujemy dla [US21](user-stories.md#us21), bez ustalonego szczegółowego algorytmu. Priorytety stref są nadal częścią bieżącego regulatora, a modularność US20 umożliwia dołączenie przyszłych korekt.
+
+- W przyszłości można osobno określić wpływ pogody i słońca/PV; nie definiujemy wag mieszania zewnętrznych celów komfortu.
 - Dane prognoz muszą mieć rozpoznane jednostki, czas wydania/ważności, zasięg i luki.
 - PV jest wskaźnikiem słońca, nie miarą ciepła domu. Ekspozycja paneli i okien może się różnić; zachmurzenie, rolety, zacienienie i ograniczenia falownika mogą zaburzać zależność.
 - Nie liczymy dwukrotnie tych samych zysków z PV i prognozy nasłonecznienia. Brak PV nie oznacza braku słońca.
@@ -118,13 +134,17 @@ Propozycja łączenia timerów: wyłączenie nie wcześniej niż późniejszy z 
 - Start nowej konfiguracji w obserwacji. Wyjścia objęte obserwacją nie otrzymują poleceń; algorytm nadal oblicza decyzje.
 - Użytkownik sam aktywuje sterowanie. Powrót do obserwacji zatrzymuje kolejne polecenia i nie cofa ostatnich nastaw.
 - Przy aktywacji ponowna ocena aktualnych danych zamiast wykonywania historycznej kolejki.
-- CO i CWU mają dwa niezależne przełączniki obserwacja/sterowanie; włączenie jednego nie aktywuje drugiego. Relacja do F01 i odtwarzanie trybów po restarcie pozostają do uzgodnienia.
+- CO i CWU mają dwa niezależne przełączniki obserwacja/sterowanie; włączenie jednego nie aktywuje drugiego. Po restarcie przywracamy oba zapisane tryby i sprawdzamy gotowość. Relacja do F01 pozostaje do uzgodnienia.
 - Pamięć zachowuje cele i potrzebny stan; nie dopisuje fikcyjnych pomiarów ani potwierdzeń podczas przerw.
-- Wymagane jawne reguły dla restartu, przeładowania, wyłączenia/usunięcia integracji, braku termometrów, chmury i ręcznej zmiany.
-- Ograniczone ponowienia; brak dwóch aktywnych regulatorów na tym samym wyjściu.
+- Wartości domyślne świeżości raportów to 120 min dla stref i 30 min dla outdoor. Gotowość wymaga 80% poprawnego pokrycia każdego okna oraz świeżego bieżącego pomiaru. Brak gotowego trendu zaworów pozwala użyć progów trendu niejasnego, gdy pomiar zaworów jest gotowy.
+- Strefa działa na pozostałych poprawnych termometrach. Po utracie wszystkich jej pomiarów korekta pokojowa jest pomijana, ostatnie żądania utrzymujemy przez 30 min, potem stosujemy awaryjne otwarcie bez dodatkowego demandu.
+- Utrata wszystkich pomiarów stref prowadzi po okresie przejściowym do krzywej z outdoor i wycofania demandu. Gdy wszystkie poprawnie mierzone strefy są zamknięte, utrzymujemy aktualną nastawę CO1. Brak outdoor, aktualnej nastawy lub wiarygodnego zakresu PC blokuje zapisy CO1.
+- Wspólne ponowienia zapisów obejmują trzy próby łącznie w odstępach 5 min, potem błąd i odstępy 10, 15, 25, 40, 65, 105, 120… min. Licznik osobno dla wyjścia. Kolejna próba wynika z aktualnego żądania. Ponowienie CO1 nie jest kolejnym krokiem zmiany o 1°C.
+- Przy uruchomieniu odbudowujemy pomiary i filtry z dostępnej historii, domyślnie 48 h, oraz odtwarzamy pamięć i tryby. Przed wznowieniem uzgadniamy bieżące dane i stany. Blokady mogą upływać podczas przerwy przy wiarygodnym odczycie. Potwierdzenia temperatury nie liczą czasu bez poprawnej obserwacji.
+- Szczegóły awarii zaworów, demandu, CO1 i CWU opisuje [runda 4](round-04-failures-restarts.md). Usunięcie integracji, ręczne zmiany poza panelem i techniczne kontrakty źródeł pozostają do dopracowania.
 - Rozróżniamy zezwolenie na grzanie, raport HA, rzeczywistą pracę sprężarki i fizyczne wykonanie polecenia.
 - Dashboard: cele i pomiary, zawory, dostępny stan pompy, moc i energia, jakość danych, filtry/trendy, decyzje, nastawy proponowane/wysłane/potwierdzone, limity i timery.
-- Encje produktu mają umożliwiać także własny dashboard. Nie rozstrzygnięto wyboru climate/number ani konieczności własnej karty.
+- Encje produktu mają umożliwiać także własny dashboard. Nie rozstrzygnięto wyboru climate/number ani konieczności własnej karty. Parametry strojenia i programów są w osobnym oknie konfiguracji zaawansowanej, nie na pierwszym planie dashboardu.
 - Diagnostyka bez sekretów; bez obowiązkowej telemetrii produktu.
 
 ## Codzienna obsługa CO
@@ -140,7 +160,7 @@ Hisense Hi-Therma 8 kW monoblok, podłogówka i bufor jako sprzęgło rozdzielaj
 | Parter | Cel początkowy 21°C; 8 pętli, 5 planowanych siłowników |
 | Piętro | Cel początkowy 22°C; 8 pętli, 7 planowanych siłowników |
 | Siłowniki | SALUS T30NC230, NC, M30×1,5, 230 V — ostatnia korekta użytkownika |
-| Pozostałe pętle | Bez siłowników, planowany przepływ ręcznie do 1 l/min na pętlę; nie pełny przepływ |
+| Pozostałe pętle — informacja sprzętowa | Użytkownik planuje ręczną regulację przepływu do 1 l/min; to opis instalacji, nie ustawienie ani wejście algorytmu |
 | Wyjścia | Rozważane po jednym Shelly 1PM Mini Gen3 na grupę; KinCony A8v3+ESPHome jako alternatywa wielokanałowa |
 | Dodatkowe pomiary | Rozważane sondy zasilania/powrotu; nie uznajemy ich za zainstalowane |
 | Demand | Planowany suchy styk; połączenie i znaczenie wejścia Hisense do weryfikacji |
