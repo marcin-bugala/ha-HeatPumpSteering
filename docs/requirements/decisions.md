@@ -1,6 +1,6 @@
 # Rejestr decyzji i pytań
 
-Stan: 10 listopada 2026. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
+Stan: 10 listopada 2026, po rundzie 1. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
 
 ## Przyjęte decyzje
 
@@ -22,6 +22,15 @@ Stan: 10 listopada 2026. „Przyjęte” oznacza potwierdzony kierunek produktu;
 | D14 | Zachować doświadczenia POC, ale nie kopiować bez oceny progów ani aktywnego auto STOP do produktu bez demandu | US06, US08, US19 |
 | D15 | Konfiguracja referencyjna: 5 NC na parterze, 7 NC na piętrze; inne pętle bez siłowników z ręcznym ograniczeniem do 1 l/min | US05, US10 |
 | D16 | Git przechowuje treść wymagań; Issue — dyskusję i status. Sam PR dokumentacji nie zamyka funkcji | Indeks |
+| D17 | Pierwsza wersja: jeden wspólny obieg i jedna nastawa PC dla wielu stref | US09, US15 |
+| D18 | Strefy niezależne; grupy tylko porządkowe, bez własnego celu i dodatkowego udziału w regulacji | US01, US15 |
+| D19 | Jeden lub kilka termometrów na strefę; wybór głównego albo średnia/mediana, szczegóły filtracji później | US01, US15 |
+| D20 | Każde wyjście zaworów należy do jednej strefy; wiele wyjść w strefie i przekaźnik grupowy dozwolone | US05, US15 |
+| D21 | NC/NO osobno dla strefy, wspólne dla wszystkich jej wyjść; bez globalnego typu i wyjątków na wyjściach | US10 |
+| D22 | Opcjonalne oznaczenie części pętli stale otwartych; bez obowiązkowego rejestru i przepływów | US05, US15 |
+| D23 | Encja nastawy PC wymagana już przy konfiguracji obserwacji; minimum także outdoor i aktywna strefa z termometrem/celem | US03, US16 |
+
+Decyzje D17–D23 przyjęto 10 listopada 2026 w [rundzie 1](round-01-installation-zones.md), aktualizacja w [PR #27](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/27). D21 doprecyzowuje D08; nie przyjęto proponowanego wariantu globalnego NC/NO z wyjątkami na wyjściach.
 
 Wczesne propozycje zaworów na całych rozdzielaczach, 16 siłowników NO i dokładnej krzywej producenta nie są aktualną konfiguracją referencyjną. Wczesna deklaracja pełnej niezależności modułów wymaga doprecyzowania w świetle późniejszego wymogu stałej podstawy CO1.
 
@@ -42,8 +51,8 @@ Wartości POC, w tym minimum raportowane przez encję 20°C i limit POC 35°C, n
 | ID | Pytanie | Gdzie doprecyzować |
 | --- | --- | --- |
 | Q01 | Czy obserwacja/aktywacja obejmuje CWU i F01? Jak odtwarzać tryb po restarcie? | US03, US13 |
-| Q02 | Hierarchia dom/kondygnacje/pokoje, wiele termometrów i współdzielone wyjścia | US01, US15 |
-| Q03 | NC/NO globalnie, na strefę czy na wyjście; logika odwrócona i czasy ruchu | US05, US10 |
+| Q02 — częściowo rozstrzygnięte | Model stref i wyłączność wyjść rozstrzygnięte przez D18–D20. Pozostaje dokładna agregacja/filtracja i częściowa niedostępność termometrów | US01; rundy regulacji/awarii |
+| Q03 — częściowo rozstrzygnięte | Zakres NC/NO rozstrzygnięty przez D21. Pozostają odwrócona logika przekaźnika i czasy ruchu | US05, US10; dalsze rundy |
 | Q04 | Agregacja komfortu, normalizacja wag, priorytet przegrzania, wpływ pętli niesterowanych | US17–US19 |
 | Q05 | Próg świeżości i jakość każdego źródła, luki oraz reakcje wyjść na awarie | US05, US16, US19 |
 | Q06 | Pierwszeństwo ręcznej zmiany, czas nadpisania, powrót do automatyki | US07, US13, US14 |
@@ -57,6 +66,10 @@ Wartości POC, w tym minimum raportowane przez encję 20°C i limit POC 35°C, n
 | Q14 | Kalibracja F01, faktyczna praca PC, temperatura/histereza, powrót i awarie | E05 |
 
 Otwarte pytania nie są poleceniem dobrania domyślnych wartości podczas implementacji. Rozstrzygamy je wspólnie przed kodowaniem danego zakresu.
+
+## Rozstrzygnięcia rundy 1
+
+Nie ma już otwartego pytania o dopuszczenie konfiguracji bez encji nastawy PC: D23 wymaga jej wskazania również dla obserwacji. Późniejsza niedostępność źródła jest innym zagadnieniem, do rundy awarii. Zamknięcie rundy modelu nie oznacza zakończenia wszystkich powiązanych user stories.
 
 ## Jak aktualizować
 

@@ -1,6 +1,6 @@
 # Wymagania HA HeatPumpSteering
 
-Wersja dokumentacji: 0.1, 10 listopada 2026. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
+Wersja dokumentacji: 0.2, 10 listopada 2026; model instalacji i stref uzgodniony w rundzie 1. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
 
 ## Dokumenty
 
@@ -10,6 +10,7 @@ Wersja dokumentacji: 0.1, 10 listopada 2026. To baza do wspólnego dopracowania,
 | [User stories](user-stories.md) | US01–US19, kryteria akceptacji, zależności i pytania |
 | [Decyzje](decisions.md) | Ustalenia przyjęte, propozycje i kwestie nierozstrzygnięte |
 | [Etapy](roadmap.md) | Zakres wydań, testy, migracja i bramki aktywacji |
+| [Runda 1](round-01-installation-zones.md) | Uzgodniony model instalacji i stref oraz scenariusze konfiguracji |
 
 ## Źródło prawdy i sposób pracy
 
@@ -34,7 +35,7 @@ Nie wymagamy niestandardowych etykiet ani GitHub Projects. Tablicę Projects mo�
 | Odłożone | Świadomie poza aktualnym etapem; zapisany powód i warunek powrotu |
 | Odrzucone | Świadomie zrezygnowano; zapisany powód |
 
-Początkowo wszystkie historie i obszary są do doprecyzowania. Nie oznacza to cofnięcia decyzji przyjętych w rozmowie. Odłożone Issue może pozostać otwarte; odrzucone zamykamy z uzasadnieniem. Wznowienie prac wymaga aktualizacji pola statusu.
+Przy utworzeniu bazy wszystkie historie i obszary były do doprecyzowania. Po kolejnych rundach aktualizujemy statusy w Issues; zakończenie rundy modelu nie oznacza ukończenia funkcji ani wszystkich kryteriów powiązanych historii. Odłożone Issue może pozostać otwarte; odrzucone zamykamy z uzasadnieniem. Wznowienie prac wymaga aktualizacji pola statusu.
 
 ## Obszary funkcjonalne
 

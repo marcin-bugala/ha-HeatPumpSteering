@@ -1,6 +1,6 @@
 # Etapy wydań, weryfikacja i migracja
 
-Projekt v0.1, 10 listopada 2026. Nie ustalamy dat realizacji ani nie obiecujemy niezweryfikowanych funkcji. Numeracja poniżej opisuje etapy, nie opublikowane wersje programu.
+Projekt v0.2, 10 listopada 2026, po rundzie modelu instalacji i stref. Nie ustalamy dat realizacji ani nie obiecujemy niezweryfikowanych funkcji. Numeracja poniżej opisuje etapy, nie opublikowane wersje programu.
 
 ## Kolejność
 
@@ -19,11 +19,19 @@ Zakres i kolejność R3–R6 to propozycja organizacyjna do zatwierdzenia, nie n
 
 Nie rozpoczynamy kodowania produktu przy otwartych decyzjach istotnych dla danego etapu. Nie blokuje to dalszego rozwijania POC na jego własnej gałęzi.
 
+## Postęp doprecyzowania wymagań
+
+Runda 1 — model instalacji i stref: uzgodniona, szczegóły i scenariusze w [osobnym zapisie](round-01-installation-zones.md). Nie oznacza zakończenia R0 ani odbioru funkcji. Kolejne rundy: codzienna obsługa; reguły regulacji; awarie i restarty; szczegółowe user stories i odbiór; architektura/migracja/wydania. Agregację pomiarów, czasy ruchu i awarie doprecyzujemy we właściwych rundach.
+
 ## Scenariusze odbioru
 
 ### Konfiguracja i cykl życia
 
-- Jedna strefa Dom, wiele kondygnacji/pomieszczeń, brak opcjonalnych źródeł.
+- Jeden wspólny obieg; jedna strefa Dom albo wiele niezależnych stref; grupy porządkowe bez podwójnej regulacji.
+- Jeden lub kilka termometrów na strefę; wybór głównego albo średniej/mediany, szczegóły w rundzie regulacji.
+- Minimalna konfiguracja wymaga encji nastawy PC także w obserwacji, outdoor i aktywnej strefy z termometrem oraz celem.
+- Wyjścia nie mogą należeć do dwóch stref; typ NC/NO osobno dla strefy, wspólny dla wszystkich jej wyjść.
+- Opcjonalna informacja o otwartych pętlach bez wymagania przepływów i fikcyjnych wyjść.
 - Cztery kombinacje zaworów i demandu, poprawne wymaganie encji.
 - NC i NO, wyjście grupy lub kilka wyjść; samo zapisanie konfiguracji nie uruchamia urządzeń.
 - Restart, przeładowanie, zmiana ustawień i usunięcie integracji według uzgodnionej polityki.

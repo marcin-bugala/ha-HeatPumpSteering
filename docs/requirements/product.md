@@ -1,4 +1,4 @@
-# Specyfikacja produktu — projekt v0.1
+# Specyfikacja produktu — projekt v0.2
 
 Stan wymagań: 10 listopada 2026. Uzgodnienia i propozycje rozróżnia [rejestr decyzji](decisions.md). Statusy realizacji znajdują się w [Issues](README.md). Brak implementacji produktu.
 
@@ -21,14 +21,27 @@ Dwie niezależne opcje konfiguracji: sterowanie strefami oraz sterowanie demande
 | Temperatura wnętrza | Co najmniej jeden czujnik na aktywną strefę |
 | Cel komfortu | Własny cel każdej aktywnej strefy |
 | Bieżąca temperatura zewnętrzna | Wymagana dla regulacji CO1; sama prognoza jej nie zastępuje |
-| Nastawa PC | Encja do aktywnego zapisu; dopuszczalność konfiguracji obserwacyjnej bez niej wymaga ustalenia |
-| Wyjścia zaworów | Tylko przy włączeniu sterowania zaworami; NC/NO konfigurujemy świadomie |
+| Nastawa PC | Obowiązkowo wskazana już podczas konfiguracji, również dla obserwacji; bez wskazania nie można jej zakończyć |
+| Wyjścia zaworów | Tylko przy włączeniu sterowania zaworami danej strefy; NC/NO wybierane osobno dla tej strefy |
 | Wyjście demand | Tylko po włączeniu funkcji demand |
 | Prognozy pogody, nasłonecznienia/PV | Opcjonalne |
 | Moc/energia PC, zasilanie i powrót | Opcjonalna diagnostyka |
 | Sterowanie i nastawa CWU | Warunki opcjonalności modułu do uzgodnienia przed aktywacją CWU |
 
 Brak opcjonalnego źródła nie oznacza zera ani awarii całego produktu. Niedostępność uprzednio wybranego źródła jest jawna. Szczegółowe progi świeżości i zachowanie awaryjne nie zostały jeszcze zatwierdzone.
+
+## Model instalacji i stref — ustalenia rundy 1
+
+Pełny zapis uzgodnień i scenariuszy: [runda 1](round-01-installation-zones.md).
+
+- Pierwsza wersja obsługuje jeden wspólny obieg grzewczy i jedną nastawę temperatury wody PC dla wszystkich stref. Wiele niezależnych obiegów nie należy do jej zakresu.
+- Wymagane minimum konfiguracji: wskazana encja nastawy PC, czujnik bieżącej temperatury zewnętrznej oraz co najmniej jedna aktywna strefa z termometrem i celem.
+- W obserwacji odczytujemy nastawę PC i porównujemy z propozycją, bez wysyłania zmian. Późniejsza niedostępność encji należy do rundy awarii.
+- Strefy są niezależne. Grupy porządkowe, np. Parter, służą prezentacji; nie mają odrębnych celów, wyjść ani dodatkowego udziału w regulacji.
+- Strefa może mieć jeden lub kilka termometrów, z wyborem pomiaru głównego albo agregacji średnią/medianą. Dokładne reguły filtracji i braków danych pozostają na rundy regulacji i awarii.
+- Wyjście zaworów należy do dokładnie jednej strefy i nie może być współdzielone z inną. Strefa może mieć kilka wyjść; jeden przekaźnik może obsługiwać grupę pętli.
+- NC/NO wybieramy osobno dla każdej strefy sterującej zaworami, wspólnie dla wszystkich jej wyjść. Typy mogą różnić się między strefami.
+- Opcjonalna informacja „część pętli pozostaje otwarta” nie tworzy wyjść ani obowiązku wpisywania liczby pętli i przepływów.
 
 ## Moduły
 
@@ -58,11 +71,11 @@ Brak opcjonalnego źródła nie oznacza zera ani awarii całego produktu. Niedos
 
 ### F03/F04 — strefy, zawory i demand
 
-Strefa może oznaczać dom, kondygnację albo pomieszczenie. Model hierarchii i agregacji kilku czujników wymaga decyzji. Nie narzucamy trzech pięter jako limitu produktu.
+Strefa może oznaczać dom, kondygnację albo pomieszczenie. Strefy mają niezależne cele; grupy są wyłącznie porządkowe i nie tworzą hierarchii regulatorów. Dopuszczamy jeden lub kilka termometrów, z pomiarem głównym albo średnią/medianą. Szczegóły obliczeń pozostają do ustalenia. Nie narzucamy trzech pięter jako limitu produktu.
 
-Strefa może mieć jeden przełącznik grupy pętli albo kilka wyjść. Pętle stale dostępne i ręcznie zdławione pozostają poza sterowaniem. Otwarcie siłownika nie usuwa nastawy przepływu na rotametrze.
+Strefa może mieć jeden przełącznik grupy pętli albo kilka wyjść; każde wyjście należy tylko do jednej strefy. Pętle stale dostępne i ręcznie zdławione pozostają poza sterowaniem; opcjonalnie oznaczamy ich obecność przy strefie bez tworzenia pełnego rejestru pętli i przepływów. Otwarcie siłownika nie usuwa nastawy przepływu na rotametrze.
 
-NC: zasilanie otwiera, brak zasilania zamyka. NO: odwrotnie. Ewentualne odwrócenie logiki przekaźnika musi być rozróżnione od typu siłownika. Bez sprzężenia zwrotnego stan zaworu jest przewidywany, po uwzględnieniu czasu ruchu, nie sprzętowo potwierdzony.
+NC: zasilanie otwiera, brak zasilania zamyka. NO: odwrotnie. Typ wybierany jest osobno dla każdej strefy i dotyczy wszystkich jej wyjść; nie stosujemy globalnego typu ani wyjątków NC/NO na pojedynczych wyjściach. Ewentualne odwrócenie logiki przekaźnika musi być rozróżnione od typu siłownika. Bez sprzężenia zwrotnego stan zaworu jest przewidywany, po uwzględnieniu czasu ruchu, nie sprzętowo potwierdzony.
 
 Planowana agregacja demandu: OR zapotrzebowań aktywnych stref, ze stanem niepewności zamiast uznawania braku danych za brak zapotrzebowania. Progi, czasy i kolejność zaworów/demandu wymagają specyfikacji. Stałe otwarte pętle nie oznaczają automatycznie ciągłego zapotrzebowania; decyzja o ich wpływie na model pozostaje otwarta.
 

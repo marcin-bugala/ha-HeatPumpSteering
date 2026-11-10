@@ -1,6 +1,6 @@
 # User stories
 
-Baza v0.1 z 10 listopada 2026. Treść poniżej zawiera wstępne kryteria do uzgodnienia; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md).
+Baza v0.2 z 10 listopada 2026, uzupełniona o [rundę 1](round-01-installation-zones.md). Treść poniżej zawiera wstępne kryteria do uzgodnienia; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md).
 
 <a id="us01"></a>
 
@@ -13,13 +13,14 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 ### Wstępne kryteria akceptacji
 
 - Strefę można dodać, nazwać, edytować i wyłączyć przez UI integracji.
-- Aktywna strefa wymaga co najmniej jednego poprawnie skonfigurowanego źródła temperatury.
+- Aktywna strefa wymaga jednego lub kilku poprawnie skonfigurowanych termometrów i własnego celu.
+- Przy kilku termometrach można wybrać pomiar główny albo agregację średnią/medianą; szczegółowa filtracja należy do rundy regulacji.
 - Brak skonfigurowanego sterowania zaworami nie uniemożliwia obserwacji strefy ani wykorzystania jej w regulacji PC.
 - Konfiguracja nie zawiera narzuconych nazw pomieszczeń ani identyfikatorów encji.
 
 ### Do doprecyzowania
 
-- Jak agregować kilka termometrów w jednej strefie i jak traktować częściową niedostępność?
+- Kolejność agregacji i filtracji oraz zachowanie przy częściowej niedostępności — rundy regulacji i awarii.
 
 Powiązania: [US15](#us15), [US16](#us16)
 
@@ -55,6 +56,7 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 ### Wstępne kryteria akceptacji
 
 - Nowa konfiguracja rozpoczyna w obserwacji; obserwowane wyjścia nie otrzymują automatycznych poleceń.
+- Encja nastawy PC jest obowiązkowo wskazywana również dla obserwacji; odczyt służy porównaniu z propozycją algorytmu.
 - Tryb można zmienić z dashboardu i jest on wyraźnie widoczny.
 - W obu trybach widoczne są proponowana decyzja, jej powód i rzeczywisty stan instalacji.
 - Powrót do obserwacji zatrzymuje następne automatyczne polecenia i nie cofa ostatnich nastaw.
@@ -101,7 +103,9 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 ### Wstępne kryteria akceptacji
 
 - Polecenia dotyczą wyłącznie wyjść przypisanych do danej strefy.
-- Jedno wyjście może obsługiwać grupę pętli; strefa może mieć kilka wyjść.
+- Jedno wyjście może obsługiwać grupę pętli; strefa może mieć kilka wyjść. Każde wyjście należy wyłącznie do jednej strefy; konfiguracja nie dopuszcza przypisania go do drugiej.
+- NC/NO jest wspólne dla wszystkich wyjść danej strefy, wybierane osobno dla każdej strefy.
+- Opcjonalne oznaczenie pętli pozostających otwartych nie tworzy wyjść i nie wymaga wpisywania przepływów.
 - Zachowane są histereza, czasy ruchu i minimalne czasy zmian ustalone dla instalacji.
 - Bez wyjść zaworów widoczna jest tylko ocena zapotrzebowania i ograniczenie możliwości regulacji.
 - Stan zamknięcia strefy nie oznacza odcięcia pętli pozostających poza sterowaniem.
@@ -192,8 +196,8 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 
 ### Wstępne kryteria akceptacji
 
-- Podstawą produktu pozostaje regulacja nastawy temperatury PC.
-- Obsługiwane są cztery kombinacje: bez stref/bez demandu, strefy/bez demandu, bez stref/z demandem, strefy/z demandem.
+- Podstawą produktu pozostaje regulacja jednej nastawy temperatury PC dla jednego wspólnego obiegu i wielu stref.
+- Niezależnie wybieramy sterowanie zaworami stref i demand: obie funkcje wyłączone, same zawory, sam demand lub obie funkcje włączone. Strefy pomiarowe istnieją również bez wyjść zaworów.
 - Wyjścia zaworów wymagane są tylko przy ich sterowaniu; wyjście demand tylko przy włączonym demandzie.
 - Bez demandu integracja nie przełącza ogrzewania ON/OFF, także przez encję CO1.
 - Można później dołączyć te możliwości bez ponownego tworzenia całej konfiguracji.
@@ -216,7 +220,8 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 
 ### Wstępne kryteria akceptacji
 
-- Krok jest wymagany tylko przy konfiguracji wyjść zaworów i wyjaśnia znaczenie NC/NO.
+- Typ NC/NO wybierany jest osobno podczas konfiguracji każdej strefy sterującej zaworami; krok jest pomijany w strefie bez tych wyjść.
+- Wszystkie wyjścia strefy używają jej typu NC/NO; różne strefy mogą mieć różne typy. Nie ma globalnego typu ani wyjątków NC/NO dla wyjść.
 - NC: zasilanie otwiera, brak zasilania zamyka; NO: zasilanie zamyka, brak zasilania otwiera.
 - Dashboard przedstawia polecenie i przewidywany stan hydrauliczny niezależnie od ON/OFF przekaźnika.
 - Bez sprzężenia zwrotnego przewidywany stan nie jest oznaczany jako potwierdzony.
@@ -224,7 +229,6 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 
 ### Do doprecyzowania
 
-- Typ globalny, na strefę czy na wyjście; czy dopuszczamy instalacje mieszane?
 - Niezależna konfiguracja odwróconej logiki wyjścia przekaźnika i czasu ruchu.
 
 Powiązania: [US09](#us09)
@@ -331,16 +335,18 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 
 ### Wstępne kryteria akceptacji
 
-- Dopuszczalna jest jedna strefa Dom z jednym termometrem albo wiele nazwanych stref.
+- Dopuszczalna jest jedna strefa Dom albo wiele nazwanych stref, każda z jednym lub kilkoma termometrami.
+- Strefy są niezależne i mają własne cele. Grupy porządkowe służą tylko prezentacji, bez odrębnego celu, wyjść ani dodatkowego ważenia.
+- Wszystkie strefy współpracują z jednym wspólnym obiegiem i jedną nastawą PC; wiele niezależnych obiegów pozostaje poza pierwszą wersją.
+- Wyjście zaworów należy do jednej strefy; strefa może zawierać kilka wyjść, w tym przekaźnik grupy pętli.
 - Każda aktywna strefa ma co najmniej jeden termometr oraz cel.
 - Czujnik i obliczane zapotrzebowanie mogą istnieć bez fizycznego zaworu.
-- Pętle bez siłowników pozostają poza sterowaniem; ich odbiór ciepła jest jawnym ograniczeniem modelu.
+- Pętle bez siłowników pozostają poza sterowaniem; ich odbiór ciepła jest jawnym ograniczeniem modelu. Można opcjonalnie zaznaczyć ich obecność przy strefie, bez wymagania listy pętli i przepływów.
 - Przyszła trzecia kondygnacja nie wymaga zmiany kodu.
 
 ### Do doprecyzowania
 
-- Czy model dopuszcza jednocześnie nadrzędne kondygnacje i podrzędne pokoje oraz jak unika podwójnego ważenia?
-- Liczba stref w v1 i przypisanie współdzielonych wyjść.
+Model stref uzgodniono w rundzie 1. Szczegóły agregacji pomiarów rozwija US01 w rundzie regulacji; nie wprowadzają dodatkowej hierarchii stref.
 
 Powiązania: [US01](#us01), [US09](#us09)
 
@@ -355,7 +361,9 @@ Obszar: [E04](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/6). Dy
 ### Wstępne kryteria akceptacji
 
 - Aktywna strefa wymaga temperatury; regulacja CO1 wymaga bieżącej temperatury zewnętrznej.
-- Aktywny zapis CO1 wymaga encji nastawy; zawory i demand wymagają wyjść tylko po włączeniu tych funkcji.
+- Encja nastawy PC musi być wskazana już podczas konfiguracji, również dla obserwacji; jej brak uniemożliwia zakończenie konfiguracji.
+- Minimalna konfiguracja zawiera encję nastawy PC, temperaturę zewnętrzną i co najmniej jedną aktywną strefę z termometrem oraz celem.
+- Zawory i demand wymagają wyjść tylko po włączeniu tych funkcji.
 - Prognoza pogody, nasłonecznienia/PV, moc/energia i temperatury zasilania/powrotu są opcjonalne.
 - Brak opcjonalnego źródła nie blokuje podstawowych funkcji ani nie oznacza wartości zero.
 - Utrata skonfigurowanego źródła jest widoczna wraz z wpływem na działanie.
@@ -365,7 +373,6 @@ Obszar: [E04](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/6). Dy
 
 - Profile dostawców prognoz i formaty/horyzonty danych.
 - Progi świeżości, jednostki, zastępowanie źródeł oraz zachowanie po ich utracie.
-- Kiedy brak encji PC pozwala zapisać konfigurację obserwacyjną?
 
 Powiązania: [US09](#us09), [US15](#us15)
 
