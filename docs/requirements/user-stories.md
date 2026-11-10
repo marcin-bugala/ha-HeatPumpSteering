@@ -19,10 +19,12 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Konfiguracja nie zawiera narzuconych nazw pomieszczeń ani identyfikatorów encji.
 - Kilka termometrów agregujemy przed filtracją w czasie; domyślnie średnią, z globalnym wyborem średnia/mediana.
 - Funkcje i okna pomiarów są wspólne dla programu; progi reakcji stref są ustawiane osobno w konfiguracji zaawansowanej.
+- Przy częściowej utracie termometrów strefa działa z pozostałym poprawnym pomiarem i pokazuje liczbę dostępnych źródeł.
+- Skok po zmianie zestawu termometrów sam nie uruchamia zabezpieczenia nagłego spadku.
 
 ### Do doprecyzowania
 
-- Jakość i częściowa niedostępność termometrów oraz stan początkowy — runda awarii.
+- Kontrakty źródeł raportowania i techniczne rozpoznawanie jakości historii.
 
 Powiązania: [US15](#us15), [US16](#us16)
 
@@ -67,11 +69,12 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Powrót do obserwacji zatrzymuje następne automatyczne polecenia i nie cofa ostatnich nastaw.
 - Aktywacja ponownie ocenia aktualne dane; nie odtwarza kolejki decyzji z obserwacji.
 - Niespełnione warunki i brak danych blokują odpowiednie działania również w trybie aktywnym.
+- Po restarcie odtwarzamy osobno zapisane tryby CO i CWU. Działanie wznawia się po przygotowaniu historii, sprawdzeniu wymaganych danych i bieżącej ocenie.
+- Pierwsza konfiguracja pozostaje w obserwacji. Odbudowa historii nie wydaje poleceń.
 
 ### Do doprecyzowania
 
-- Relacja przełączników do późniejszego F01 i ewentualne dodatkowe uprawnienia wyjść CO.
-- Czy i jak odtwarzać aktywny tryb po restarcie?
+- Relacja trybów do przyszłego F01 i techniczny sposób zapisu oraz odtworzenia.
 
 Powiązania: brak dodatkowych powiązań.
 
@@ -92,10 +95,12 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Diagnostyka rozdziela wkłady aktywnych modułów komfortu/trendu, wspólny limit sumy, zakres pompy i węższy limit użytkownika.
 - Pokazuje ochronę przegrzewania, timery stref/demandu oraz ostrzeżenie nieskutecznego zamknięcia.
 - Program nie ocenia konfiguracji stale otwartych pętli; prognozy są odłożone i nie tworzą aktywnych korekt.
+- Diagnostyka pokazuje wysłany zapis, potwierdzenie z niezależnego odczytu, jego brak lub brak możliwości potwierdzenia.
+- Widać utratę pomiarów, odbudowę historii i gotowość okien oraz błąd zapisu po trzeciej nieudanej próbie.
 
 ### Do doprecyzowania
 
-- Zakres i czas przechowywania dziennika decyzji oraz format eksportu.
+- Techniczny dowód odczytu i czas oczekiwania na potwierdzenie.
 
 Powiązania: [US03](#us03), [US17](#us17), [US19](#us19)
 
@@ -119,11 +124,14 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Po zamknięciu wszystkich przypisanych wyjść pomijamy odchylenie strefy w korekcie CO1, nadal ją monitorując; strefy bez wyjść pozostają w ocenie.
 - Ostrzeżenie po czasie zamykania i 120 min zamknięcia przy temperaturze komfortowej ≥cel+0,5°C i rosnącym trendzie. Czas i próg konfigurowalne dla strefy; bez przesądzania awarii lub automatycznego STOP PC.
 - Nie modelujemy stale otwartych pętli. Konfiguracja zaworów pokazuje ostrzeżenie o zapewnieniu hydraulicznej drogi przepływu także przy zamkniętych strefach.
+- Brak wszystkich termometrów strefy wstrzymuje potwierdzenia i usuwa jej korekty. Przez 30 min utrzymujemy ostatnie żądania, potem awaryjne otwarcie bez własnego demandu.
+- Stan zaworu jest nieznany po błędzie przekaźnika. Strefa nie wystarcza wtedy do ON demandu. Nieudane zamknięcie nie usuwa strefy z ochrony przegrzewania.
+- Bez wcześniejszego żądania między progami utrzymujemy odczytany stan i czekamy na warunek otwarcia przed zgłoszeniem zapotrzebowania.
+- Gotowy pomiar zaworów bez gotowego trendu używa progów trendu niejasnego. Blokada otwarcia może upłynąć w przerwie przy wiarygodnym stanie.
 
 ### Do doprecyzowania
 
-- Stan początkowy, czas zamykania, dowody wykonania, reset ostrzeżenia i niedostępność pomiarów/wyjść — runda awarii.
-- Rozpoznawanie nagłego spadku i zachowanie wszystkich stref odciętych — do uzupełnienia.
+- Czas zamykania, techniczne potwierdzenia wyjść i reguła kasowania ostrzeżenia nieskutecznego zamknięcia.
 
 Powiązania: [US09](#us09), [US10](#us10), [US15](#us15)
 
@@ -143,10 +151,12 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Do zaworów domyślnie średnia 30 min, do CO1 mediana 3 h; dla każdego wybór średnia/mediana i 30 min–6 h co 30 min, wspólnie dla programu.
 - Trend zaworów: wspólna funkcja dla krótkiego i długiego punktu, niezależne okna i zakresy z rundy 3; 2 h / 2 h odrzucane.
 - Korekta długoterminowego wzrostu CO1 jest osobna: 12 h, próg 0,2°C, pełne −0,5°C przy 0,5°C, liniowo pomiędzy, tylko bez ważonego niedogrzania.
+- Nagły spadek to bieżący pomiar niższy od temperatury komfortowej o ponad 0,7°C. Próg konfigurowalny dla strefy.
+- Zmiana zestawu dostępnych czujników nie tworzy sama alarmu spadku. Potwierdzenie liczy poprawne obserwacje, z zachowaniem postępu po restarcie.
 
 ### Do doprecyzowania
 
-- Definicja nagłego spadku, świeżość i ciągłość poprawnych obserwacji oraz zachowanie podczas przerw — runda awarii.
+- Sposób ustalenia ciągłości historii źródła i szczegółowe scenariusze odbioru.
 
 Powiązania: [US19](#us19)
 
@@ -222,11 +232,13 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Brak wszystkich zapotrzebowań wyłącza demand bez dodatkowego opóźnienia; brak minimalnego ON.
 - Ponowne ON wymaga minimum 15 min od OFF, globalnie konfigurowalne; wyjścia mogą otworzyć się wcześniej, lecz ON wymaga aktualnego zapotrzebowania i gotowości.
 - Program nie modeluje otwartych pętli i nie steruje zasilaniem ani wybiegiem PC; ostrzeżenie hydrauliczne w konfiguracji zaworów.
+- Awaryjne otwarcie strefy bez pomiaru po okresie przejściowym nie dodaje zapotrzebowania. Po utracie wszystkich temperatur wycofujemy demand i pozostawiamy krzywą z outdoor.
+- Po błędzie wyjścia pokazujemy stan żądany i raportowany. Aktualne polecenie podlega wspólnym ponowieniom. Strefa bez potwierdzenia przekaźnika nie jest gotowa do ON.
+- Przerwę 15 min liczymy od potwierdzonego raportowanego OFF. Po restarcie uwzględniamy upływ przerwy, jeśli odczyt i zapamiętany czas są wiarygodne.
 
 ### Do doprecyzowania
 
-- Profil wyjścia i polaryzacja demandu, niezależne potwierdzenia i ręczne zmiany.
-- Brak danych, restart i brak gotowych stref — runda awarii.
+- Profil, polaryzacja i techniczne potwierdzenie raportu demandu oraz ręczna zmiana poza integracją.
 
 Powiązania: [US03](#us03), [US15](#us15), [US16](#us16)
 
@@ -248,10 +260,11 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Sam wybór lub zmiana typu nie wysyła poleceń.
 - Czas otwierania jest parametrem całego domu, domyślnie 3 min, nie parametrem strefy.
 - Upływ tego czasu oznacza przewidywane otwarcie; bez sprzężenia nie potwierdza stanu hydraulicznego.
+- Raport przełączenia przekaźnika jest wymagany przed uznaniem przewidywanego otwarcia po upływie czasu ruchu. Błąd oznacza stan nieznany i wspólną politykę ponowień.
 
 ### Do doprecyzowania
 
-- Odwrócona logika przekaźnika, czas zamykania, potwierdzenia i awarie wyjść.
+- Odwrócona logika przekaźnika i czas zamykania. Techniczny sposób uzyskania wiarygodnego raportu stanu.
 
 Powiązania: [US09](#us09)
 
@@ -295,6 +308,7 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Brak opcjonalnego licznika nie blokuje regulatora i nie jest przedstawiany jako zerowe zużycie.
 - Ostrzeżenie nieskutecznego zamknięcia wskazuje potrzebę sprawdzenia zaworów i innych źródeł ciepła, bez automatycznej diagnozy usterki.
 - Progi, funkcje i czasy algorytmu są w osobnej konfiguracji zaawansowanej; nie są suwakami codziennego dashboardu.
+- Dashboard pokazuje ograniczoną dostępność termometrów, nieznany stan zaworów, status zapisu, postęp odbudowy historii i braki w oknach.
 
 ### Do doprecyzowania
 
@@ -324,13 +338,14 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 - Włączenie CWU oznacza zezwolenie na podgrzewanie; pompa zachowuje własną regulację i zabezpieczenia.
 - Dashboard pokazuje aktualny tryb, nastawę i najbliższą zmianę.
 - Temperatury są ograniczone zakresem obsługiwanym przez urządzenie.
+- Po restarcie odtwarzamy tryb i ważne nadpisanie. Po wygaśnięciu stosujemy aktualny przedział harmonogramu.
+- Włączenie CWU wymaga zapisu i potwierdzenia temperatury docelowej. Wyłączenie jest niezależne od wyniku zapisu temperatury.
+- Częściowe wykonanie zachowuje zatwierdzone ustawienia, pokazuje wynik i ponawia nadal potrzebne działanie według wspólnej polityki.
 
 ### Do doprecyzowania
 
-- Opcjonalność modułu i wydanie docelowe.
-- Restart, brak danych, funkcje higieniczne producenta i obsługa częściowego błędu wykonania poleceń.
-- Podpowiedź temperatury przy pierwszym uruchomieniu bez ostatniej nastawy; edycja harmonogramu podczas nadpisania.
-- Wymagane encje i sposób potwierdzania poleceń CWU.
+- Opcjonalność modułu, wydanie, funkcje higieniczne i brak wcześniejszej nastawy.
+- Źródło potwierdzenia, jego limit czasu oraz edycja harmonogramu podczas nadpisania.
 
 Powiązania: [US14](#us14), [US16](#us16)
 
@@ -352,12 +367,12 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 - Harmonogram edytujemy razem z pozostałymi ustawieniami CWU, z jednym Zapisz i potwierdzeniem odrzucenia niezapisanej edycji.
 - Harmonogram CWU nie steruje ogrzewaniem pomieszczeń ani ich celami.
 - Wartości temperatur są walidowane względem urządzenia.
+- Restart zachowuje nadpisanie tylko do zapisanego terminu. Po jego upływie stosujemy bieżący przedział harmonogramu bez odtwarzania pominiętych zmian.
 
 ### Do doprecyzowania
 
-- Strefa czasowa i zmiana czasu, granice przedziałów, edycja/kopiowanie dni.
-- Stan początkowego harmonogramu i uzgadnianie po restarcie lub przerwie łączności.
-- Edycja harmonogramu przy aktywnym nadpisaniu i brak następnej zmiany w całym tygodniu.
+- Strefa czasowa, zmiana czasu, granice tygodnia oraz edycja/kopiowanie dni.
+- Stan początkowy planu, edycja planu przy aktywnym nadpisaniu i brak przyszłej zmiany w całym tygodniu.
 
 Powiązania: [US13](#us13), [US07](#us07)
 
@@ -408,11 +423,13 @@ Obszar: [E04](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/6). Dy
 - Moc/energia PC i temperatury zasilania/powrotu pozostają opcjonalną diagnostyką.
 - Prognozy pogody, nasłonecznienia i PV przeniesiono do odłożonej US21; bieżący program ich nie konfiguruje ani nie używa.
 - Zakres nastawy czytamy z pompy; użytkownik może go wyłącznie zawęzić. Bieżący outdoor pozostaje wymagany, domyślnie średnia 2 h, konfigurowalna średnia/mediana i okno 30 min–6 h co 30 min.
+- Domyślny limit świeżości to 120 min dla termometrów stref i 30 min dla outdoor, liczony od raportu. Jawnie niedostępny lub niepoprawny odczyt jest utracony od razu.
+- Brak outdoor, nastawy PC albo wiarygodnych limitów wstrzymuje nowe zapisy CO1. Poprawne zawory, demand i CWU działają według własnych źródeł.
 
 ### Do doprecyzowania
 
-- Progi świeżości, jednostki, zastępowanie źródeł, niedostępność oraz wiarygodność limitów/odczytu PC.
-- Profile danych prognoz wrócą w przyszłym wydaniu w US21.
+- Techniczna identyfikacja czasu raportu, jednostki, źródła historii oraz niezależne potwierdzanie odczytów PC.
+- Profile prognoz pozostają w odłożonej US21.
 
 Powiązania: [US09](#us09), [US15](#us15)
 
@@ -438,11 +455,14 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Pełna precyzja obliczeń, końcowe zaokrąglenie do najbliższego kroku PC, połówki w górę, w dozwolonym zakresie.
 - Do celu dochodzimy domyślnie o najwyżej 1°C co 120 min w obu kierunkach, bez zapisu identycznej nastawy; parametry programu respektują możliwości PC.
 - Regulator przelicza domyślnie co 5 min i po zmianach celu/trybu; timery kończą się niezależnie od cyklu, bez omijania blokad.
+- Po utracie temperatur wszystkich stref i upływie okresu przejściowego stosujemy krzywą bez korekt przy poprawnym outdoor. Gdy wszystkie poprawnie mierzone strefy są zamknięte, utrzymujemy nastawę.
+- Ponowienie niepotwierdzonej wartości dotyczy tej samej bezwzględnej nastawy. Kolejny krok regulatora wymaga wiarygodnego potwierdzenia oraz blokady 1°C/120 min.
+- Trzy próby łącznie w odstępach 5 min, potem błąd i narastające przerwy do 120 min zgodnie z rundą 4.
 
 ### Do doprecyzowania
 
-- Zakresy walidacji parametrów, potwierdzanie poleceń i zachowanie po zmianie granic urządzenia — dalsze rundy.
-- Brak stref kwalifikujących się do korekty i dokładne zachowanie po przerwach danych.
+- Walidacja zakresów, źródło niezależnego potwierdzenia i czas oczekiwania.
+- Zachowanie przy zmianie limitów i pozostałych przypadkach bez kwalifikujących się stref.
 
 Powiązania: [US04](#us04), [US16](#us16), [US19](#us19)
 
@@ -463,10 +483,11 @@ Obszar: [E04](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/6). Dy
 - Dla stref bez sterowanych wyjść przegrzanie ≥cel+0,5°C przez 60 min blokuje wzrost CO1, a ≤cel+0,2°C przez 30 min zwalnia blokadę. Progi i czasy konfigurowalne dla strefy.
 - Blokada nie wymusza wyłączenia demandu; jej zwolnienie nie wymusza podniesienia temperatury.
 - Nie modelujemy pętli stale otwartych. Wagi prognoz i ich szczegółowy algorytm odłożono do US21.
+- Strefa bez poprawnych pomiarów jest pomijana w korekcie pokojowej. Wszystkie zamknięte strefy z poprawnymi danymi oznaczają utrzymanie aktualnej nastawy.
 
 ### Do doprecyzowania
 
-- Zachowanie przy braku kwalifikujących się stref, niepełnych danych i zmianie zestawu stref — dalsze rundy.
+- Pozostałe przypadki mieszane bez stref kwalifikujących się do korekty oraz techniczne śledzenie zmian zestawu.
 
 Powiązania: [US16](#us16), [US17](#us17), [US19](#us19)
 
@@ -488,12 +509,15 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Auto STOP CO1 z POC nie przechodzi automatycznie do konfiguracji produktu bez demandu.
 - Przyjęte wartości początkowe i odstępstwa od POC określa runda 3; ustalenia produktu są nadrzędne wobec prototypu.
 - Oddzielamy bazę, moduły korekt i zabezpieczenia (US20). Prognozy są poza bieżącą wersją (US21).
+- Pierwszy start, restart i przeładowanie odtwarzają dostępne pomiary, średnie, mediany i trendy z domyślnie 48 h historii, bez podwójnego liczenia próbek.
+- Każde okno potrzebuje 80% pokrycia i świeżego bieżącego pomiaru. Brak trendu przy gotowym pomiarze zaworów pozwala użyć progów niejasnego trendu.
+- Pamięć obejmuje zapisane tryby, stany, timery, postęp potwierdzeń i terminy ponowień. Blokady mogą upływać przy wiarygodnym stanie, a potwierdzenia nie liczą przerw w obserwacji.
+- Wspólna polityka zapisów to 3 próby łącznie, błąd i odstępy Fibonacciego do 120 min z licznikiem na wyjście i resetem po potwierdzonym sukcesie.
 
 ### Do doprecyzowania
 
-- Docelowe filtry, progi, format pamięci i obsługa długich przerw.
-- Minimalna wersja HA i niezależny mechanizm potwierdzania HiMitII.
-- Uzgodnienie zachowania przy CWU/defrost oraz granic odpowiedzialności.
+- Kontrakty historii, reprezentacja i trwałość pamięci oraz dowód niezależnego odczytu HiMitII.
+- Minimalna wersja HA, przypadki CWU/defrost oraz szczegółowe kryteria odbioru.
 
 Powiązania: [US03](#us03), [US06](#us06), [US08](#us08)
 

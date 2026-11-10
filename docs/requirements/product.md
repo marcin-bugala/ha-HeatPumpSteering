@@ -1,4 +1,4 @@
-# Specyfikacja produktu — projekt v0.4
+# Specyfikacja produktu — projekt v0.5
 
 Stan wymagań: 10 listopada 2026. Uzgodnienia i propozycje rozróżnia [rejestr decyzji](decisions.md). Statusy realizacji znajdują się w [Issues](README.md). Brak implementacji produktu.
 
@@ -38,7 +38,7 @@ Pełny zapis uzgodnień i scenariuszy: [runda 1](round-01-installation-zones.md)
 - Wymagane minimum konfiguracji: wskazana encja nastawy PC, czujnik bieżącej temperatury zewnętrznej oraz co najmniej jedna aktywna strefa z termometrem i celem.
 - W obserwacji odczytujemy nastawę PC i porównujemy z propozycją, bez wysyłania zmian. Późniejsza niedostępność encji należy do rundy awarii.
 - Strefy są niezależne. Grupy porządkowe, np. Parter, służą prezentacji; nie mają odrębnych celów, wyjść ani dodatkowego udziału w regulacji.
-- Strefa może mieć jeden lub kilka termometrów: główny albo agregacja, domyślnie średnia. Funkcje i okna są wspólne dla programu; progi reakcji i priorytety są ustawieniami strefy. Reguły liczbowe ustalono w rundzie 3; braki danych pozostają na rundę awarii.
+- Strefa może mieć jeden lub kilka termometrów: główny albo agregacja, domyślnie średnia. Funkcje i okna są wspólne dla programu; progi reakcji i priorytety są ustawieniami strefy. Reguły liczbowe ustalono w rundzie 3, a zachowanie przy brakach danych w rundzie 4.
 - Wyjście zaworów należy do dokładnie jednej strefy i nie może być współdzielone z inną. Strefa może mieć kilka wyjść; jeden przekaźnik może obsługiwać grupę pętli.
 - NC/NO wybieramy osobno dla każdej strefy sterującej zaworami, wspólnie dla wszystkich jej wyjść. Typy mogą różnić się między strefami.
 - Runda 3 zastępuje wcześniejsze pole o części pętli otwartych: program nie modeluje pętli, przepływów i częściowego odcięcia. Przy konfiguracji zaworów pokazuje ostrzeżenie o obowiązku zapewnienia drogi przepływu także przy zamkniętych strefach.
@@ -106,7 +106,8 @@ Uzgodnienia codziennej obsługi: [runda 2](round-02-daily-operation.md).
 - Zamknięcie panelu z niezapisanymi zmianami wymaga potwierdzenia ich odrzucenia. Nie wprowadzamy dodatkowego potwierdzenia samego wyboru Wyłączone.
 - Panel nie obejmuje celów CO ani przełączników obserwacja/sterowanie.
 - CO i CWU mają oddzielne przełączniki obserwacja/sterowanie. Zapis ustawień CWU w obserwacji nie zezwala na wykonanie poleceń urządzenia.
-- Restart, zmiana czasu, opcjonalność modułu i wydanie, inicjalizacja temperatury bez wcześniejszej nastawy, błędy wykonania i higiena pozostają do dopracowania. Nie zastępujemy programów higienicznych producenta.
+- Po restarcie wraca ważne nadpisanie lub obowiązuje aktualny przedział. Włączenie CWU następuje po potwierdzeniu docelowej temperatury. Wyłączenie nie czeka na zapis temperatury. Przy częściowym wykonaniu ponawiamy brakujące aktualnie potrzebne działanie.
+- Zmiana czasu, opcjonalność i wydanie modułu, pierwsza nastawa bez historii i współpraca z funkcjami higienicznymi pozostają do dopracowania.
 
 ### F07 — prognozy odłożone do przyszłej wersji
 
@@ -133,10 +134,14 @@ Propozycja łączenia timerów: wyłączenie nie wcześniej niż późniejszy z 
 - Start nowej konfiguracji w obserwacji. Wyjścia objęte obserwacją nie otrzymują poleceń; algorytm nadal oblicza decyzje.
 - Użytkownik sam aktywuje sterowanie. Powrót do obserwacji zatrzymuje kolejne polecenia i nie cofa ostatnich nastaw.
 - Przy aktywacji ponowna ocena aktualnych danych zamiast wykonywania historycznej kolejki.
-- CO i CWU mają dwa niezależne przełączniki obserwacja/sterowanie; włączenie jednego nie aktywuje drugiego. Relacja do F01 i odtwarzanie trybów po restarcie pozostają do uzgodnienia.
+- CO i CWU mają dwa niezależne przełączniki obserwacja/sterowanie; włączenie jednego nie aktywuje drugiego. Po restarcie przywracamy oba zapisane tryby i sprawdzamy gotowość. Relacja do F01 pozostaje do uzgodnienia.
 - Pamięć zachowuje cele i potrzebny stan; nie dopisuje fikcyjnych pomiarów ani potwierdzeń podczas przerw.
-- Wymagane jawne reguły dla restartu, przeładowania, wyłączenia/usunięcia integracji, braku termometrów, chmury i ręcznej zmiany.
-- Ograniczone ponowienia; brak dwóch aktywnych regulatorów na tym samym wyjściu.
+- Wartości domyślne świeżości raportów to 120 min dla stref i 30 min dla outdoor. Gotowość wymaga 80% poprawnego pokrycia każdego okna oraz świeżego bieżącego pomiaru. Brak gotowego trendu zaworów pozwala użyć progów trendu niejasnego, gdy pomiar zaworów jest gotowy.
+- Strefa działa na pozostałych poprawnych termometrach. Po utracie wszystkich jej pomiarów korekta pokojowa jest pomijana, ostatnie żądania utrzymujemy przez 30 min, potem stosujemy awaryjne otwarcie bez dodatkowego demandu.
+- Utrata wszystkich pomiarów stref prowadzi po okresie przejściowym do krzywej z outdoor i wycofania demandu. Gdy wszystkie poprawnie mierzone strefy są zamknięte, utrzymujemy aktualną nastawę CO1. Brak outdoor, aktualnej nastawy lub wiarygodnego zakresu PC blokuje zapisy CO1.
+- Wspólne ponowienia zapisów obejmują trzy próby łącznie w odstępach 5 min, potem błąd i odstępy 10, 15, 25, 40, 65, 105, 120… min. Licznik osobno dla wyjścia. Kolejna próba wynika z aktualnego żądania. Ponowienie CO1 nie jest kolejnym krokiem zmiany o 1°C.
+- Przy uruchomieniu odbudowujemy pomiary i filtry z dostępnej historii, domyślnie 48 h, oraz odtwarzamy pamięć i tryby. Przed wznowieniem uzgadniamy bieżące dane i stany. Blokady mogą upływać podczas przerwy przy wiarygodnym odczycie. Potwierdzenia temperatury nie liczą czasu bez poprawnej obserwacji.
+- Szczegóły awarii zaworów, demandu, CO1 i CWU opisuje [runda 4](round-04-failures-restarts.md). Usunięcie integracji, ręczne zmiany poza panelem i techniczne kontrakty źródeł pozostają do dopracowania.
 - Rozróżniamy zezwolenie na grzanie, raport HA, rzeczywistą pracę sprężarki i fizyczne wykonanie polecenia.
 - Dashboard: cele i pomiary, zawory, dostępny stan pompy, moc i energia, jakość danych, filtry/trendy, decyzje, nastawy proponowane/wysłane/potwierdzone, limity i timery.
 - Encje produktu mają umożliwiać także własny dashboard. Nie rozstrzygnięto wyboru climate/number ani konieczności własnej karty. Parametry strojenia i programów są w osobnym oknie konfiguracji zaawansowanej, nie na pierwszym planie dashboardu.

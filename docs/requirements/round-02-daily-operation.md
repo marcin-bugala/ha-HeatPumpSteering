@@ -43,6 +43,8 @@ Zmiany podczas edycji są robocze. Dopiero jeden Zapisz zatwierdza całość, po
 
 Przy zamykaniu panelu z niezapisanymi zmianami pojawia się pytanie „Odrzucić niezapisane zmiany?”. Rezygnacja z odrzucenia zachowuje edycję. Nie dodajemy osobnego potwierdzenia wyboru Wyłączone; wybór wymaga zatwierdzenia Zapisz jak inne ustawienia CWU.
 
+Odtworzenie trybu i nadpisania CWU, reakcje na błąd zapisu i kolejność poleceń opisuje [runda 4](round-04-failures-restarts.md#cwu-po-awarii-i-restarcie).
+
 ## Scenariusze do przyszłego odbioru
 
 | Przypadek | Oczekiwanie |

@@ -1,6 +1,6 @@
 # Wymagania HA HeatPumpSteering
 
-Wersja dokumentacji: 0.4, 10 listopada 2026; uzgodniono model instalacji/stref, codzienną obsługę i reguły regulacji. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
+Wersja dokumentacji 0.5 z 10 listopada 2026 obejmuje również uzgodnione reguły awarii i restartów. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
 
 ## Dokumenty
 
@@ -12,7 +12,8 @@ Wersja dokumentacji: 0.4, 10 listopada 2026; uzgodniono model instalacji/stref, 
 | [Etapy](roadmap.md) | Zakres wydań, testy, migracja i bramki aktywacji |
 | [Runda 1](round-01-installation-zones.md) | Uzgodniony model instalacji i stref oraz scenariusze konfiguracji |
 | [Runda 2](round-02-daily-operation.md) | Cele CO, tryby CO/CWU, nadpisania i wspólny zapis ustawień CWU |
-| [Runda 3](round-03-regulation.md) | Pomiary, progi, korekty, demand, ostrzeżenia i modularność; prognozy odłożone |
+| [Runda 3](round-03-regulation.md) | Pomiary, progi, korekty, demand, ostrzeżenia i modularność. Prognozy odłożone. |
+| [Runda 4](round-04-failures-restarts.md) | Braki danych, zapisy, ponowienia, odtwarzanie historii, timery i CWU po restarcie |
 
 ## Źródło prawdy i sposób pracy
 

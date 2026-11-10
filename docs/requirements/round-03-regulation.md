@@ -1,6 +1,6 @@
 # Runda 3 — reguły regulacji
 
-Uzgodnienia z 10 listopada 2026. Runda reguł zakończona na poziomie wymagań. Dokument nie opisuje działającej implementacji. Awarii, restartów i braków danych dotyczy następna runda; interfejsów modułów — runda architektury.
+Uzgodnienia z 10 listopada 2026. Runda reguł zakończona na poziomie wymagań. Dokument nie opisuje działającej implementacji. Awarie, restarty i braki danych opisuje [runda 4](round-04-failures-restarts.md). Interfejsy modułów pozostają na rundę architektury.
 
 ## 1. Podział ustawień i brak modelu hydrauliki
 
@@ -45,9 +45,9 @@ T oznacza temperaturę do zaworów, S cel strefy.
 | Otwórz / zapotrzebowanie | Malejący | T ≤ S |
 | Otwórz / zapotrzebowanie | Niejasny/stabilny | T ≤ S −0,2°C |
 
-Poza warunkami zachowujemy poprzednie żądanie. Równość celu oznacza osiągnięcie/przekroczenie granicy w odpowiednim kierunku, nie wymaganie identycznego odczytu. Progi reakcji i próg trendu są ustawieniami strefy. Stan początkowy bez historii żądania pozostaje do określenia w rundzie restartów.
+Poza warunkami zachowujemy poprzednie żądanie. Równość celu oznacza osiągnięcie/przekroczenie granicy w odpowiednim kierunku, nie wymaganie identycznego odczytu. Progi reakcji i próg trendu są ustawieniami strefy. Stan początkowy bez poprzedniego żądania określa [runda 4](round-04-failures-restarts.md#uruchomienie-i-historia).
 
-Gotowanie, słońce i wietrzenie nie są całkowicie ignorowane. Lokalny wzrost może zamknąć zawory, bez natychmiastowej dużej korekty CO1. Nagły spadek uruchamia zabezpieczenie otwarcia: potrzeba 30 min utrzymującego się warunku niedogrzania w poprawnych obserwacjach. Jeśli warunek ustąpi, potwierdzenie zerujemy. Czas edytowalny dla strefy; sposób wykrywania nagłego spadku pozostaje do doprecyzowania.
+Gotowanie, słońce i wietrzenie nie są całkowicie ignorowane. Lokalny wzrost może zamknąć zawory, bez natychmiastowej dużej korekty CO1. Nagły spadek uruchamia zabezpieczenie otwarcia: potrzeba 30 min utrzymującego się warunku niedogrzania w poprawnych obserwacjach. Jeśli warunek ustąpi, potwierdzenie zerujemy. Czas edytowalny dla strefy. Runda 4 ustala domyślny próg nagłego spadku na ponad 0,7°C względem temperatury komfortowej.
 
 Po zamknięciu strefy obowiązuje minimum 30 min przed ponownym otwarciem, ustawiane dla strefy. Zamknięcie przy spełnionym warunku przegrzewania nie ma analogicznej blokady. Gdy obowiązują obie blokady otwarcia, spełnić trzeba obie, ale czasy mogą biec równolegle — nie sumujemy ich automatycznie do 60 min.
 
@@ -154,6 +154,6 @@ Pogoda, nasłonecznienie i PV pozostają wymaganiami przyszłej wersji. Bieżąc
 - Brak pola/sterowania pętlami stale otwartymi; ostrzeżenie hydrauliczne przy konfiguracji zaworów.
 - Wyłączony moduł korekty nie usuwa ograniczeń; prognozy nie są wykonywane.
 
-Są to scenariusze wymagań, nie wykonane testy oprogramowania. Przypadki niepełnych danych, restartów, wszystkich stref wyłączonych/odciętych i zewnętrznych ręcznych zmian zostaną uzupełnione w rundzie 4.
+Są to scenariusze wymagań, nie wykonane testy oprogramowania. Uzgodnione przypadki niepełnych danych, restartów i zamkniętych stref opisuje [runda 4](round-04-failures-restarts.md).
 
 Powiązania: [US01](user-stories.md#us01), [US04](user-stories.md#us04), [US05](user-stories.md#us05), [US06](user-stories.md#us06), [US09](user-stories.md#us09), [US10](user-stories.md#us10), [US15](user-stories.md#us15), [US16](user-stories.md#us16), [US17](user-stories.md#us17), [US18](user-stories.md#us18), [US19](user-stories.md#us19), [US20](user-stories.md#us20), [US21](user-stories.md#us21).
