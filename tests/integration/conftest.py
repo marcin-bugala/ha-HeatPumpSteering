@@ -36,10 +36,16 @@ def co_data() -> dict[str, Any]:
         "circuit_id": CIRCUIT_ID,
         "setpoint_entity_id": "number.co_setpoint",
         "outdoor_entity_id": "sensor.outdoor_temperature",
+        "aggregation": "mean",
+        "groups": [],
         "zones": [
             {
                 "zone_id": ZONE_ID,
-                "temperature_entity_id": "sensor.living_temperature",
+                "name": "Living room",
+                "group_id": None,
+                "temperature_entity_ids": ["sensor.living_temperature"],
+                "source_mode": "primary",
+                "primary_temperature_entity_id": "sensor.living_temperature",
                 "target_temperature": 21.0,
                 "enabled": True,
             }
@@ -60,13 +66,32 @@ def dhw_data() -> dict[str, Any]:
 def entry_data(*, co: bool = False, dhw: bool = False) -> dict[str, Any]:
     """Build one of the three supported ConfigEntry variants."""
     data: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "installation_id": INSTALLATION_ID,
+        "name": "Synthetic heat pump",
     }
     if co:
         data["co"] = co_data()
     if dhw:
         data["dhw"] = dhw_data()
+    return data
+
+
+def legacy_entry_data(*, co: bool = False, dhw: bool = False) -> dict[str, Any]:
+    """Build the persisted I01 shape used only as migration input."""
+    data = entry_data(co=co, dhw=dhw)
+    data["schema_version"] = 1
+    data.pop("name")
+    if co:
+        data["co"].pop("aggregation")
+        data["co"].pop("groups")
+        for zone in data["co"]["zones"]:
+            sensor = zone.pop("temperature_entity_ids")[0]
+            zone["temperature_entity_id"] = sensor
+            zone.pop("name")
+            zone.pop("group_id")
+            zone.pop("source_mode")
+            zone.pop("primary_temperature_entity_id")
     return data
 
 
@@ -79,7 +104,7 @@ def make_entry() -> Callable[..., MockConfigEntry]:
         co: bool = False,
         dhw: bool = False,
         data: dict[str, Any] | None = None,
-        version: int = 1,
+        version: int = 2,
     ) -> MockConfigEntry:
         return MockConfigEntry(
             domain=DOMAIN,

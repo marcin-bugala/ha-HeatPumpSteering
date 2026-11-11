@@ -10,6 +10,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers.event import async_track_state_change_event
 
+from .config_flow import migrate_v1_data
 from .const import CONFIG_ENTRY_VERSION
 from .models import (
     ConfigurationError,
@@ -20,6 +21,33 @@ from .models import (
 )
 
 type HeatPumpSteeringConfigEntry = ConfigEntry[HeatPumpSteeringRuntime]
+
+
+async def async_migrate_entry(
+    hass: HomeAssistant, entry: HeatPumpSteeringConfigEntry
+) -> bool:
+    """Migrate a complete I01 payload without changing device state."""
+    if entry.version > CONFIG_ENTRY_VERSION:
+        return False
+    if entry.version == CONFIG_ENTRY_VERSION:
+        try:
+            parse_config(entry.data)
+        except ConfigurationError:
+            return False
+        return True
+    if entry.version != 1:
+        return False
+    try:
+        migrated = migrate_v1_data(dict(entry.data), entry.title)
+    except (ConfigurationError, KeyError, TypeError):
+        return False
+    hass.config_entries.async_update_entry(
+        entry,
+        data=migrated,
+        version=CONFIG_ENTRY_VERSION,
+        minor_version=1,
+    )
+    return True
 
 
 async def async_setup_entry(
