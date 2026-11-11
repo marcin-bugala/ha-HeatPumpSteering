@@ -109,7 +109,7 @@ Uzgodnione reguły panelu i harmonogramu oraz przykłady zawiera [runda 5](round
 - Plan korzysta z lokalnej strefy HA. Przeskok zegara stosuje aktualny przedział, a cofnięcie ponawia te same lokalne pola. Zapis do urządzenia wynika z różnicy żądanego i aktualnego stanu. Timery mierzą rzeczywisty czas.
 - CO i CWU mają osobne przełączniki obserwacja/sterowanie poza panelem zbiorczego zapisu. W obserwacji zapis ustawień przygotowuje decyzję.
 - Po restarcie wraca ważne nadpisanie albo aktualny przedział. Włączenie wymaga potwierdzenia docelowej temperatury. Wyłączenie jest niezależne od zapisu temperatury. Częściowe wykonanie uruchamia wspólne ponowienia dla brakującego, nadal potrzebnego polecenia.
-- CWU jest opcjonalne, może działać bez CO i należy do pierwszego kompletnego wydania developerskiego. Inicjalizacja bez wcześniejszej nastawy i współpraca z funkcjami higienicznymi wymagają projektu technicznego.
+- CWU jest opcjonalne, może działać bez CO i należy do pierwszego kompletnego wydania developerskiego. D95: bez nastaw początek Nieskonfigurowane, jawna temperatura i zapis całego planu; draft 7×48 OFF nie steruje urządzeniem. D94: nie obsługujemy higieny CWU — bez wykrywania, encji, specjalnych blokad i warunku aktywacji.
 
 ### F07 — prognozy odłożone do przyszłej wersji
 
@@ -141,7 +141,7 @@ Propozycja łączenia timerów: wyłączenie nie wcześniej niż późniejszy z 
 - Wartości domyślne świeżości raportów to 120 min dla stref i 30 min dla outdoor. Gotowość wymaga 80% poprawnego pokrycia każdego okna oraz świeżego bieżącego pomiaru. Brak gotowego trendu zaworów pozwala użyć progów trendu niejasnego, gdy pomiar zaworów jest gotowy.
 - Strefa działa na pozostałych poprawnych termometrach. Po utracie wszystkich jej pomiarów korekta pokojowa jest pomijana, ostatnie żądania utrzymujemy przez 30 min, potem stosujemy awaryjne otwarcie bez dodatkowego demandu.
 - Utrata wszystkich pomiarów stref prowadzi po okresie przejściowym do krzywej z outdoor i wycofania demandu. Gdy wszystkie poprawnie mierzone strefy są zamknięte, utrzymujemy aktualną nastawę CO1. Brak outdoor, aktualnej nastawy lub wiarygodnego zakresu PC blokuje zapisy CO1.
-- Czas oczekiwania na potwierdzenie wynosi domyślnie 2 min, wspólnie konfigurowalny dla programu. Spóźnione poprawne potwierdzenie aktualnego polecenia kończy serię przed kolejną próbą.
+- D90: zgodny odczyt tej samej encji po zapisie daje od razu potwierdzenie wstępne. Po domyślnie 2 min ponownie odczytujemy jej bieżącą wartość; poprawny zgodny odczyt ostatecznie potwierdza dla regulatora i kończy retry. Nie wymagamy dodatkowej encji ani dowodu fizycznego. Czas kontroli wspólnie konfigurowalny. Późny poprawny odczyt aktualnego polecenia kończy serię przed kolejną próbą.
 - Wspólne ponowienia zapisów obejmują trzy próby łącznie w odstępach 5 min, potem błąd i odstępy 10, 15, 25, 40, 65, 105, 120… min. Licznik osobno dla wyjścia. Kolejna próba wynika z aktualnego żądania. Ponowienie CO1 nie jest kolejnym krokiem zmiany o 1°C.
 - Przy uruchomieniu odbudowujemy pomiary i filtry z dostępnej historii, domyślnie 48 h, oraz odtwarzamy pamięć i tryby. Przed wznowieniem uzgadniamy bieżące dane i stany. Blokady mogą upływać podczas przerwy przy wiarygodnym odczycie. Potwierdzenia temperatury nie liczą czasu bez poprawnej obserwacji.
 - Szczegóły awarii zaworów, demandu, CO1 i CWU opisuje [runda 4](round-04-failures-restarts.md). Ręczna zmiana CO1 poza panelem pozostawia algorytm aktywny i stosuje jego limity. Wyłączenie/usunięcie zatrzymuje polecenia i ponowienia bez przywracania poprzednich nastaw. Kontrakty źródeł i techniczne rozpoznawanie potwierdzeń wymagają projektu technicznego.
@@ -152,7 +152,7 @@ Propozycja łączenia timerów: wyłączenie nie wcześniej niż późniejszy z 
 
 ## Architektura i cykl życia — runda 6
 
-Pełny zapis: [runda 6](round-06-architecture.md). Odczyty i polecenia korzystają z encji HA; transport do urządzeń zapewniają ich integracje. Optymistyczna aktualizacja nie jest niezależnym potwierdzeniem.
+Pełny zapis: [runda 6](round-06-architecture.md). Odczyty i polecenia korzystają z encji HA; transport do urządzeń zapewniają ich integracje. D90 rozróżnia potwierdzenie operacyjne (wstępne od razu, ostateczne po ponownym odczycie tej samej encji po 2 min) od dowodu fizycznego, którego produkt nie wymaga.
 
 - Konfiguracja instalacji używa standardowych wpisów konfiguracji HA z migracjami. Harmonogramy, cele i potrzebny stan działania korzystają z wersjonowanego mechanizmu Store. Historia jest w Recorderze, a okna pomiarowe w pamięci odbudowujemy z dostępnej historii. Nie instalujemy dodatkowej bazy danych.
 - Aktualizacja ma zachować konfigurację, cele, harmonogramy, historię pomiarów i decyzji, identyfikatory encji, timery, nadpisania i ponowienia. Nie może powodować nieplanowanych przełączeń ani zbierania historii od zera. Restart przerywa wykonywanie programu, ale po nim odtwarzamy stan i sprawdzamy bieżące dane.
@@ -191,4 +191,31 @@ Pierwsze kompletne wydanie developerskie obejmuje CO i strefy, opcjonalne zawory
 
 Dystrybucja: HACS jako custom repository i instalacja ręczna. Wydania testowe, np. 0.1.0-beta.1, są wybierane przez użytkownika. Od pierwszego wydania pełne PL/EN interfejsu, komunikatów i instrukcji instalacji/konfiguracji. Zgłoszenie do domyślnego katalogu HACS po stabilizacji. Każde wydanie określa minimum HA, sprawdzone wersje, zmiany i sposób powrotu. POC jest osobnym projektem, bez importera ani wymaganej ścieżki migracji dla użytkownika produktu.
 
-Domena techniczna, minimalna wersja HA i kontrakty encji zostaną ustalone przed pierwszym kodem. Kandydat domeny: heat_pump_steering. Nie ustalamy jeszcze usług ani schematów API, których zachowanie nie jest uzgodnione.
+D101: domena heat_pump_steering, minimum HA 2026.10.4, macierz z 2026.11.1; cel strefy number, źródła sterujące number/switch v1 i frontend TypeScript/Lit. Zgodne zależności testów obu wersji (T08) i przegląd projektu pozostają przed kodowaniem.
+
+## Doprecyzowania właściciela w PR #36 — D90–D101
+
+Przyjęte 11 listopada 2026 [rozstrzygnięcia](decisions.md) zastępują wcześniejsze
+otwarte pytania w odpowiednim zakresie. Nie oznaczają implementacji.
+
+- Każda niealgorytmiczna zmiana ustawienia CWU jest external, ze zwykłymi regułami
+  nadpisania D27/D63/D64; bez kategorii ambiguous i blokady z powodu pochodzenia.
+- Ręczny demand nie pauzuje automatu; kolejna dozwolona ocena uzgadnia aktualne
+  żądanie. OFF nie zeruje liczników ani terminów retry. Trwałe oddanie kontroli:
+  obserwacja CO.
+- Polaryzacja bindingu osobno od NC/NO strefy; zmiana mapowania nie wykonuje polecenia.
+- Cel strefy 5–35°C co 0,5°C, początkowo podany przez użytkownika. Nowy cel zeruje
+  potwierdzenia temperatury, zachowuje blokady zamknięcia/demandu i historię.
+- Niepewna historia to luki, bez domyślnego heartbeat. Mediana ważona czasem;
+  przy dokładnym podziale 50% średnia dwóch środkowych wartości.
+- Przypadek mieszany bez kwalifikowanych stref daje samą bazę outdoor i dotychczasowe
+  blokady; wszystkie poprawne zamknięte nadal utrzymują nastawę, wszystkie utracone
+  po grace dają bazę i wycofanie demandu.
+- Bieżąca nastawa poza zakresem: obcięcie do najbliższej dopuszczalnej granicy
+  i konflikt. Ta korekta ma pierwszeństwo przed zwykłym limitem kroku/odstępu
+  oraz blokadą wzrostu utrzymującą wartość poza zakresem; observation, dostępność,
+  walidacja i retry nadal obowiązują. Poprawne min/max/step encji HA wystarczają,
+  bez dodatkowej bramki pochodzenia limitów i bez własnego fallbacku produktu.
+- Energia z istniejącego licznika, bez własnej całki mocy i okresów dzień/miesiąc.
+  Ostrzeżenie nieskutecznego zamknięcia gaśnie przy wiarygodnym ustąpieniu dowolnego
+  warunku lub otwarciu; brak danych tylko wstrzymuje ocenę, read nie kasuje przyczyny.

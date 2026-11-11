@@ -48,7 +48,7 @@ Dla demandu pokazuj stan żądany i raportowany. Awaria wyjścia nie przełącza
 
 ## Zapisy i ponowienia
 
-Rozróżniamy polecenie wysłane, potwierdzone niezależnym odczytem, brak potwierdzenia i brak możliwości potwierdzenia. Optymistyczna aktualizacja encji nie daje dowodu wykonania. Runda 5 ustala domyślnie 2 minuty oczekiwania, konfigurowalne dla programu. Odstępy prób są liczone od wysłania. Poprawne spóźnione potwierdzenie nadal aktualnego polecenia kończy serię przed kolejną próbą.
+Aktualizacja P01 / D90 z 11 listopada 2026 doprecyzowuje wcześniejszy zapis o niezależnym odczycie: po zapisie zgodna wartość tej samej encji HA daje od razu potwierdzenie wstępne. Po domyślnie 2 minutach ponownie odczytujemy jej bieżący stan; poprawny zgodny odczyt jest ostatecznym potwierdzeniem dla regulatora. Nie wymagamy drugiej encji, znacznika nowego raportu ani dowodu fizycznego. Samo upłynięcie czasu nie wystarcza. Odstępy retry nadal liczymy od wysłania; późny zgodny odczyt aktualnego polecenia po nieudanej kontroli kończy serię przed kolejną próbą.
 
 Wspólna polityka zapisów obejmuje CO1, zawory, demand i CWU:
 1. Pierwsza próba i maksymalnie dwie dalsze w odstępach 5 min.
@@ -99,3 +99,19 @@ Włączenie CWU wymaga wcześniejszego zapisu i potwierdzenia temperatury docelo
 Runda 5 ustala potwierdzenie 2 min, wspólny czas pracy siłowników 3 min i zasady zmiany czasu harmonogramu. Kontrakty źródeł i pozostałe szczegóły techniczne należą do rundy architektury. [Tabela odbioru A01–A59](round-05-acceptance.md) konkretyzuje oczekiwane wyniki.
 
 Powiązania [US01](user-stories.md#us01), [US03](user-stories.md#us03), [US04](user-stories.md#us04), [US05](user-stories.md#us05), [US06](user-stories.md#us06), [US09](user-stories.md#us09), [US13](user-stories.md#us13), [US14](user-stories.md#us14), [US16](user-stories.md#us16), [US17](user-stories.md#us17), [US19](user-stories.md#us19).
+
+## Aktualizacja po decyzjach P01–P12
+
+D90–D101 mają pierwszeństwo w doprecyzowanym zakresie:
+ponowny odczyt po 2 min jest kontrolą ostateczną, wstępne potwierdzenie nie resetuje
+serii. Raport przekaźnika uruchamia przewidywany ruch, kontrola po 2 min
+nie przesuwa jego początku; niezgodność usuwa gotowość do demandu.
+Początek potwierdzonego OFF pozostaje chwilą zgodnego raportu, jeśli kontrola
+potwierdzi jego utrzymanie; nie dodajemy 2 min do minimalnej przerwy.
+
+D99: przy bieżącej nastawie poza obowiązującym zakresem żądamy najbliższej
+dopuszczalnej granicy i oznaczamy konflikt, z pierwszeństwem przed zwykłym
+krokiem/odstępem oraz blokadą wzrostu utrzymującą wartość poza zakresem.
+Nie znosi to observation, walidacji wyjścia ani polityki błędów D52.
+D91: niealgorytmiczne zmiany CWU są external. D94: bez obsługi higieny.
+D97: niepewne przedziały historii są lukami, nie fikcyjnymi raportami.

@@ -3,6 +3,7 @@
 Podstawa D29–D30, D62–D65, D79–D83. T04: TypeScript + Lit, jeden lokalny
 bundle ES module dostarczany w custom_components/heat_pump_steering/frontend.
 Lit (BSD-3-Clause) jako mała zależność UI, bez bibliotek kart innych autorów.
+Wybór TypeScript/Lit i platform encji przyjęto w D101 (P12).
 Dev: przypięty bundler, lint, testy komponentów i przeglądarkowe, lockfile.
 Nie używać prywatnych globalnych HA klas jako bazy ani CDN.
 
@@ -79,3 +80,18 @@ Klawiatura, focus trap panelu, etykiety pól, czytelny kontrast i komunikaty
 niewyłącznie kolorem. Test desktop i telefon, 7×48 bez poziomego wymuszenia
 całego tygodnia; wybór dnia, przyciski kopiowania i lista zmian w draft.
 Testy A44–A56 obejmują backend oraz interakcję UI.
+
+## Przyjęte zachowanie po P01–P12
+
+D90: UI rozróżnia potwierdzenie wstępne, kontrolę po 2 min, confirmed odczytem HA
+i brak zgodnego odczytu. Nie nazywa confirmed dowodem fizycznym.
+D91: każda niealgorytmiczna zmiana CWU external; bez komunikatu ambiguous
+i bez blokady z powodu nieustalonego pochodzenia.
+D94: brak pól/encji/warunków aktywacji dotyczących higieny.
+D95: początkowo Nieskonfigurowane, szkic 7×48 OFF nie jest aktywnym planem;
+temperaturę Stałe/ON i cały plan zatwierdza użytkownik.
+D96: cel strefy 5–35°C co 0,5°C, brak narzuconego celu początkowego.
+D99: konflikt zakresu pokazuje bieżącą wartość, granicę i korektę do granicy;
+w observation jest propozycją, w control podlega wykonawcy.
+D100: energia z licznika, bez nowych okresów dzień/miesiąc; ostrzeżenie przy
+braku danych pozostaje z oznaczeniem wstrzymanej oceny.

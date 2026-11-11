@@ -62,14 +62,17 @@ filtry, nie potwierdzenia. Ustąpienie warunku zeruje jego postęp,
 brak danych wstrzymuje zgodnie z rundą 4.
 
 Czas zamknięcia i potwierdzenie nagłego spadku biegną równolegle.
-Ruch siłownika rozpoczyna niezależny raport przekaźnika, nie wysłanie.
+Ruch siłownika rozpoczyna zgodny raport przekaźnika, nie samo wysłanie.
+Ostateczna kontrola stanu encji po 2 min D90 nie przesuwa początku ruchu;
+niezgodny odczyt unieważnia zależną gotowość.
 Przy utracie dowodu w ruchu stan nieznany i brak gotowości do demandu.
 Po odzyskaniu odczytu ponownie uzgadniamy stan, bez założenia, że ruch się odbył.
 
 ## Sekwencja CWU
 
 Edycja UI nie zmienia stanu. Zatwierdzony plan tworzy nowe żądanie i rewizję.
-Dla ON: aktualna temperatura docelowa → niezależny dowód → ON zezwolenia.
+Dla ON po nowym zapisie: temperatura docelowa → potwierdzenie wstępne od razu →
+ponowny zgodny odczyt tej samej encji po 2 min → ON zezwolenia D90.
 Jeżeli temperatura już wiarygodnie odpowiada celowi, bez zbędnego zapisu.
 Dla OFF: anulowanie zależnego ON/temperatury, OFF niezależnie od potwierdzenia
 temperatury, z polityką błędów wyjścia. Błąd ON nie cofa udanego zapisu temperatury
@@ -80,7 +83,10 @@ Przy jednakowym tygodniu expires_at=null i jawny komunikat.
 Przeskok czasu stosuje obecne pole, cofnięcie powtarza lokalne pola.
 Skan najbliższych lokalnych granic mapuje obie instancje powtórzonej godziny
 na rzeczywiste UTC; nie tworzy nieistniejącego pola przy przeskoku.
-Początkowy plan i higiena pozostają P05/P06.
+D95: początek Nieskonfigurowane; brak domyślnej temperatury i aktywnego planu.
+Szkic 7×48 OFF i kopiowanie dni są draft do jawnego Zapisz.
+D94: brak obsługi higieny — bez wykrywania, dodatkowych encji, specjalnych blokad
+ani warunku aktywacji. Każda niealgorytmiczna zmiana CWU jest external D91.
 
 ## Granice trwałości
 
@@ -90,4 +96,23 @@ Jeśli trybu nie udało się utrwalić, UI jawnie wskazuje ryzyko odtworzenia
 poprzedniego trybu przy restarcie; zapis starego Store nie jest samowolnie kasowany.
 Nie da się zagwarantować trwałości bez działającego nośnika.
 Zapis zamiaru wykonania i stan retry są trwałe przed wysłaniem; crash w trakcie
-usługi wymaga odczytu urządzenia, nie automatycznego ponowienia.
+usługi wymaga bieżącego odczytu encji HA i uzgodnienia D90, nie replay komendy.
+
+## Doprecyzowane zdarzenia po P01–P12
+
+Kontrola po 2 min jest osobnym deadline, niezależnym od cyklu 5 min. Odczyt
+wstępny nie kasuje tej kontroli. Observation, zmiana żądania i unload anulują
+callback starego requestu przed odczytem lub usługą.
+
+D92: zewnętrzny OFF/ON demandu nie zmienia trybu modułu; następna dozwolona
+ocena uzgadnia aktualne zapotrzebowanie. Sam OFF nie zeruje licznika ani retry.
+D93: stan zasilania siłownika = żądane otwarcie dla NC, jego negacja dla NO;
+polaryzacja bindingu osobno mapuje zasilanie na ON/OFF encji. Typ NC/NO pozostaje
+wspólny strefie, a polaryzacja nie tworzy wyjątków typu siłownika.
+
+D96: zmiana celu zeruje potwierdzenia zależne od temperatury, nie blokady
+zamknięcia/demandu. D100: ostrzeżenie nieskutecznego zamknięcia gaśnie po
+wiarygodnym ustąpieniu któregokolwiek warunku lub otwarciu. Brak danych daje
+„ocena wstrzymana” i nie usuwa aktywnego problemu; read nie usuwa przyczyny.
+D99: korekta spoza zakresu do granicy ma pierwszeństwo przed zwykłym tempem
+regulacji, ale nie przed observation/unload/walidacją/retry.

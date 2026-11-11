@@ -1,9 +1,9 @@
 # Kontrakty HA i zweryfikowane źródła
 
-T01: proponowana domena `heat_pump_steering`. Nie jest jeszcze przyjętym D.
-T03: proponowane minimum HA Core 2026.10.4, bieżący cel 2026.11.1.
+D101 (P12): przyjęta domena `heat_pump_steering`.
+T01/T03: minimum HA Core 2026.10.4, bieżący cel macierzy 2026.11.1.
 Ograniczona macierz zmniejsza koszt testowania nowego produktu; starsze wersje
-nie są deklarowane jako wspierane. Zatwierdzenie minimum należy do przeglądu P12.
+nie są deklarowane jako wspierane. Cały projekt nadal oczekuje przeglądu.
 Python narzędzi bootstrap nie wyznacza minimum produktu.
 
 ## Odczyt źródeł 11 listopada 2026
@@ -51,26 +51,27 @@ skryptów i automatycznego zgadywania znaczenia encji.
 | Rola | Platforma źródłowa i usługa | Walidacja / awaria |
 | --- | --- | --- |
 | Temperatury stref/outdoor/zasilania/powrotu | sensor z °C lub °F | Przeliczenie do °C, skończona liczba, znana jednostka; unknown/unavailable natychmiast nieważne; raport i świeżość osobno |
-| Nastawa CO | number → number.set_value | Bieżąca wartość, min/max/step, jednostka temperatury i niezależna wiarygodność zakresu; brak blokuje zapis |
+| Nastawa CO | number → number.set_value | Bieżąca wartość, poprawne min/max/step encji i jednostka temperatury; brak blokuje zapis, pochodzenie zakresu nie jest dodatkową bramką |
 | Nastawa CWU | number → number.set_value | Jak CO; brak potwierdzenia temperatury blokuje ON, nie OFF |
-| Zawory | switch → switch.turn_on/turn_off | NC/NO strefy + jawna polaryzacja P04; raport elektryczny + czas ruchu; nie fizyczne położenie |
-| Demand CO | switch → switch.turn_on/turn_off | Zezwolenie CO, nigdy główne zasilanie; jawna polaryzacja; niezależny OFF przed timerem |
-| Zezwolenie CWU | switch → switch.turn_on/turn_off | Wyłącznie CWU, bez odcinania zabezpieczeń/higieny; P05 |
+| Zawory | switch → switch.turn_on/turn_off | NC/NO strefy + jawna polaryzacja D93; raport elektryczny + czas ruchu; nie fizyczne położenie |
+| Demand CO | switch → switch.turn_on/turn_off | Zezwolenie CO, nigdy główne zasilanie; jawna polaryzacja; raportowany OFF i ponowny odczyt D90 przed uznaniem przerwy za wiarygodną |
+| Zezwolenie CWU | switch → switch.turn_on/turn_off | Wyłącznie CWU; brak obsługi higieny D94, bez dodatkowych encji/blokad i warunku aktywacji |
 | Moc | sensor, W/kW | Normalizacja W, brak to niedostępne; bez wnioskowania o sprężarce |
-| Energia | sensor, Wh/kWh | Normalizacja kWh, reset licznika oznaczony; dodatkowe okresy P11 |
+| Energia | sensor, Wh/kWh | Normalizacja kWh, reset licznika oznaczony; bez własnej całki i okresów dzień/miesiąc D100 |
 | Tryb pracy pompy | opcjonalny sensor/binary_sensor z opisanym mapowaniem | Tylko udokumentowany profil; zezwolenie nie jest pracą; bez profilu unknown |
-| Niezależny odczyt wyjścia | oddzielny sensor/binary_sensor lub udokumentowana telemetria encji | Profil dowodu, jednostki, czas/sequence; sama druga encja nie dowodzi niezależności |
+| Potwierdzenie wyjścia | ponowny odczyt tej samej encji zapisu | Wstępne od razu, ostateczne po 2 min D90; dodatkowy czujnik/dowód fizyczny nie jest wymagany |
 
 Climate/water_heater jako wejściowy sterownik nie są obiecaną funkcją v1:
 ich adaptery wymagają osobnej oceny zakresów i semantyki. Wybór ograniczonego
-kontraktu jest propozycją techniczną; jeśli uniwersalność ma od razu obejmować
-te platformy, należy poszerzyć projekt i testy przed implementacją.
+kontraktu number/switch przyjęto w D101; inne adaptery wymagają przyszłego
+rozszerzenia projektu i testów.
 
 Min/max/step z encji nie zawsze są odczytem PC. HiMitII ma w number.py
 fallbacki (np. CO 12–55, CWU 40–65); ich obecność nie dowodzi aktualnego
-zakresu urządzenia. Profil referencyjny wymaga pochodzenia limitów.
-Bez niego propozycja może być widoczna, lecz zapis jest blokowany zgodnie z D50.
-Nie dodajemy własnego fallbacku zakresu pompy.
+zakresu urządzenia. Zgodnie z D90 korzystamy z poprawnych min/max/step encji HA,
+bez dodatkowego wymogu pochodzenia limitów; ograniczenie fallbacków jest jawne.
+Brak lub niepoprawny zakres nadal blokuje zapis D50. Nie dodajemy własnego
+fallbacku zakresu pompy.
 
 Siatka temperatur: anchor=min, step>0, wartości min+n×step w dopuszczalnym
 przedziale; zawężenie użytkownika musi zawierać co najmniej jeden punkt.
@@ -82,7 +83,7 @@ Usługi zawsze z konkretnym entity_id, nigdy z wildcard/area jako target.
 
 | Platforma | Stan i polecenia użytkownika |
 | --- | --- |
-| number | Cel strefy °C (P07 zakres/krok); zapis trwały przed publikacją sukcesu |
+| number | Cel strefy 5–35°C co 0,5°C, początkowo podany przez użytkownika D96; zapis trwały przed publikacją sukcesu |
 | switch | Osobne CO control / CWU control: OFF=obserwacja, ON=sterowanie po walidacji |
 | sensor | Bieżący pomiar, okna, trend, coverage, baza, wkłady, wynik, nastawa wysłana i potwierdzona, demand żądany/raport, predicted valve, retry i deadline |
 | binary_sensor | Gotowość, aktywna blokada, ostrzeżenie; brak źródła nie udaje false |
@@ -101,17 +102,17 @@ buforów, identyfikatorów źródłowych ani nieograniczonego logu w atrybutach.
 ## Rezerwacje i aktywacja zmienionych powiązań
 
 Wyjścia nie mogą wskazywać encji własnego produktu ani ich odczytu zwrotnego
-jako niezależnego źródła. Walidacja odrzuca pętlę sterowania i powielenie tego
+jako pozornego dowodu fizycznego. Walidacja odrzuca pętlę sterowania i powielenie tego
 samego źródłowego wyjścia poprzez alias w rejestrze, jeśli jest rozpoznawalne.
 Nie obiecujemy wykrycia dwóch encji różnych integracji sterujących fizycznie
 tym samym przekaźnikiem; ostrzeżenie konfliktu pozostaje obowiązkowe.
 
-Proponowany techniczny mechanizm D84: pamięć armed_binding_revision.
+D101 przyjmuje techniczny mechanizm D84: pamięć armed_binding_revision.
 Nowy/zmieniony binding wyjścia nie dziedziczy aktywacji starego. Pozostaje
 nieuzbrojony do jawnej aktywacji modułu (observation → control) po pokazaniu
 mapowania i stanu. Pozostałe niezmienione bindingi zachowują swoje zezwolenie.
 To nie nowy tryb regulatora ani automatyczny zapis przy reconfigure.
-Szczegół UI do zatwierdzenia w przeglądzie P12.
+Mechanizm przyjęty w P12; wykonanie UI nadal podlega przeglądowi całego projektu.
 
 Konfiguracja zależności manifestu: wymagane config_flow i version;
 frontend/http/websocket_api dla dostarczanego UI przez standardowy mechanizm HA.

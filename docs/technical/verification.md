@@ -3,12 +3,13 @@
 Wszystkie poniższe testy produktu są planowane, nie wykonane. Źródła:
 [US](../requirements/user-stories.md), [D](../requirements/decisions.md),
 [A01–A59](../requirements/round-05-acceptance.md),
-[B01–B13](../requirements/round-06-architecture.md).
+[B01–B13](../requirements/round-06-architecture.md) oraz
+[C01–C13](../requirements/round-05-acceptance.md).
 Wynik odbioru dopiero z SHA, konfiguracją, czasami, wejściami i dowodem.
 
 ## Macierz US → komponent, dane, awaria i test
 
-| US / Issue | Komponent | Dane | Zachowanie przy awarii | Scenariusze / sposób sprawdzenia | Zależna decyzja |
+| US / Issue | Komponent | Dane | Zachowanie przy awarii | Scenariusze / sposób sprawdzenia | Przyjęte ustalenie |
 | --- | --- | --- | --- | --- | --- |
 | US01 / #8 | config, measurements | ZoneConfig, source revision | Brak części źródeł; nowe okna po zmianie czujnika | A01,A05,A09,A30; B06,B10 | P08 |
 | US02 / #9 | number, persistence | zone_id, cel, revision | Zapis nieudany nie zmienia nastawy; restart zachowuje cel | A07; B05,B06 | P07 |
@@ -45,7 +46,7 @@ do pliku nie potwierdza realizacji wszystkich punktów.
 | ZONE | Przedziały czasowe różnych termometrów, mediany, zmienny skład | Luki, grace, skok zestawu, race timera | Czyste funkcje + zegar kontrolowany + HA |
 | CO | Outdoor, błędy/wagi stref, limity i siatka urządzenia | Brak źródła, brak legalnego kroku, ręczna nastawa | Czyste funkcje + testy integracji wykonawcy |
 | DEM | NC/NO, polaryzacja, raport przekaźnika i movement/off deadlines | Nieudane otwarcie, zanik żądania, ręczny demand | Zegar kontrolowany + HA; mock nie udaje fizycznej hydrauliki |
-| CMD | Request/revisions/generation, osobny raport optimistic i niezależny | Timeout, stary ACK, późny ACK, zmiana wartości, unload | Asynchroniczne testy HA i kolejności wywołań |
+| CMD | Request/revisions/generation, odczyt wstępny i bieżący odczyt tej samej encji po 2 min | Timeout, stary ACK, późny ACK, zmiana wartości, unload | Asynchroniczne testy HA i kolejności wywołań |
 | HIST | Recorder z syntetycznymi stanami, start-state, brak heartbeat, checkpoint | Retencja, wykluczenia, przerwa procesu, błąd zapytania | HA na obu wersjach; brak własnego SQL |
 | DHW | 7×48, draft/revision, external provenance, strefa Europe/Warsaw | Partial write, równoległy zapis, DST, brak temp | Czysty planner + HA + testy przeglądarkowe UI |
 | LIFE | Wersjonowane payloady, aktywne timers/retry/override | Setup/unload/reload, crash granicy zapisu, niezgodny downgrade | HA, fixtures schematów, żadnego fizycznego wyjścia |
@@ -96,7 +97,7 @@ Wszystkie wiersze mają wynik „plan”; nie jest to tablica statusów US.
 | A34 | ZONE+HIST / fallback | Wszystkie aktywne strefy poprawnie mierzone i zamknięte | Runda 5, A34: Utrzymanie bieżącego CO1 oraz OFF demandu przy braku zapotrzebowania. |
 | A35 | ZONE+HIST / fallback | Utrata outdoor albo aktualnej nastawy/wiarygodnego zakresu PC | Runda 5, A35: Odpowiednie zapisy CO1 wstrzymane. Sprawne zawory, demand i CWU działają według własnych danych. |
 | A36 | ZONE+HIST / fallback | Błąd przekaźnika otwierania albo zamykania | Runda 5, A36: Stan nieznany i ponowienia. Niepotwierdzone otwarcie nie wystarcza do ON demandu. Nieudane zamknięcie zachowuje strefę w ochronie przegrzewania. |
-| A37 | CMD / commands | Zapis CO1 wysłany 10:00 bez niezależnego potwierdzenia | Runda 5, A37: Próba niepotwierdzona o 10:02. Kolejne wysłania 10:05 i 10:10. Błąd zapisu po braku potwierdzenia do 10:12. |
+| A37 | CMD / commands | Zapis CO1 wysłany 10:00; ponowny odczyt po 2 min niezgodny lub niedostępny | Runda 5, A37: Próba niepotwierdzona o 10:02. Kolejne wysłania 10:05 i 10:10. Błąd zapisu po braku potwierdzenia do 10:12. |
 | A38 | CMD / commands | Seria A37 nadal bez sukcesu | Runda 5, A38: Dalsze próby 10:20, 10:35, 11:00, 11:40, 12:45, 14:30, 16:30, potem co 120 min. Przed każdą aktualna ocena potrzeby. |
 | A39 | CMD / commands | Po limicie 10:02 poprawne potwierdzenie aktualnego polecenia dociera 10:03 | Runda 5, A39: Koniec ponowień i reset serii błędów. Próba 10:05 nie jest wysyłana. |
 | A40 | CMD / commands | Oczekujące ponowienie, lecz użytkownik przechodzi w obserwację albo aktualne żądanie się zmienia | Runda 5, A40: Przed kolejną próbą obowiązuje bieżący tryb i decyzja. Poprzednie polecenie nie jest odtwarzane z kolejki. |
@@ -144,10 +145,10 @@ Wszystkie wiersze mają wynik „plan”; nie jest to tablica statusów US.
 | D15–D21 | data-model, zones | A04,A05,A09; sprzęt referencyjny nie hardkodowany |
 | D24–D30 | frontend, dhw, lifecycle | A07,A08,A44–A53 |
 | D31–D36 | zones, measurements | A06,A09–A17; ostrzeżenie hydrauliczne |
-| D37–D42 | co, constraints | A18–A25; P09/P10 dla otwartych brzegów |
+| D37–D42 | co, constraints | A18–A25; D98/D99 dla rozstrzygniętych brzegów |
 | D43–D45 | demand, runtime, corrections | A27–A29,A56,A57 |
 | D46–D50 | measurements, fallback | A30–A35,A42 |
-| D51–D52 | command-confirmation | A36–A40; profil dowodu P01 |
+| D51–D52 | command-confirmation | A36–A40,C01–C02; dwuetapowe potwierdzenie D90 |
 | D53–D59 | persistence, lifecycle | A14,A31,A33,A34,A41–A43,A51–A53; bez fikcyjnego czasu |
 | D60–D67 | commands, frontend, timers | A17,A26,A37–A40,A44–A56 |
 | D68–D70 | architecture, data-model, config | B01,B02; maks. jeden CO; dane przewidują circuit_id |
@@ -166,10 +167,12 @@ poprzedniej wartości po nowym żądaniu, nowe OFF podczas ON, jednoczesne recon
 dwóch entries i brak aktywacji nowych wyjść. Powtórzenie request nie jest krokiem CO.
 Sprawdź zgubiony zapis Store i crash pomiędzy ConfigEntry/Store.
 
-Źródła: test referencyjnego HiMitII z syntetyczną sekwencją optimistic→cache
-po błędzie→niezależny refresh. Pierwsze dwa nie mogą potwierdzić komendy.
-Test fallback min/max jako niewiarygodnego zakresu. Brak profilu nie jest
-potajemnie dopuszczany do sterowania.
+Źródła: test referencyjnego HiMitII z wstępnym zgodnym stanem optimistic i
+ponownym odczytem tej samej encji po 2 min. Zgodny odczyt, również cache HA,
+ma dać confirmed D90, bez wymogu dodatkowej encji/znacznika transportu.
+Odrębnie niezgodny/unavailable odczyt daje retry; stary callback po zmianie
+request/generation nie potwierdza nowego. Poprawne min/max/step HA wystarczają,
+niepoprawny/brakujący zakres blokuje, własnego fallbacku nie ma.
 
 Diagnostyka: identyczne nazwy w różnych zagnieżdżeniach mapują do tego samego
 pseudonimu; sekrety, entity_id i nazwy nie wyciekają przez traceback/tekst wyjątku.
@@ -184,3 +187,45 @@ niezależny dowód i rzeczywista obserwacja. Obserwacja/test mock nie potwierdza
 ruchu zaworu, hydrauliki, pracy sprężarki ani bezpieczeństwa instalacji.
 Wydanie wymaga wyników referencyjnych i listy wariantów tylko symulowanych.
 Brak dostępu do domu w CI. Dokumentacyjny PR nie wykonuje A/B na integracji.
+
+## Przyjęte P01–P12: D90–D101 i scenariusze C01–C13
+
+P w macierzy US są przyjętymi ustaleniami, nie otwartymi decyzjami.
+C01–C13 mają źródło w rundzie 5. Każdy wiersz definiuje dane, komponent i
+asercję; wynik pozostaje planowany do wskazanego commitu implementacji.
+
+| ID / decyzja | Komponent i dane | Oczekiwany wynik / awaria |
+| --- | --- | --- |
+| C01 / P01 / D90 | CMD / commands: Zapis 29°C o 10:00, od razu zgodna encja; ponowny odczyt o 10:02 nadal 29°C | Wstępne potwierdzenie od razu, ostateczne 10:02; brak retry 10:05. Wcześniejszy raport nie kończy kontroli 2 min. |
+| C02 / P01 / D90 | CMD / HA adapters: Jedna encja HiMitII ma poprawny zgodny stan po 2 min, bez nowego last_reported i znacznika odczytu chmury | Ostateczne potwierdzenie operacyjne; brak wymogu drugiej encji/pochodzenia limitów/dowodu fizycznego. UI nie nazywa go dowodem fizycznym. |
+| C03 / P02 / D91 | DHW / external: Zmiana CWU bez powiązania z algorytmem, brak informacji o autorze; jednakowe pola do 16:00 | External jak użytkownik, nadpisanie do rzeczywistej zmiany planu lub zapisu panelu; bez ambiguous i blokady pochodzenia. |
+| C04 / P03 / D92 | DEM / demand: Aktywny CO, ręczny OFF demandu podczas serii błędów | Tryb pozostaje control, licznik/next_retry zachowane. Następna dozwolona ocena uzgadnia aktualne żądanie; observation oddaje kontrolę. |
+| C05 / P04 / D93 | CFG+DEM / polarity: Strefy NC/NO z normalnym i odwróconym bindingiem; edycja mapowania | Mapowanie hydraulika→zasilanie→stan HA jest poprawne. NC/NO wspólne strefie; sama edycja nie wysyła polecenia. |
+| C06 / P05 / D94 | DHW / scope: Brak encji higieny, następnie zmiana nastawy CWU przez mechanizm pompy | Brak wymogu/obsługi higieny nie blokuje aktywacji CWU; zmiana niealgorytmiczna external. Brak dedykowanych zapisów/blokad higieny. |
+| C07 / P06 / D95 | DHW+UI / init: Nowe CWU bez temperatury/planu, szkic 7×48 OFF, kopiowanie dnia | Nieskonfigurowane, bez usług urządzenia. Stałe/ON wymaga temperatury; jeden jawny zapis całego poprawnego planu, draft nie wykonuje OFF. |
+| C08 / P07 / D96 | ZONE+UI / target: Cel strefy 5°C/35°C, próba 4,5°C/35,5°C; zmiana podczas potwierdzania | Granice i krok 0,5°C walidowane; początkowy cel użytkownika. Zmiana zeruje zależny postęp temperatury, zachowuje historię i blokady zamknięcia/demandu. |
+| C09 / P08 / D97 | HIST / windows: Długa niezmienna historia bez heartbeat i mediana ważona dokładnie 50/50 | Niepewne fragmenty są lukami; brak fikcyjnego pokrycia. Mediana średnią dwóch środkowych wartości. |
+| C10 / P09 / D98 | CO / qualification: Mieszane zamknięte/niedostępne/niegotowe strefy, brak kwalifikowanych korekt, poprawny outdoor | Baza outdoor bez korekt pokojowych z blokadami; odrębnie wszystkie poprawne zamknięte → hold, wszystkie utracone po grace → baza i wycofanie demandu. |
+| C11 / P10 / D99 | CO+CMD / limits: Nastawa 40°C przy zakresie 23–35°C, limit zmiany 1°C/120 min; analogicznie 20°C poniżej minimum | Żądanie 35°C lub 23°C i konflikt; zwykły limit nie blokuje korekty granicznej. Obserwacja nic nie wysyła; retry/walidacja nadal obowiązują; po zgodnym odczycie konflikt ustępuje z historią. |
+| C12 / P11 / D100 | UI+ZONE / warnings: Licznik energii obecny/brak; aktywne ostrzeżenie i utrata pomiaru, potem otwarcie/wiarygodny zanik warunku | Energia z licznika lub brak danych, bez całki i nowych okresów. Brak danych wstrzymuje ocenę ostrzeżenia, read go nie kasuje; otwarcie/wiarygodne ustąpienie kasuje z historią. |
+| C13 / P12 / D101 | CFG+UI / contracts: Instalacja na przyjętych wersjach HA, number celu i Lit; nowy binding w aktywnym module | Kontrakty heat_pump_steering, HA 2026.10.4/2026.11.1, number/switch i bundle spełnione. Nowy binding czeka na jawną aktywację, nie dziedziczy starej. |
+
+| Decyzja | Komponent | Scenariusz |
+| --- | --- | --- |
+| D90 | commands, HA adapters, lifecycle | C01,C02,A37–A40,A52,A53 |
+| D91 | dhw, external | C03,A47–A51 |
+| D92 | demand, retry | C04,A28,A40 |
+| D93 | config, output mapping | C05,A04,A17 |
+| D94 | dhw scope | C06,B01,B11 |
+| D95 | dhw, Store, draft | C07,A44,A45 |
+| D96 | number, zone confirmation | C08,A07,A15,A16 |
+| D97 | history, windows | C09,A30,A41,A42,B08 |
+| D98 | co qualification | C10,A33,A34 |
+| D99 | constraints, commands, conflict | C11,A24,A25,A35 |
+| D100 | diagnostics, warning lifecycle | C12,A59,B12 |
+| D101 | config, platforms, frontend, bindings | C13,B01–B04,B13 |
+
+D99 wymaga również asercji braku przekroczenia nowego zakresu przy kwantyzacji,
+zachowania konfliktu do poprawnego odczytu w granicach i jego historii po ustąpieniu.
+Korekta poza zakresem nie omija observation/unload, dostępności i retry.
+D90 nie zmienia fizycznego znaczenia raportu przekaźnika ani przewidywanego ruchu.

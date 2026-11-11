@@ -15,7 +15,7 @@
 - `docs/requirements/` przechowuje treść i kryteria. Status pozostaje wyłącznie
   w polu `**Status:**` Issue według istniejącego słownika. Nie twórz drugiej tablicy statusów.
 - Uzgodnione D mają pierwszeństwo przed propozycjami. Respektuj jawne zastąpienia
-  decyzji, zwłaszcza D69–D89. Sprzeczność zgłoś z rekomendacją; nie zmieniaj zachowania
+  decyzji, zwłaszcza D69–D101 (P01–P12). Sprzeczność zgłoś z rekomendacją; nie zmieniaj zachowania
   produktu jako ubocznego skutku decyzji technicznej.
 - `main` jest bazą produktu. Nie czytaj, nie kopiuj i nie zmieniaj gałęzi `poc`
   ani `poc/*` w tym workflow. Produkt nie wymaga POC/importera.
@@ -34,9 +34,14 @@
 - Obserwacja nie wysyła poleceń. Restart odtwarza zapisany tryb po gotowości;
   ponowne włączenie wyłączonego modułu zaczyna w obserwacji.
 - Polecenie, raport HA, przewidywany ruch i niezależny dowód urządzenia to różne rzeczy.
-  Optymistyczny stan, `last_reported` i sam upływ czasu nie dowodzą wykonania.
+  D90: wstępne potwierdzenie od razu po zgodnym odczycie po zapisie, ostateczne
+  po poprawnym ponownym odczycie tej samej encji po domyślnie 2 min. Nie wymagaj
+  drugiej encji ani dowodu fizycznego. Sam czas/last_reported nie zastępuje odczytu.
 - Wyłączenie/unload/odłączenie wyjścia anuluje polecenia i ponowienia oraz zostawia
   ostatni stan. Nie dodawaj automatycznego „bezpiecznego OFF”.
+- D99: nastawę poza obowiązującym zakresem obetnij do dopuszczalnej granicy
+  i oznacz konflikt; zwykły limit kroku/odstępu nie blokuje korekty granicznej.
+  Obserwacja, walidacja i retry nadal obowiązują. D94: bez obsługi higieny CWU.
 - Blokuj współdzielenie wyjść; zachowuj trwałą tożsamość stref i encji.
 - Konfiguracja HA + wersjonowany Store + Recorder + ograniczone bufory w pamięci.
   Bez nowej bazy, pełnego archiwum w Store i fikcyjnych próbek.

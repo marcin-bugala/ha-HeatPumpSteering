@@ -2,6 +2,14 @@
 
 Uzgodnienia z 10 listopada 2026. Runda reguł zakończona na poziomie wymagań. Dokument nie opisuje działającej implementacji. Awarie, restarty i braki danych opisuje [runda 4](round-04-failures-restarts.md). Interfejsy modułów pozostają na rundę architektury.
 
+
+Aktualizacja 11 listopada 2026 po P01–P12: D90–D101 mają pierwszeństwo w
+doprecyzowanym zakresie. D99 wprowadza wyjątek od zwykłego kroku/odstępu:
+nastawę poza obowiązującym zakresem obcinamy do dopuszczalnej granicy i oznaczamy
+konflikt. D90 określa wstępne potwierdzenie od razu i ostateczny odczyt tej samej
+encji po 2 min. D96/D97/D98/D100 ustalają cel strefy, jakość historii, przypadki
+mieszane i ustępowanie ostrzeżenia. Pozostałe reguły rundy zachowujemy.
+
 ## 1. Podział ustawień i brak modelu hydrauliki
 
 Codzienny dashboard służy odczytom, celom komfortu i trybom pracy. Szczegółowe funkcje, okna, współczynniki i programy są w osobnym oknie konfiguracji zaawansowanej.

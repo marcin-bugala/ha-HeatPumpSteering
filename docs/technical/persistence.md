@@ -59,7 +59,7 @@ oryginalną chwilę ostatniej aktualizacji przed oknem albo odrzucić punkt
 o nieustalonej świeżości. Brak wierszy nie dowodzi braku fizycznych pomiarów,
 a utrzymująca się wartość nie dowodzi ciągłej świeżości.
 
-P08 określa politykę jakości: rekomendowane pokrycie tylko z udokumentowanych
+D97 (przyjęte P08) określa politykę jakości: pokrycie tylko z udokumentowanych
 przedziałów ważności, bez przedłużania do następnego odczytu przez luki i restarty.
 Od raportu do min(następna utrata, raport+freshness, koniec przedziału).
 Dla starych jednakowych wartości bez zachowanego heartbeat pokrycie jest
@@ -72,8 +72,8 @@ Agregacja strefy na połączonych granicach ważności termometrów; najpierw
 średnia/mediana aktywnych źródeł, potem okna czasowe. Skład jest oznaczony
 source_set_revision. Średnia po czasie to suma(value×duration)/valid_duration;
 mediana ważona czasem. Gotowość >=80% pełnej długości okna + świeży pomiar teraz.
-Równe połowy mediany, granice świeżości i reprezentacja niepewności do
-jawnego przeglądu w P08. Brak danych nie jest sztucznym zerem ani interpolacją.
+Przy dokładnie 50% między wartościami mediana to średnia dwóch środkowych D97.
+W chwili przekroczenia limitu świeżości przedział staje się luką. Brak danych nie jest sztucznym zerem ani interpolacją.
 
 Live śledzi oba helpery HA: state_changed dla zmian oraz state_reported dla
 jednakowych raportów, tylko wybrane encje. last_reported służy świeżości HA,
@@ -114,3 +114,10 @@ Niezgodny: błąd bez kasowania, wymagane odtworzenie odpowiedniej kopii HA
 zgodnie z osobnym planem właściciela. Sam backup pliku Store może nie wystarczyć
 przy zmianie ConfigEntry/rejestrów. PR dokumentacyjny nie uruchamia backupu,
 restartu ani rollbacku domu.
+
+D90: Store zachowuje provisional_at, verification_due i verified_at osobno.
+Restart nie promuje provisional do confirmed samym upływem czasu. Po odtworzeniu
+zgodnego aktualnego żądania wykonujemy bieżący odczyt; jeśli termin kontroli minął,
+poprawny zgodny odczyt może zakończyć potwierdzenie. Brak/zmiana żądania unieważnia
+stary zamiar. Nadpisania CWU przechowują own/external, bez klasy ambiguous i bez
+stanu higieny. D95: niezapisany szkic harmonogramu nie jest aktywnym planem.

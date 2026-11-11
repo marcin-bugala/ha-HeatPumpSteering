@@ -1,6 +1,6 @@
 # User stories
 
-Baza v0.7 z 11 listopada 2026, obejmująca rundy 1–6. Treść poniżej zawiera kryteria akceptacji; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md) · [Scenariusze odbioru — runda 5](round-05-acceptance.md).
+Baza v0.7 z 11 listopada 2026, obejmująca rundy 1–6 oraz doprecyzowania D90–D101 z PR #36. Treść poniżej zawiera kryteria akceptacji; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md) · [Scenariusze odbioru — runda 5](round-05-acceptance.md).
 
 <a id="us01"></a>
 
@@ -50,9 +50,11 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 
 - Aktualizacje zachowują cele, identyfikatory encji i powiązania zgodnie z US08.
 
+- D96: cel 5–35°C co 0,5°C, początkowo podany przez użytkownika; zmiana celu zeruje zależne potwierdzenia temperatury bez resetu blokad zamknięcia/demandu.
+
 ### Do doprecyzowania
 
-- Zakres i krok nastawy pokojowej; reset potwierdzeń po zmianie celu.
+- Rozstrzygnięte D96: 5–35°C co 0,5°C; cel początkowy użytkownika. Zmiana celu zeruje zależne potwierdzenia temperatury, zachowuje terminy zamknięcia/demandu i historię.
 
 Powiązania: [US01](#us01)
 
@@ -103,16 +105,16 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Diagnostyka rozdziela wkłady aktywnych modułów komfortu/trendu, wspólny limit sumy, zakres pompy i węższy limit użytkownika.
 - Pokazuje ochronę przegrzewania, timery stref/demandu oraz ostrzeżenie nieskutecznego zamknięcia.
 - Program nie ocenia konfiguracji stale otwartych pętli; prognozy są odłożone i nie tworzą aktywnych korekt.
-- Diagnostyka pokazuje wysłany zapis, potwierdzenie z niezależnego odczytu, jego brak lub brak możliwości potwierdzenia.
+- D90: diagnostyka rozróżnia wysłanie, potwierdzenie wstępne od razu, ostateczne po ponownym zgodnym odczycie tej samej encji po 2 min i brak zgodnego odczytu. Nie utożsamia confirmed z dowodem fizycznym.
 - Widać utratę pomiarów, odbudowę historii i gotowość okien oraz błąd zapisu po trzeciej nieudanej próbie.
-- Na potwierdzenie zapisu czekamy domyślnie 2 min, z ustawieniem wspólnym dla programu. Późne poprawne potwierdzenie aktualnego polecenia kończy serię przed kolejną próbą.
+- D90: potwierdzenie wstępne nie kasuje kontroli po domyślnie 2 min od wysłania. Poprawny zgodny ponowny odczyt kończy serię; późny odczyt aktualnego polecenia może zrobić to przed kolejną próbą.
 
 - Eksport diagnostyki na żądanie przez HA obejmuje wersję, parametry, jakość danych, ostatnie decyzje, blokady i błędy. Nazwy własne i encje są zastąpione spójnymi oznaczeniami; brak sekretów i automatycznego wysyłania.
 - Ostrzeżenie ustępuje po usunięciu przyczyny i spełnieniu warunków powrotu. Oznaczenie jako przeczytane nie kasuje problemu ani blokady; historia zachowuje wystąpienie i ustąpienie.
 
 ### Do doprecyzowania
 
-- Techniczne źródło niezależnego odczytu oraz format przechowywania dowodów i historii decyzji.
+- D90 rozstrzyga potwierdzenie odczytem tej samej encji HA; format pamięci i historii decyzji opisuje projekt techniczny do przeglądu.
 
 Powiązania: [US03](#us03), [US17](#us17), [US19](#us19)
 
@@ -147,7 +149,7 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 
 ### Do doprecyzowania
 
-- Techniczne potwierdzenia wyjść, odwrócona logika oraz reguła kasowania ostrzeżenia nieskutecznego zamknięcia.
+- Rozstrzygnięte: D90 potwierdzenie, D93 polaryzacja bindingu, D100 ustąpienie ostrzeżenia przy wiarygodnym zaniku warunku lub otwarciu. Brak danych nie kasuje problemu.
 
 Powiązania: [US09](#us09), [US10](#us10), [US15](#us15)
 
@@ -199,9 +201,11 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Przy jednakowym planie całotygodniowym nadpisanie trwa do ręcznej zmiany lub zapisu panelu w Harmonogram. Dashboard informuje o braku zaplanowanej zmiany.
 - Zależna od trybu dostępność pól CWU wyklucza równoczesną edycję temperatury stałej i harmonogramu.
 
+- D91: każda niealgorytmiczna zmiana ustawienia CWU external; brak kategorii ambiguous/blokady pochodzenia. D92: ręczny demand nie zatrzymuje automatu, OFF nie resetuje retry.
+
 ### Do doprecyzowania
 
-- Techniczne rozpoznawanie zmian zewnętrznych, ich pochodzenia i ręcznego OFF demandu.
+- D91: każda niealgorytmiczna zmiana CWU external, bez kategorii ambiguous. D92: ręczny demand nie pauzuje; OFF nie resetuje liczników/terminów retry.
 
 Powiązania: [US03](#us03)
 
@@ -228,7 +232,7 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 ### Do doprecyzowania
 
 - Schematy i wersjonowanie konfiguracji/Store, procedury migracji, sprawdzanie zgodności i testy aktualizacji.
-- Minimalna wersja HA i macierz sprawdzanych wersji przed implementacją.
+- D101: minimum HA 2026.10.4 i macierz z 2026.11.1 przyjęte; T08 wymaga zgodnych zależności testowych.
 
 Powiązania: [US02](#us02), [US03](#us03), [US19](#us19)
 
@@ -265,9 +269,11 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Współdzielenie encji wykonawczej między niezależnymi funkcjami lub konfiguracjami jest blokowane. Czujniki można współdzielić; ostrzegamy o możliwym konflikcie z zewnętrznymi regulatorami bez ich wyłączania.
 - Odłączenie wyjścia pokazuje przed zatwierdzeniem jego stan i ostrzeżenie o pozostawieniu tego stanu; anuluje polecenia i ponowienia.
 
+- D92: po ręcznej zmianie demandu następna dozwolona ocena uzgadnia automat; trwałe oddanie kontroli przez obserwację CO. OFF nie resetuje liczników i terminów retry.
+
 ### Do doprecyzowania
 
-- Profil, polaryzacja i techniczne potwierdzenie raportu demandu oraz ręczna zmiana poza integracją.
+- D90/D92/D93 rozstrzygają potwierdzenie, ręczny demand i polaryzację; brak dodatkowego warunku niezależnej telemetrii.
 
 Powiązania: [US03](#us03), [US15](#us15), [US16](#us16)
 
@@ -293,9 +299,11 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Jeden Czas pracy siłowników jest ustawieniem domu, domyślnie 3 min, wspólnym dla otwierania i zamykania.
 - Po raporcie przekaźnika pokazujemy Otwieranie/Zamykanie, następnie przewidywany stan końcowy. Dalsza ocena ostrzeżenia zamknięcia rozpoczyna się po tym czasie.
 
+- D93: polaryzacja każdego bindingu oddzielnie od NC/NO strefy; zmiana mapowania sama nie wysyła polecenia.
+
 ### Do doprecyzowania
 
-- Odwrócona logika przekaźnika i techniczne pozyskanie wiarygodnego raportu stanu.
+- D93: polaryzacja per binding odrębna od NC/NO strefy; D90: odczyt HA i kontrola po 2 min, bez dowodu fizycznego.
 
 Powiązania: [US09](#us09)
 
@@ -322,7 +330,7 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 
 ### Do doprecyzowania
 
-- Technologia dostarczanej karty i reprezentacja celu jako climate lub number — projekt techniczny.
+- D101: TypeScript/Lit, cel number; D96: 5–35°C co 0,5°C. Szczegóły UI w projekcie do przeglądu.
 
 Powiązania: [US02](#us02), [US12](#us12), [US15](#us15)
 
@@ -348,9 +356,11 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Karta produktu dostarcza stan stref, zaworów, pompy, dostępnej mocy/energii i wyjaśnienia decyzji, bez instalacji kart innych autorów.
 - Niedostępność opcjonalnego licznika ogranicza diagnostykę, nie zatrzymuje sprawnego CO ani CWU.
 
+- D100: energia z istniejącego licznika, bez własnej całki mocy i okresów dzień/miesiąc. Brak danych nie kasuje ostrzeżenia nieskutecznego zamknięcia.
+
 ### Do doprecyzowania
 
-- Okresy zużycia energii, integracja mocy do energii i źródła wiarygodnego trybu pracy.
+- D100: energia tylko z istniejącego licznika, bez własnej całki i okresów dzień/miesiąc. Tryb pracy tylko z udokumentowanych źródeł; bez nich nieznany.
 
 Powiązania: [US04](#us04), [US16](#us16)
 
@@ -378,10 +388,12 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 - Panel CWU dostarczamy razem z integracją; interfejs, komunikaty i instrukcje instalacji/konfiguracji są w PL/EN.
 - Awaria CWU nie zatrzymuje sprawnego CO; blokujemy tylko zależne działania.
 
+- D94/D95: bez obsługi higieny; start Nieskonfigurowane i jawny zapis temperatury/planu. D90: po nowym zapisie temperatury ON czeka na ostateczny odczyt po 2 min.
+
 ### Do doprecyzowania
 
-- Inicjalizacja bez wcześniejszej nastawy oraz współpraca z funkcjami higienicznymi. Opcjonalność i pierwsze wydanie rozstrzyga runda 6.
-- Techniczne rozpoznawanie zewnętrznych zmian i źródło niezależnego potwierdzenia.
+- D95: początek Nieskonfigurowane, temperatura Stałe/ON i cały plan jawnie zatwierdzone, szkic 7×48 OFF nie steruje. D94: higieny CWU nie obsługujemy; bez dodatkowych encji, wykrywania, blokad i warunku aktywacji.
+- D91: każda niealgorytmiczna zmiana CWU external; D90: potwierdzenie wstępne od razu i ostateczny ponowny odczyt tej samej encji po 2 min.
 
 Powiązania: [US14](#us14), [US16](#us16)
 
@@ -411,9 +423,11 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 - Blokady i ponowienia mierzą rzeczywisty upływ czasu. Nadpisanie kończy kolejna rzeczywista zmiana ustawienia z lokalnego planu.
 - Brak następnej zmiany w tygodniu zachowuje nadpisanie do ręcznej zmiany albo zapisu panelu w Harmonogram, z komunikatem diagnostycznym.
 
+- D95: szkic planu 7×48 OFF i kopiowanie dni są tylko edycją roboczą; bez zatwierdzenia nie wywołują OFF urządzenia.
+
 ### Do doprecyzowania
 
-- Stan początkowy harmonogramu, edycja/kopiowanie dni i techniczny wybór reprezentacji czasu.
+- D95: brak aktywnego planu do jawnego zapisu całego zestawu; szkic 7×48 OFF i kopiowanie dni tylko w draft. Lokalny plan HA i terminy UTC opisuje projekt.
 
 Powiązania: [US13](#us13), [US07](#us07)
 
@@ -472,9 +486,11 @@ Obszar: [E04](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/6). Dy
 - Transport do urządzeń zapewniają integracje źródłowe. Nasz produkt czyta i steruje przez encje HA.
 - Brak opcjonalnego modułu lub urządzenia ogranicza tylko zależne funkcje.
 
+- D90: poprawne min/max/step encji HA wystarczają do walidacji zakresu, bez dodatkowego dowodu ich pochodzenia. Brak/niepoprawny zakres nadal blokuje zapis.
+
 ### Do doprecyzowania
 
-- Techniczna identyfikacja czasu raportu, jednostki, źródła historii oraz niezależne potwierdzanie odczytów PC.
+- D90: operacyjne potwierdzenie tej samej encji HA, bez wymogu dowodu fizycznego/pochodzenia limitów; D97: konserwatywna historia. Jednostki/raporty opisuje projekt.
 - Profile prognoz pozostają w odłożonej US21.
 
 Powiązania: [US09](#us09), [US15](#us15)
@@ -490,7 +506,7 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 ### Wstępne kryteria akceptacji
 
 - Bazą jest Tbase = A + B × (Tref − Ta).
-- A, B i Tref są ustawiane osobno; początkowa propozycja to 20°C, 0,2 i 20°C.
+- A, B i Tref są ustawiane osobno; początkowe wartości według product.md to 20°C, 0,2 i 20°C.
 - Ta jest przefiltrowaną bieżącą temperaturą zewnętrzną, a nie prognozą.
 - Aktywne korekty komfortu i trendu są oddzielone od bazy i widoczne diagnostycznie; przyszłe prognozy są odłożone do US21.
 - Zmiana współczynników nie omija limitów temperatury, kroku ani częstotliwości zapisu.
@@ -507,10 +523,11 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Rozpoznana ręczna zmiana nastawy PC pozostawia CO1 aktywne, bez dodatkowej pauzy. Kolejne dozwolone polecenie uwzględnia bieżącą wartość oraz ograniczenia.
 - Limit oczekiwania na potwierdzenie wynosi domyślnie 2 min. Próby bez potwierdzenia o 10:00, 10:05 i 10:10 dają błąd o 10:12, następne próby o 10:20 i 10:35.
 
+- D99: gdy obecna nastawa jest poza obowiązującym zakresem, obcinamy do najbliższej dopuszczalnej granicy i oznaczamy konflikt. Korekta graniczna ma pierwszeństwo przed zwykłym krokiem/odstępem i blokadą wzrostu utrzymującą wartość poza zakresem; observation, walidacja i retry nadal obowiązują.
+
 ### Do doprecyzowania
 
-- Walidacja zakresów i techniczne źródło niezależnego potwierdzenia.
-- Zachowanie przy zmianie limitów i pozostałych przypadkach bez kwalifikujących się stref.
+- D90: potwierdzenie odczytem tej samej encji po 2 min. D99: nastawę poza zakresem obcinamy do granicy i oznaczamy konflikt; korekta ma pierwszeństwo przed zwykłym krokiem/odstępem. D98: przypadek mieszany bez kwalifikowanych stref daje bazę outdoor.
 
 Powiązania: [US04](#us04), [US16](#us16), [US19](#us19)
 
@@ -535,9 +552,11 @@ Obszar: [E04](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/6). Dy
 - Nie modelujemy pętli stale otwartych. Wagi prognoz i ich szczegółowy algorytm odłożono do US21.
 - Strefa bez poprawnych pomiarów jest pomijana w korekcie pokojowej. Wszystkie zamknięte strefy z poprawnymi danymi oznaczają utrzymanie aktualnej nastawy.
 
+- D98: przypadek mieszany bez kwalifikowanych stref → baza outdoor bez korekt pokojowych, z zachowaniem pozostałych blokad i odrębnych reguł D49.
+
 ### Do doprecyzowania
 
-- Pozostałe przypadki mieszane bez stref kwalifikujących się do korekty oraz techniczne śledzenie zmian zestawu.
+- D98: przypadek mieszany bez kwalifikowanych stref daje bazę bez korekt pokojowych z zachowaniem blokad; przypadki wszystkich poprawnych zamkniętych / wszystkich utraconych pozostają D49.
 
 Powiązania: [US16](#us16), [US17](#us17), [US19](#us19)
 
@@ -554,7 +573,7 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Wymagania obejmują filtry, trendy, krótkie zakłócenia, konflikt stref i ograniczenia zmian.
 - Oceniane są kompletność danych, jednostki i rozgrzewanie filtrów.
 - Pamięć zachowuje potrzebne próbki i czasy; braki obserwacji nie stają się fikcyjnymi pomiarami.
-- Polecenie, raport HA i niezależne potwierdzenie urządzenia są rozróżnione.
+- D90: polecenie, raport HA, potwierdzenie wstępne i ostateczny odczyt po 2 min są rozróżnione; niezależny dowód fizyczny jest opcjonalny, niewymagany do sterowania.
 - Scenariusze POC służą testom porównawczym, ale konkretne progi nie są bez oceny kopiowane.
 - Auto STOP CO1 z POC nie przechodzi automatycznie do konfiguracji produktu bez demandu.
 - Przyjęte wartości początkowe i odstępstwa od POC określa runda 3; ustalenia produktu są nadrzędne wobec prototypu.
@@ -570,8 +589,7 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 
 ### Do doprecyzowania
 
-- Szczegółowe kontrakty historii i schematy Store oraz techniczny dowód niezależnego odczytu HiMitII. Podział trwałości danych określa runda 6.
-- Minimalna wersja HA i zachowanie przy cyklach CWU/defrost w ramach odpowiedzialności PC.
+- Kontrakty historii i Store w projekcie do przeglądu; D90 nie wymaga niezależnego odczytu HiMitII. D101 określa HA, D94 wyłącza obsługę higieny. CWU/defrost/zabezpieczenia pozostają odpowiedzialnością PC.
 
 Powiązania: [US03](#us03), [US06](#us06), [US08](#us08)
 

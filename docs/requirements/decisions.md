@@ -1,6 +1,6 @@
 # Rejestr decyzji i pytań
 
-Stan: 11 listopada 2026, po rundach 1–6. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
+Stan: 11 listopada 2026, po rundach 1–6 i rozstrzygnięciach P01–P12 w PR #36. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
 
 ## Przyjęte decyzje
 
@@ -47,7 +47,7 @@ Stan: 11 listopada 2026, po rundach 1–6. „Przyjęte” oznacza potwierdzony 
 | D39 | Ostrzeżenie po czasie zamykania i 120 min zamknięcia, komfortu ≥cel+0,5°C i rosnącego trendu; bez przesądzania awarii | US05, US12 |
 | D40 | Komfort: martwa strefa ±0,2°C, mnożnik 1,5 po jej odjęciu, limit komfortu ±2°C; osobny konfigurowalny limit sumy korekt domyślnie ±2°C | US17, US20 |
 | D41 | Trend CO1: 12 h, wzrost 0,2–0,5°C daje liniowo 0 do −0,5°C, bez dodatniej korekty za sam spadek i tylko bez ważonego niedogrzania | US06, US17 |
-| D42 | Zakres z ustawień PC, opcjonalnie zawężany; pełna precyzja i końcowa kwantyzacja, połówki w górę; domyślnie krok zmiany 1°C/120 min | US16, US17 |
+| D42 — wyjątek D99 | Zakres z ustawień PC, opcjonalnie zawężany; pełna precyzja i końcowa kwantyzacja, połówki w górę; domyślnie krok zmiany 1°C/120 min | US16, US17 |
 | D43 | Demand OR: ON po gotowości jednej strefy, globalne otwieranie 3 min; OFF bez dodatkowej zwłoki; minimum przerwy OFF 15 min, bez minimum ON | US09, US10 |
 | D44 | Cykl programu 5 min plus zmiany użytkownika; timery według terminów. Strojenie w osobnej konfiguracji zaawansowanej | US12, US17 |
 | D45 | Prognozy odłożone do kolejnej wersji; wymagania zachowane. Od początku modułowe korekty, wybór aktywnych modułów i zawsze obowiązujące ograniczenia | US20, US21 |
@@ -56,16 +56,16 @@ Stan: 11 listopada 2026, po rundach 1–6. „Przyjęte” oznacza potwierdzony 
 | D48 | Brak wszystkich termometrów strefy: 30 min zachowania żądań, następnie awaryjne otwarcie bez własnego demandu i korekty pokojowej | US05, US09 |
 | D49 | Brak wszystkich temperatur stref: krzywa z outdoor i OFF demandu po okresie przejściowym. Wszystkie strefy zamknięte przy poprawnych pomiarach: utrzymanie CO1 | US09, US17, US18 |
 | D50 | Brak outdoor, aktualnej nastawy lub zakresu PC blokuje odpowiednie zapisy CO1. Pozostałe poprawne moduły działają | US16, US17 |
-| D51 | Niepotwierdzone otwarcie zaworów nie wystarcza do ON demandu. Przerwę demandu liczymy od raportowanego potwierdzonego OFF | US05, US09, US10 |
+| D51 — doprecyzowane D90 | Niepotwierdzone otwarcie zaworów nie wystarcza do ON demandu. Przerwę demandu liczymy od raportowanego potwierdzonego OFF | US05, US09, US10 |
 | D52 | Trzy próby zapisu łącznie, potem błąd i odstępy Fibonacciego do 120 min. Licznik osobno dla wyjścia | US04, US09, US13, US17, US19 |
 | D53 | Odbudowa pomiarów, filtrów i trendów przy uruchomieniu z dostępnej historii, domyślnie 48 h | US03, US19 |
 | D54 | Po restarcie odtwarzamy zapisane tryby CO/CWU, pamięć i terminy. Sterowanie podejmuje bieżącą decyzję po sprawdzeniu gotowości | US03, US19 |
 | D55 | Blokady czasowe mogą upływać w przerwie przy wiarygodnym stanie. Potwierdzenia temperatury liczą poprawną obserwację | US05, US09, US17, US19 |
-| D56 | CWU po restarcie zachowuje ważne nadpisanie lub stosuje aktualny przedział. Temperaturę potwierdzamy przed ON, OFF wysyłamy niezależnie | US13, US14 |
+| D56 — doprecyzowane D90 | CWU po restarcie zachowuje ważne nadpisanie lub stosuje aktualny przedział. Temperaturę potwierdzamy przed ON, OFF wysyłamy niezależnie | US13, US14 |
 | D57 | Nagły spadek względem temperatury komfortowej przekracza domyślnie 0,7°C. Próg strefy | US06 |
 | D58 | Bez poprzedniego żądania w strefie między progami zachowujemy odczytany stan i czekamy na warunek otwarcia przed zgłoszeniem zapotrzebowania | US05, US09 |
 | D59 | Przy gotowym pomiarze do zaworów i braku gotowego trendu używamy progów niejasnego trendu z komunikatem o brakujących danych | US05, US19 |
-| D60 | Czas potwierdzenia zapisu domyślnie 2 min, wspólny i konfigurowalny. Odstęp ponowienia od wysłania poprzedniej próby | US04, US17, US19 |
+| D60 — doprecyzowane D90 | Czas potwierdzenia zapisu domyślnie 2 min, wspólny i konfigurowalny. Odstęp ponowienia od wysłania poprzedniej próby | US04, US17, US19 |
 | D61 | Ręczna zmiana nastawy wody na pompie pozostawia regulator aktywny, bez dodatkowej pauzy. Kolejny dozwolony zapis realizuje bieżący wynik | US07, US17 |
 | D62 | CWU Wyłączone blokuje temperaturę i plan, Stałe udostępnia temperaturę, Harmonogram udostępnia plan | US13 |
 | D63 | Zapis panelu w Harmonogram natychmiast stosuje aktualny przedział i kończy nadpisanie, także przy identycznym planie | US07, US13, US14 |
@@ -74,7 +74,7 @@ Stan: 11 listopada 2026, po rundach 1–6. „Przyjęte” oznacza potwierdzony 
 | D66 | Jeden globalny „Czas pracy siłowników”, domyślnie 3 min, obejmuje otwieranie i zamykanie oraz start oceny ostrzeżenia | US05, US09, US10 |
 | D67 | Scenariusze A01–A59 obejmują US01–US21 jako kryteria przyszłego odbioru | Wszystkie historie |
 
-| D68 | Odczyty i polecenia przez encje HA; transport zapewniają integracje urządzeń | US16 |
+| D68 — doprecyzowane D90 | Odczyty i polecenia przez encje HA; transport zapewniają integracje urządzeń | US16 |
 | D69 | CO i CWU niezależnie opcjonalne: samo CO, samo CWU lub oba. Wymagania nastawy CO1/outdoor/stref dotyczą wyłącznie CO; zastępuje ogólne D05 i zawęża D23 | US03, US09, US13, US16 |
 | D70 | Pierwsza konfiguracja: jedna pompa, maks. jeden CO i jedno CWU. Architektura przewiduje przyszłe dwa CO z osobnymi strefami, nastawami i Demand 1/2 | US09, US20 |
 | D71 | Konfiguracja HA + Store dla potrzebnego stanu + Recorder dla historii + okna w pamięci; bez dodatkowej bazy | US08, US19 |
@@ -97,6 +97,27 @@ Stan: 11 listopada 2026, po rundach 1–6. „Przyjęte” oznacza potwierdzony 
 | D88 | Awaria ogranicza działania zależne, sprawne moduły pozostają aktywne | US12, US13, US16 |
 | D89 | Powrót tylko ze zgodnymi danymi; niezgodność daje błąd bez resetu/sterowania, instrukcja wymaga właściwej kopii HA | US08 |
 
+## Przyjęte rozstrzygnięcia P01–P12 — 11 listopada 2026
+
+| ID | Decyzja | Powiązania |
+| --- | --- | --- |
+| D90 | Potwierdzenie operacyjne jest dwuetapowe: po zapisie zgodny odczyt tej samej encji HA daje potwierdzenie wstępne; ponowny poprawny, zgodny odczyt po domyślnie 2 min daje potwierdzenie ostateczne i kończy serię ponowień. Nie wymagamy drugiej encji, dowodu nowego raportu transportowego ani fizycznego wykonania. Doprecyzowuje D51/D56/D60/D68 i zastępuje wymóg niezależnego dowodu jako warunku aktywacji. | P01; US03–US05, US09–US10, US13, US16–US19 |
+| D91 | Każda zmiana ustawienia CWU niewynikająca z działania naszego algorytmu jest external i ma reguły zmiany użytkownika D27/D63/D64. Nie ma kategorii ambiguous ani blokady zapisów z powodu nieustalonego pochodzenia. | P02; US07, US13–US14 |
+| D92 | Ręczna zmiana demandu nie zatrzymuje regulatora: następna dozwolona ocena uzgadnia bieżące zapotrzebowanie. Trwałe oddanie kontroli przez obserwację CO. OFF nie resetuje liczników błędów ani terminów ponowień; brak dodatkowej zwłoki logicznej nie obchodzi polityki retry. | P03; US07, US09 |
+| D93 | Jawna polaryzacja każdego bindingu wyjścia jest niezależna od wspólnego dla strefy NC/NO. Zmiana mapowania nie wysyła sama polecenia. | P04; US05, US09–US10 |
+| D94 | Produkt nie obsługuje higieny CWU: bez wykrywania, dedykowanych encji, blokad i warunku aktywacji. Higiena pozostaje po stronie pompy. Zmiany nastaw niewynikające z naszego algorytmu są external według D91. | P05; US13, US19 |
+| D95 | CWU bez wcześniejszych nastaw zaczyna jako Nieskonfigurowane; użytkownik jawnie podaje temperaturę Stałe/ON i zatwierdza cały plan. Szkic 7×48 OFF nie jest zapisanym planem i nie powoduje OFF urządzenia. Kopiowanie dni dotyczy draft. | P06; US13–US14 |
+| D96 | Cel strefy 5–35°C co 0,5°C, początkowo podany przez użytkownika. Zmiana celu zeruje zależne potwierdzenia temperatury, zachowuje terminy zamknięcia i demandu oraz historię pomiarów. | P07; US02, US05–US06, US11, US18 |
+| D97 | Niepewna historia pozostaje luką; nie przedłużamy ważności poza świeżość i nie odtwarzamy heartbeat z niezmiennych stanów Recordera. Mediana jest ważona czasem; dokładne 50% między wartościami daje średnią dwóch środkowych. | P08; US01, US06, US16, US19 |
+| D98 | Przypadek mieszany bez stref kwalifikowanych do korekty: baza outdoor bez korekt pokojowych, z pozostałymi blokadami. Nadal wszystkie poprawne zamknięte → utrzymanie nastawy; wszystkie utracone po grace → baza i wycofanie demandu. | P09; US17–US18 |
+| D99 | Gdy bieżąca nastawa jest poza obowiązującym zakresem, obcinamy ją do najbliższej dopuszczalnej granicy i oznaczamy konflikt. Korekta graniczna ma pierwszeństwo przed zwykłym limitem kroku/odstępu i blokadą wzrostu utrzymującą wartość poza zakresem; nie wyłącza obserwacji ani walidacji wyjścia i retry. Doprecyzowuje wyjątek od D42; nie blokujemy korekty samym konfliktem. | P10; US16–US17 |
+| D100 | v1 pokazuje energię z istniejącego licznika, bez własnej całki mocy i okresów dobowych/miesięcznych. Ostrzeżenie nieskutecznego zamknięcia gaśnie przy wiarygodnym ustąpieniu któregokolwiek warunku lub otwarciu; brak danych wstrzymuje ocenę, sam nie kasuje ostrzeżenia. Przeczytanie nie kasuje przyczyny. | P11; US04–US05, US12 |
+| D101 | Domena heat_pump_steering, minimum HA 2026.10.4 i macierz z 2026.11.1, cel strefy number, frontend TypeScript/Lit, źródła sterujące number/switch v1 oraz jawna aktywacja nowych bindingów wyjść przyjęte. T08 (zgodny plugin macierzy) pozostaje technicznym zadaniem, a projekt czeka na przegląd właściciela. | P12; US02–US03, US08, US11–US14, US16, US20 |
+
+D90–D101 przyjęto 11 listopada 2026 na podstawie odpowiedzi właściciela w rozmowie
+projektu, włączonych do [PR #36](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/36).
+Rozstrzygnięcia P nie oznaczają zatwierdzenia całego projektu ani zgody na kod.
+
 D24–D30 uzgodniono w [rundzie 2](round-02-daily-operation.md) 10 listopada 2026. D26 rozszerza D13 o jawny tryb Wyłączone; D27–D28 odrzucają błędną interpretację, że harmonogram blokuje ręczne włączenie. D29 dotyczy spójności zapisu ustawień, nie transakcji sprzętowej pompy.
 
 Decyzje D17–D23 przyjęto 10 listopada 2026 w [rundzie 1](round-01-installation-zones.md), aktualizacja w [PR #27](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/27). D21 doprecyzowuje D08; nie przyjęto proponowanego wariantu globalnego NC/NO z wyjątkami na wyjściach.
@@ -107,24 +128,24 @@ Wczesne propozycje zaworów na całych rozdzielaczach, 16 siłowników NO i dok�
 
 Wartości liczbowe opisano w [rundzie 3](round-03-regulation.md). Są przyjętymi ustawieniami początkowymi do późniejszej walidacji, nie gwarancją optymalnego strojenia wszystkich budynków. W konfiguracji zaawansowanej można zmienić wskazane parametry.
 
-Nadal propozycjami pozostają domena heat_pump_steering, szczegóły F01 i architektury oraz zaawansowane prognozowanie z POC. Raportowane przez urządzenie limity są nadrzędne; nie kopiujemy stałego minimum/maksimum POC.
+Domena heat_pump_steering i kontrakty z P12 są przyjęte w D101. Pozostałe szczegóły projektu technicznego oczekują przeglądu. F01 i zaawansowane prognozowanie pozostają przyszłe. Raportowane przez urządzenie limity są nadrzędne; nie kopiujemy stałego minimum/maksimum POC.
 
-## Otwarte decyzje blokujące pełną specyfikację
+## Pytania po rundach 1–6 i ich rozstrzygnięcia w projekcie
 
 | ID | Pytanie | Gdzie doprecyzować |
 | --- | --- | --- |
 | Q01 — doprecyzowane | D54 ustala odtworzenie trybów CO/CWU. Zakres F01 pozostaje otwarty | US03, US13 |
-| Q02 — doprecyzowane | D46–D47 określają częściową dostępność i świeżość. Techniczne źródło czasu raportu pozostaje do określenia | US01, US16 |
-| Q03 — doprecyzowane | NC/NO na strefę i wspólny czas pracy siłowników określone. Pozostają logika odwrócona i techniczne potwierdzenie | US05, US10 |
-| Q04 — doprecyzowane | D49 rozróżnia wszystkie strefy zamknięte i utratę temperatur wszystkich stref. Reguły ważenia pozostają w rundzie 3 | US17–US19 |
-| Q05 — doprecyzowane | Reguły braków danych, gotowości i restartów są w rundzie 4. Pozostaje sposób pozyskania i oceny historii źródeł | US05, US16, US19 |
-| Q06 — doprecyzowane | Ręczne zmiany CO1 i CWU, zapis panelu oraz nadpisanie bez następnej zmiany określono w rundzie 5. Pozostają źródła wykrywania i ręczny demand | US07, US13, US14 |
-| Q07 — doprecyzowane | Panel, nadpisania, zmiana czasu i restart ustalone. D69 i D76 rozstrzygają opcjonalność i wydanie; pozostają inicjalizacja i higiena | US13, US14 |
-| Q08 — doprecyzowane | D51 i D55 ustalają raportowany OFF oraz odtworzenie blokady. Pozostają profil/polaryzacja i techniczny dowód raportu | US09 |
-| Q09 — doprecyzowane | Domyślne potwierdzenie 2 min i polityka ponowień przyjęte. Pozostaje techniczne źródło niezależnego odczytu | US04, US17, US19 |
+| Q02 — rozstrzygnięte | D46–D47 i D97 określają jakość raportów/historii; czas raportu HA nie jest dowodem pomiaru fizycznego. | US01, US16 |
+| Q03 — rozstrzygnięte | D93 określa polaryzację, D90 potwierdzenie operacyjne; NC/NO strefy i czas siłowników pozostają bez zmian. | US05, US10 |
+| Q04 — rozstrzygnięte | D49 zachowane; D98 ustala przypadek mieszany bez stref kwalifikowanych do korekty. | US17–US19 |
+| Q05 — rozstrzygnięte | D97 ustala konserwatywne pokrycie, luki i medianę ważoną czasem; techniczny adapter historii w projekcie. | US05, US16, US19 |
+| Q06 — rozstrzygnięte | D91: każda niealgorytmiczna zmiana CWU external; D92: ręczny demand bez niejawnej pauzy, OFF nie resetuje retry. | US07, US13, US14 |
+| Q07 — rozstrzygnięte | D95 ustala inicjalizację CWU; D94 wyłącza obsługę higieny z zakresu produktu. | US13, US14 |
+| Q08 — rozstrzygnięte | D90 określa potwierdzenia, D93 polaryzację, D92 ręczny demand; D55 nadal określa odtwarzanie przerwy. | US09 |
+| Q09 — rozstrzygnięte | D90: wstępne potwierdzenie od razu, ostateczne po ponownym zgodnym odczycie tej samej encji po 2 min; bez dodatkowego dowodu fizycznego. | US04, US17, US19 |
 | Q10 — odłożone | Brak prognoz w bieżącej wersji. Algorytm/adaptery, jakość, archiwizacja i uczenie wrócą przed przyszłym wydaniem | US21 |
-| Q11 — częściowo rozstrzygnięte | D29–D30: wspólny zapis panelu CWU i potwierdzenie odrzucenia. D71, D81 i D82 ustalają historię, dostarczenie UI i eksport; technologia oraz platformy encji wymagają projektu | US04, US11–US14 |
-| Q12 — doprecyzowane | D71–D80 i D89 ustalają trwałość, aktualizacje i wycofanie. Minimum HA, domena i macierz zgodności pozostają do projektu technicznego | US08, US19 |
+| Q11 — rozstrzygnięte | D100 określa energię i kasowanie ostrzeżeń; D101 przyjmuje platformy i frontend. Przegląd projektu pozostaje wymagany. | US04, US11–US14 |
+| Q12 — rozstrzygnięte | D101 przyjmuje domenę/minimum/macierz. T08 wymaga zgodnych zależności testowych; migracje i cały projekt czekają na przegląd. | US08, US19 |
 | Q13 | Czy F01 może działać samodzielnie, bez konfiguracji regulatora CO1? | E05 |
 | Q14 | Kalibracja F01, faktyczna praca PC, temperatura/histereza, powrót i awarie | E05 |
 

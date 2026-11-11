@@ -28,7 +28,17 @@ Proponowany układ wyników w przyszłym `docs/technical/` (do utworzenia przez 
 | implementation-plan.md | Małe PR-y, zależności, Definition of Ready/Done i przekazania; prowadzą do pełnego wydania, nie samej obserwacji |
 | open-decisions.md | Rekomendacja, alternatywy, konsekwencje i właściciel rozstrzygnięcia; odnośniki do wymagań |
 
-## Pytania wymagające jawnego rozwiązania
+## Aktualizacja po odpowiedziach właściciela — PR #36
+
+P01–P12 zostały rozstrzygnięte 11 listopada 2026 i zapisane w D90–D101.
+Poniższe pytania były wejściem pierwotnego briefu; nie są ponownie otwartymi
+blokerami. Potwierdzenie jest dwuetapowe przez tę samą encję HA D90, wszystkie
+niealgorytmiczne zmiany CWU external D91, higieny nie obsługujemy D94,
+nastawę poza zakresem obcinamy do granicy z konfliktem D99. D101 przyjmuje
+domenę/minimum/macierz i kontrakty UI. Projekt czeka na przegląd właściciela,
+a T08 na zgodne zależności testowe; brak zgody na kodowanie.
+
+## Historyczne pytania wejściowe wymagające jawnego rozwiązania
 
 Minimum HA, domena i testowana macierz nie są jeszcze ustalone. Nie traktuj wersji
 Pythona narzędzi CI jako decyzji o wsparciu produktu. Sprawdź oficjalną dokumentację

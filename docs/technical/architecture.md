@@ -1,8 +1,8 @@
 # Architektura
 
 Podstawa: D03, D06, D17–D20, D45, D68–D89; US01–US20.
-Opisane rozwiązania T01–T08 są propozycją techniczną do przeglądu.
-Lista pytań produktowych: [P01–P12](open-decisions.md).
+Ustalenia D90–D101 uwzględniają przyjęte [P01–P12](open-decisions.md).
+Szczegóły techniczne T01–T08 podlegają przeglądowi; P12 przyjmuje kontrakty HA/UI.
 
 ## Granice
 
@@ -65,10 +65,16 @@ nie tworzy trendu zerowego z fikcyjnych próbek.
 
 Wynik: baza → aktywne korekty → limit sumy → zakres PC/zawężenie użytkownika →
 ochrona wzrostu → ograniczenie nowego kroku i czasu → końcowa kwantyzacja
-na dozwolonej siatce. Dobór wartości musi spełniać wszystkie limity jednocześnie.
-Jeśli siatka nie zawiera dopuszczalnego kroku, blokada, nie zaokrąglenie poza limit.
-Niepotwierdzona nastawa nie jest bazą kolejnego kroku.
-Przypadki mieszane bez kwalifikowanej strefy i zmiana limitów: P09/P10.
+na dozwolonej siatce. W zwykłej regulacji obowiązują wszystkie limity.
+Wyjątek D99: obecna nastawa poza obowiązującym zakresem daje żądanie najbliższej
+dopuszczalnej granicy i konflikt, z pierwszeństwem przed limitem kroku/odstępu
+oraz blokadą wzrostu, która utrzymywałaby nastawę poza zakresem. Obserwacja,
+dostępność wyjścia, poprawny zakres/siatka i retry nadal obowiązują.
+W pozostałych przypadkach brak dopuszczalnego kroku blokuje zapis.
+D90: potwierdzenie wstępne od razu i ostateczne po ponownym odczycie tej samej
+encji po 2 min; tylko ostatecznie potwierdzona nastawa otwiera drogę kolejnemu
+krokowi. D98: mieszane przypadki bez kwalifikowanych stref używają samej bazy,
+z zachowaniem odrębnych reguł wszystkich stref zamkniętych/utraconych.
 
 Obserwacja używa tej samej oceny, ale wykonawca niczego nie wysyła.
 Nie tworzy kolejki do późniejszej aktywacji. Wyłączenie funkcji nie produkuje OFF.

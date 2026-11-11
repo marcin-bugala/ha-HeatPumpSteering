@@ -11,12 +11,12 @@ Brak ORM i rozszerzalnego systemu pluginów. Powiązania: D17–D21, D69–D72, 
 | ZoneConfig | zone_id UUID, circuit_id, nazwa, group_id?, enabled, source_ids, main_source_id?, valve_output_ids, NC/NO, progi, priorytet | ConfigEntry.data |
 | GroupConfig | group_id UUID, nazwa, kolejność | ConfigEntry.data; wyłącznie prezentacja |
 | SourceBinding | source_id UUID, entity_registry_id?, entity_id, rola, jednostka, profil historii i raportu | ConfigEntry.data |
-| OutputBinding | output_id UUID, binding encji, funkcja, adapter, polaryzacja, profil dowodu i limitów | ConfigEntry.data |
+| OutputBinding | output_id UUID, binding encji, funkcja, adapter, polaryzacja, poziom potwierdzenia i zakres encji HA | ConfigEntry.data |
 | ProgramParameters | wspólne funkcje/okna, świeżość, retry, ograniczenia, aktywne korekty | ConfigEntry.data; wersjonowana konfiguracja |
 | Schedule | dhw_id, revision, 7 dni × 48 Slot | Store; Slot=off lub on z temperaturą |
 | UserSettings | cele zone_id→temperatura; dhw_mode, stała temperatura?, schedule; tryby observation/control | Store |
 | ZoneMemory | ostatnie żądanie?, lost_since?, confirmed close time?, postęp warunków, alarmy | Store |
-| OutputMemory | ostatni niezależny raport, wartość/czas, licznik prób, sent_at, confirm_deadline, next_retry, desired_revision, armed_binding_revision | Store; nie kolejka do odtworzenia |
+| OutputMemory | ostatni odczyt HA, wartość/czas, provisional_at, verified_at, licznik prób, sent_at, verification_due, next_retry, desired_revision, armed_binding_revision | Store; nie kolejka do odtworzenia |
 | Override | dhw_id, stan/temperatura, provenance, created_at, expires_at UTC lub null, plan_revision | Store |
 | Measurement | source_id, czas raportu HA, czas fizyczny?, wartość?, jakość, source_set_revision | Bufor; historia przez Recorder |
 | WindowValue | wartość?, start/end, valid_duration, coverage, current_fresh, reasons | RAM; gotowość osobno dla każdego okna |
@@ -42,13 +42,16 @@ Nie zmieniamy dashboardów użytkownika ani rejestrów cudzych integracji.
 
 `configuration_revision` dla instalacji, `source_set_revision` dla szeregu,
 `settings_revision` dla zapisu użytkownika i `generation` runtime do anulowania.
-Zmieniony cel unieważnia polecenia zależne; zachowanie postępu warunków P07.
+Cel strefy ma 5–35°C co 0,5°C i jest początkowo podany przez użytkownika D96.
+Zmiana celu unieważnia zależne polecenia i zeruje zależne potwierdzenia temperatury;
+zachowuje terminy zamknięcia/demandu oraz historię pomiarów.
 Zmiana czujnika rozpoczyna nowy szereg i odbudowę, nie miesza konfiguracji historycznych.
 
 Readiness jest rekordem `ready: bool, reasons: tuple, coverage?, as_of`,
 osobno dla pomiaru zaworów, trendu, komfortu, trendu 12 h, outdoor, wyjścia, demandu,
 CWU. Niedostępna wartość to None + przyczyna, nie NaN, 0 ani fałszywy OFF.
-Przewidywane położenie zaworu i dowód przekaźnika pozostają oddzielnymi polami.
+Przewidywane położenie zaworu, raport HA oraz provisional/confirmed po kontroli
+2 min pozostają oddzielnymi polami; opcjonalny dowód fizyczny nie jest wymagany.
 Tryb modułu nie zastępuje enabled: enabled=false zachowuje ustawienia,
 enabled=true po wyłączeniu ustawia observation; restart nie zmienia zapisanego trybu.
 
