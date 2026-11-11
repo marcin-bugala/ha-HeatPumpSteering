@@ -13,9 +13,6 @@ from typing import Any
 from uuid import UUID
 
 from homeassistant.const import (
-    ATTR_MAX,
-    ATTR_MIN,
-    ATTR_STEP,
     ATTR_UNIT_OF_MEASUREMENT,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
@@ -269,9 +266,9 @@ def _number_reason(state: State | None, entity_id: str) -> str | None:
         return reason
     assert state is not None
     try:
-        minimum = float(state.attributes[ATTR_MIN])
-        maximum = float(state.attributes[ATTR_MAX])
-        step = float(state.attributes[ATTR_STEP])
+        minimum = float(state.attributes["min"])
+        maximum = float(state.attributes["max"])
+        step = float(state.attributes["step"])
     except (KeyError, TypeError, ValueError):
         return f"invalid_range:{entity_id}"
     if not all(math.isfinite(value) for value in (minimum, maximum, step)):
