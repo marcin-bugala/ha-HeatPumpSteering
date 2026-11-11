@@ -32,25 +32,23 @@ P01–P12 zostały rozstrzygnięte przez Marcina Bugałę i zapisane jako D90–
 Domena, minimum/macierz HA, platformy encji i Lit z P12 są przyjęte.
 Pozostałe szczegóły techniczne T podlegają przeglądowi całego projektu;
 T08 ma dowód rozwiązania w scalonym I00. Aktualna dyspozycja właściciela
-i zakres I02 są w indeksie przekazań.
+i zakres I03 są w indeksie przekazań.
 
 Pierwsze kompletne wydanie nadal zawiera CO, strefy, opcjonalne zawory/demand i CWU,
 kartę, panel oraz PL/EN; warianty samo CO / samo CWU / oba. Przyszłe dwa CO
 mają miejsce w identyfikatorach, bez drugiego regulatora, prognoz, skroplin i importera.
 
-Następny odbiorca: Developer dla I02, następnie Reviewer/Tester i Tech Lead.
+Następny odbiorca: Developer dla I03, następnie Reviewer/Tester i Tech Lead.
 Autor wykonał samokontrolę, nie niezależne review; brak niezależnego review
 PR #36 pozostaje jawny. I00/I01 scalono w PR #38; ich dowody i brak formalnego
 review są w raporcie I00/I01.
 P01–P12 nie są blokerami produktowymi.
 Wyniki kontroli dokumentacyjnego commitu będą w PR; A01–A59/B01–B13 pozostają planem.
 
-## Aktualne przekazanie po I00/I01
+## Aktualne przekazanie po I02
 
-[I02 — kreator i model](../development/handoffs/i02-installation-model.md)
-ma bazę main 552ea42, po scaleniu PR #38. T08 rozwiązano w I00, a I01 przeszedł
-13 testów integracji w obu środowiskach i hassfest. Szczegóły SHA, logów
-oraz brak formalnego niezależnego review dokumentuje
-[raport Tech Leada](../development/handoffs/i00-i01-verification.md).
-Pierwotne kontrakty I00/I01 są historyczne; nie rozpoczynaj ich ponownie
-i nie traktuj ich jako blokady I02.
+[I03 — własność i bindingi](../development/handoffs/i03-output-ownership.md)
+ma bazę main 3068903 po PR #40. [Raport I02](../development/handoffs/i02-verification.md)
+zawiera wynik Reviewer/Tester, rozwiązanie czterech P1 i po 53 testy obu HA
+na końcowym head oraz main. I03 pozostaje obserwacyjne; konfiguracja wyjść
+nie uruchamia sterowania. Starsze handoffy są historią, nie nowym zleceniem.

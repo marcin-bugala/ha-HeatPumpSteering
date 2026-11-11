@@ -16,7 +16,7 @@ sterującego pompą. Punktem wejścia jest [AGENTS.md](../../AGENTS.md).
 | [CI i uruchomienie lokalne](ci.md) | Kontrole teraz i po dodaniu integracji |
 | [Projekt techniczny do przeglądu](../technical/README.md) | Architektura, pytania, macierz A/B i plan PR-ów |
 | [Brief projektu technicznego](technical-design-brief.md) | Konkretne następne zadanie |
-| [Przekazania dla Developera](handoffs/README.md) | Aktualnie I02: kreator/model, po sprawdzonych I00/I01 |
+| [Przekazania dla Developera](handoffs/README.md) | Aktualnie I03: własność/registry i ostrzeżenia, po sprawdzonym I02 |
 | [Szablon przekazania](templates/handoff.md) | Kontrakt między rolami |
 
 Przykład użycia w dowolnym asystencie pracującym na repo:
