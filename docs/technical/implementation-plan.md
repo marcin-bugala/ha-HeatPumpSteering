@@ -2,10 +2,10 @@
 
 Po scaleniu PR #36 i jawnej dyspozycji właściciela przejścia do kroku 3
 konkretne zlecenia określa [indeks przekazań](../development/handoffs/README.md).
-I00/I01 scalono razem w PR #38; aktualny handoff to
-[I02](../development/handoffs/i02-installation-model.md) na main 552ea42.
-[Dowody](../development/handoffs/i00-i01-verification.md) potwierdzają CI i ujawniają
-brak formalnego review. Dalsze pakiety wymagają osobnego handoffu.
+I00/I01 scalono w PR #38, I02 w PR #40; aktualny handoff to
+[I03](../development/handoffs/i03-output-ownership.md) na main 3068903.
+[Raport I02](../development/handoffs/i02-verification.md) wiąże zaakceptowany
+raport Reviewer/Tester i CI z końcowym SHA. Dalsze pakiety wymagają osobnego handoffu.
 Baza analizy main: 6891b473a646c3d9e0783edf6cd437eb27a9b758.
 Gałęzie każdego pakietu od aktualnego origin/main po scaleniu zależności.
 Każdy PR do main, bez auto-merge, deploy i automatycznego zamykania US.
@@ -20,7 +20,8 @@ w indeksie przekazań. Nie utożsamiamy samego merge z wynikiem testu produktu.
 Podstawa przejścia do wykonania i brak niezależnego review są zapisane
 w indeksie przekazań; decyzję właściciela wiążemy z konkretną bazą SHA.
 T08 ma dowód rozwiązania w I00; I01 ma pełny CI w PR #38 i na main.
-Dla I02 obowiązuje baza 552ea42 i warunki nowego handoffu, bez ponawiania I00/I01.
+Dla I03 obowiązuje baza 3068903, raport odbioru I02 i warunki nowego handoffu.
+I00–I02 nie należy wykonywać ponownie.
 Tech Lead wpisuje zatwierdzony SHA oraz link odpowiedzi właściciela w handoff.
 Treść wymagań i powiązanych Issues zsynchronizowana; bez nowych statusów w docs.
 Developer odświeża main, czyta Issue z komentarzami, sprawdza instrukcje i
@@ -34,7 +35,7 @@ Nie wystarcza samo zielone CI dokumentacji.
 | I00 chore/ha-test-matrix | Zgodne środowiska i fixtures minimum/current, realne smoke tests oraz odtwarzalny pakiet current, bez custom_components | US08/16/20; #15 #23 #29; D80,D101; przygotowanie A/B/C | Przyjęty projekt i T08 jako zakres do rozwiązania | Oba środowiska i pip check PASS, licencje/źródła sprawdzone; Reviewer → Tester → Tech Lead |
 | I01 feat/10-ha-foundation | Rzeczywisty manifest, ConfigEntry/runtime, minimum i macierz CI; setup/unload i observation na poprawnych wpisach, użytkowy config_flow w I02 | US03/08/16/20; #10 #15 #23 #29; D09,D68–D71,D80; A02,A08; B01,B02,B04 | Przyjęty projekt/P12, scalone I00 z dowodami T08 | Prawdziwe testy HA na obu wersjach; mock dowodzi braku usług w observation; hassfest. Reviewer → Tester |
 | I02 feat/8-installation-model | [Konkretny handoff](../development/handoffs/i02-installation-model.md): user/reconfigure, nazwy/grupy/listy sensorów, trwałe UUID i migracja wpisów I01, bez wykonawcy | US01/09/15; #8 #16 #22; D07,D17–D21,D69–D70,D85; A01,A03–A05; B01,B02,B06 | I01; P07/P12 | UI konfiguruje samo CO/samo CWU/oba; brak pustych modułów i nowych ID przy rename; Reviewer |
-| I03 feat/16-output-ownership | Atomowe rezerwacje między wpisami, ostrzeżenia odłączenia, binding registry_id i rename źródła | US01/09/16; #8 #16 #23; D84–D87; A04; B04,B06,B09,B10 | I02; P04 | Dwa równoczesne flow nie współdzielą wyjścia; odłączenie niczego nie przełącza; Reviewer → Tester |
+| I03 feat/16-output-ownership | [Konkretny handoff](../development/handoffs/i03-output-ownership.md): atomowe rezerwacje, registry binding/rename, migracja v3 i ostrzeżenia; konfiguracja zaworów/demandu bez wykonania | US01/09/10/15/16; #8 #16 #17 #22 #23; D84–D87,D93,D101; A01–A04; B04,B06,B09,B10; C05,C13 części | I02; P04/P12 | Dwa równoczesne flow nie współdzielą wyjścia; odłączenie niczego nie przełącza; Reviewer → Tester |
 | I04 feat/15-versioned-store | Store v1, cele/tryby, walidacja payload, protokół rewizji ConfigEntry/Store i odmowa niezgodności | US02/08/19; #9 #15 #26; D25,D54,D71–D72,D89; A07,A43; B05–B07 | I02; P07 | Restart zachowuje UUID i ustawienia; błąd zapisu i crash granicy nie resetują; Reviewer |
 | I05 feat/23-source-quality | Adaptery wartości, jednostek, świeżości, raportów changed/reported; bez historii i usług | US01/16; #8 #23; D46–D47,D50,D68; A30,A32,A35 | I02; P08 | Jednakowy raport odświeża tylko HA freshness; NaN/unknown/unavailable nigdy 0; Tester |
 | I06 feat/26-history-windows | Recorder adapter, 48h rebuild + live watermark, średnie/mediany ważone czasem, pokrycie | US01/06/19; #8 #13 #26; D32–D34,D47,D53,D71; A09,A30,A41,A42; B08 | I04,I05; P08 | Brak duplikatów, fikcyjnego heartbeat i mieszania czujników; test start-state/retencji, limit pamięci; Reviewer → Tester |
@@ -83,13 +84,18 @@ Scalenie dokumentacji lub części kodu nie zamyka US pełnego zakresu.
 
 - [Weryfikacja I00/I01](../development/handoffs/i00-i01-verification.md):
   oba pakiety scalono w PR #38, commit main 552ea427086786e3b3411d95ed0305dc35ba80c0.
-- [I02](../development/handoffs/i02-installation-model.md):
-  aktualny zakres Developera; model/config_flow/reconfigure/migracja, bez wykonawcy.
+- [I02](../development/handoffs/i02-installation-model.md) wykonano w PR #40;
+  [odbiór](../development/handoffs/i02-verification.md) dotyczy SHA 060c0f0 / main 3068903.
+- [I03](../development/handoffs/i03-output-ownership.md): aktualne przekazanie Developera,
+  pełna własność, trwałe bindingi i ostrzeżenia, nadal bez usług.
 - [Pierwotny I00](../development/handoffs/i00-ha-test-tooling.md) i
   [I01](../development/handoffs/i01-ha-foundation.md) pozostają historią kontraktu;
   nie uruchamiać ich ponownie. Zmianę drogi current i wspólny PR opisuje raport.
-- I03 nadal obejmuje pełną własność/registry binding wyjść. I02 musi jedynie
-  zachować D87 dla podstawowych wyjść już konfigurowanych przez jego kreator.
+- I02 ma minimalny D87 po entity_id. I03 rozszerza go na registry identity,
+  wszystkie konfigurowane wyjścia i pełną granicę finalizacji/setup.
+  Konfiguracja NC/NO/polaryzacji/zaworów/demandu jest częścią I03;
+  wykonanie ruchu i sekwencjonowanie nadal I12/I13. I04/I05 muszą korzystać
+  z kanonicznych bindingów schema 3, bez cofania do stringów I02.
 
 I02 doprecyzowuje realną migrację z uproszczonego modelu I01 do rozszerzonego
 modelu stref. Bieżący cel w ConfigEntry jest wartością bootstrap odziedziczoną
