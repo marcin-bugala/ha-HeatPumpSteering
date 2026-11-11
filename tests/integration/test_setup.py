@@ -17,15 +17,15 @@ from custom_components.heat_pump_steering.models import ModuleMode
 from .conftest import INSTALLATION_ID, entry_data, set_number
 
 
-def test_i01_does_not_advertise_incomplete_user_flow() -> None:
-    """The required version platform must not expose a creator before I02."""
+def test_i02_advertises_complete_user_flow() -> None:
+    """The manifest exposes the creator together with strings and tests."""
     manifest = json.loads(
         (
             Path(__file__).parents[2]
             / "custom_components/heat_pump_steering/manifest.json"
         ).read_text(encoding="utf-8")
     )
-    assert "config_flow" not in manifest
+    assert manifest["config_flow"] is True
 
 
 @pytest.mark.parametrize(
@@ -66,11 +66,11 @@ async def test_supported_variants_start_ready_in_observation(
 @pytest.mark.parametrize(
     ("data", "version", "expected_state"),
     [
-        (entry_data(), 1, ConfigEntryState.SETUP_ERROR),
-        (entry_data(co=True), 2, ConfigEntryState.MIGRATION_ERROR),
+        (entry_data(), 2, ConfigEntryState.SETUP_ERROR),
+        (entry_data(co=True), 3, ConfigEntryState.MIGRATION_ERROR),
         (
-            {**entry_data(co=True), "schema_version": 2},
-            1,
+            {**entry_data(co=True), "schema_version": 3},
+            2,
             ConfigEntryState.SETUP_ERROR,
         ),
         (
@@ -82,7 +82,7 @@ async def test_supported_variants_start_ready_in_observation(
                     if key != "setpoint_entity_id"
                 },
             },
-            1,
+            2,
             ConfigEntryState.SETUP_ERROR,
         ),
         (
@@ -90,7 +90,7 @@ async def test_supported_variants_start_ready_in_observation(
                 **entry_data(co=True),
                 "co": {**entry_data(co=True)["co"], "zones": []},
             },
-            1,
+            2,
             ConfigEntryState.SETUP_ERROR,
         ),
     ],

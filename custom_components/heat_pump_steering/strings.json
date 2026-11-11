@@ -1,0 +1,91 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "This installation is already configured.",
+      "reconfigure_successful": "The configuration was updated."
+    },
+    "error": {
+      "active_zone_required": "Enabled space heating requires an enabled zone.",
+      "configuration_changed": "The saved configuration changed while this form was open. Start again.",
+      "invalid_configuration": "The complete configuration is not valid.",
+      "invalid_zone": "The zone is not valid. Check its name, sensors, target and group.",
+      "module_required": "Select space heating, domestic hot water, or both.",
+      "output_conflict": "An output entity is already assigned to another function or installation.",
+      "primary_not_in_sources": "The primary sensor must be included in the zone sensor list.",
+      "sensor_required": "Configure at least one temperature sensor."
+    },
+    "step": {
+      "user": {
+        "title": "Heat pump installation",
+        "description": "Name the installation and choose its modules.",
+        "data": {
+          "name": "Installation name",
+          "enable_co": "Configure space heating",
+          "enable_dhw": "Configure domestic hot water"
+        }
+      },
+      "reconfigure": {
+        "title": "Edit heat pump installation",
+        "description": "Disabled modules keep their settings and return in observation mode when enabled again.",
+        "data": {
+          "name": "Installation name",
+          "enable_co": "Enable space heating",
+          "enable_dhw": "Enable domestic hot water"
+        }
+      },
+      "co": {
+        "title": "Space heating sources",
+        "description": "Choose the single heating circuit setpoint and outdoor sensor.",
+        "data": {
+          "setpoint_entity_id": "Heat pump setpoint number",
+          "outdoor_entity_id": "Outdoor temperature sensor",
+          "aggregation": "Multi-sensor aggregation"
+        }
+      },
+      "co_menu": {
+        "title": "Zones and groups",
+        "description": "Configured zones: {zones}; presentation groups: {groups}.",
+        "data": {"action": "Action"}
+      },
+      "zone": {
+        "title": "Zone",
+        "description": "Separate multiple sensor entity IDs with commas.",
+        "data": {
+          "name": "Zone name",
+          "enabled": "Enabled",
+          "group_id": "Presentation group",
+          "temperature_entity_ids": "Temperature sensors",
+          "source_mode": "Source mode",
+          "primary_temperature_entity_id": "Primary temperature sensor",
+          "target_temperature": "Initial target temperature"
+        }
+      },
+      "group": {
+        "title": "Presentation group",
+        "description": "A group has no target, sources, outputs or regulation weight.",
+        "data": {"name": "Group name"}
+      },
+      "select_zone": {
+        "title": "Select zone",
+        "data": {"operation": "Operation", "zone_id": "Zone"}
+      },
+      "select_group": {
+        "title": "Select group",
+        "data": {"operation": "Operation", "group_id": "Group"}
+      },
+      "dhw": {
+        "title": "Domestic hot water sources",
+        "description": "This step only assigns sources; it does not create a temperature or schedule.",
+        "data": {
+          "setpoint_entity_id": "DHW setpoint number",
+          "enable_entity_id": "DHW enable switch"
+        }
+      },
+      "confirm": {
+        "title": "Confirm installation",
+        "description": "Save {name} with {zones} heating zones. Saving does not send device commands.",
+        "data": {"confirm": "Save configuration"}
+      }
+    }
+  }
+}

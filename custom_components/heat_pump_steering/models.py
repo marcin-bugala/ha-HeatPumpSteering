@@ -1,4 +1,4 @@
-"""Typed configuration and runtime records for the I01 foundation."""
+"""Typed installation configuration and read-only runtime records."""
 
 from __future__ import annotations
 
@@ -35,14 +35,48 @@ class ModuleMode(StrEnum):
     OBSERVATION = "observation"
 
 
+class AggregationMode(StrEnum):
+    """Supported program-wide aggregation for multi-sensor zones."""
+
+    MEAN = "mean"
+    MEDIAN = "median"
+
+
+class ZoneSourceMode(StrEnum):
+    """How a zone selects a value from its configured sensors."""
+
+    PRIMARY = "primary"
+    AGGREGATE = "aggregate"
+
+
+@dataclass(frozen=True, slots=True)
+class GroupConfig:
+    """Presentation-only zone group."""
+
+    group_id: UUID
+    name: str
+
+
 @dataclass(frozen=True, slots=True)
 class ZoneConfig:
     """Small structural subset needed to identify an active CO zone."""
 
     zone_id: UUID
-    temperature_entity_id: str
+    name: str | None
+    group_id: UUID | None
+    temperature_entity_ids: tuple[str, ...]
+    source_mode: ZoneSourceMode
+    primary_temperature_entity_id: str | None
     target_temperature: Decimal
     enabled: bool
+
+    @property
+    def observed_entity_ids(self) -> tuple[str, ...]:
+        """Return sources relevant to the selected zone mode."""
+        if self.source_mode is ZoneSourceMode.PRIMARY:
+            assert self.primary_temperature_entity_id is not None
+            return (self.primary_temperature_entity_id,)
+        return self.temperature_entity_ids
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +86,8 @@ class CircuitConfig:
     circuit_id: UUID
     setpoint_entity_id: str
     outdoor_entity_id: str
+    aggregation: AggregationMode
+    groups: tuple[GroupConfig, ...]
     zones: tuple[ZoneConfig, ...]
     enabled: bool
 
@@ -71,6 +107,7 @@ class InstallationConfig:
     """Validated immutable snapshot read from ConfigEntry.data."""
 
     installation_id: UUID
+    name: str
     schema_version: int
     co: CircuitConfig | None
     dhw: DhwConfig | None
@@ -81,9 +118,9 @@ class InstallationConfig:
         ids: list[str] = []
         if self.co:
             ids.extend((self.co.setpoint_entity_id, self.co.outdoor_entity_id))
-            ids.extend(
-                zone.temperature_entity_id for zone in self.co.zones if zone.enabled
-            )
+            for zone in self.co.zones:
+                if zone.enabled:
+                    ids.extend(zone.temperature_entity_ids)
         if self.dhw:
             ids.extend((self.dhw.setpoint_entity_id, self.dhw.enable_entity_id))
         return tuple(dict.fromkeys(ids))
@@ -142,6 +179,33 @@ def _bool(value: object, name: str) -> bool:
     return value
 
 
+def _name(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigurationError(f"{name} must not be empty")
+    return value.strip()
+
+
+def _optional_name(value: object, name: str) -> str | None:
+    if value is None:
+        return None
+    return _name(value, name)
+
+
+def _optional_uuid(value: object, name: str) -> UUID | None:
+    if value is None:
+        return None
+    return _uuid(value, name)
+
+
+def _enum(value: object, enum: type[StrEnum], name: str) -> StrEnum:
+    if not isinstance(value, str):
+        raise ConfigurationError(f"{name} has an unsupported value")
+    try:
+        return enum(value)
+    except ValueError as err:
+        raise ConfigurationError(f"{name} has an unsupported value") from err
+
+
 def _entity(value: object, domain: str, name: str) -> str:
     if (
         not isinstance(value, str)
@@ -168,13 +232,39 @@ def _target(value: object, name: str) -> Decimal:
 
 def _zone(value: object, index: int) -> ZoneConfig:
     data = _mapping(value, f"co.zones[{index}]")
+    sensors_value = data.get("temperature_entity_ids")
+    if not isinstance(sensors_value, list) or not sensors_value:
+        raise ConfigurationError(
+            f"co.zones[{index}].temperature_entity_ids must be a non-empty list"
+        )
+    sensors = tuple(
+        _entity(sensor, "sensor", f"co.zones[{index}].temperature_entity_ids")
+        for sensor in sensors_value
+    )
+    if len(sensors) != len(set(sensors)):
+        raise ConfigurationError(
+            f"co.zones[{index}].temperature_entity_ids must be unique"
+        )
+    source_mode = _enum(
+        data.get("source_mode"), ZoneSourceMode, f"co.zones[{index}].source_mode"
+    )
+    assert isinstance(source_mode, ZoneSourceMode)
+    primary = data.get("primary_temperature_entity_id")
+    if primary is not None:
+        primary = _entity(
+            primary, "sensor", f"co.zones[{index}].primary_temperature_entity_id"
+        )
+    if source_mode is ZoneSourceMode.PRIMARY and primary not in sensors:
+        raise ConfigurationError(
+            f"co.zones[{index}].primary_temperature_entity_id must belong to the zone"
+        )
     return ZoneConfig(
         zone_id=_uuid(data.get("zone_id"), f"co.zones[{index}].zone_id"),
-        temperature_entity_id=_entity(
-            data.get("temperature_entity_id"),
-            "sensor",
-            f"co.zones[{index}].temperature_entity_id",
-        ),
+        name=_optional_name(data.get("name"), f"co.zones[{index}].name"),
+        group_id=_optional_uuid(data.get("group_id"), f"co.zones[{index}].group_id"),
+        temperature_entity_ids=sensors,
+        source_mode=source_mode,
+        primary_temperature_entity_id=primary,
         target_temperature=_target(
             data.get("target_temperature"),
             f"co.zones[{index}].target_temperature",
@@ -189,11 +279,32 @@ def _co(value: object) -> CircuitConfig:
     if not isinstance(zones_value, list):
         raise ConfigurationError("co.zones must be a list")
     zones = tuple(_zone(zone, index) for index, zone in enumerate(zones_value))
-    if not any(zone.enabled for zone in zones):
+    enabled = _bool(data.get("enabled", True), "co.enabled")
+    if enabled and not any(zone.enabled for zone in zones):
         raise ConfigurationError("co requires at least one active zone")
     ids = [zone.zone_id for zone in zones]
     if len(ids) != len(set(ids)):
         raise ConfigurationError("co zone_id values must be unique")
+    groups_value = data.get("groups", [])
+    if not isinstance(groups_value, list):
+        raise ConfigurationError("co.groups must be a list")
+    groups = tuple(
+        GroupConfig(
+            group_id=_uuid(group.get("group_id"), f"co.groups[{index}].group_id"),
+            name=_name(group.get("name"), f"co.groups[{index}].name"),
+        )
+        for index, raw_group in enumerate(groups_value)
+        for group in (_mapping(raw_group, f"co.groups[{index}]"),)
+    )
+    group_ids = [group.group_id for group in groups]
+    if len(group_ids) != len(set(group_ids)):
+        raise ConfigurationError("co group_id values must be unique")
+    if any(zone.group_id not in set(group_ids) for zone in zones if zone.group_id):
+        raise ConfigurationError("zone references an unknown group_id")
+    aggregation = _enum(
+        data.get("aggregation", "mean"), AggregationMode, "co.aggregation"
+    )
+    assert isinstance(aggregation, AggregationMode)
     return CircuitConfig(
         circuit_id=_uuid(data.get("circuit_id"), "co.circuit_id"),
         setpoint_entity_id=_entity(
@@ -202,8 +313,10 @@ def _co(value: object) -> CircuitConfig:
         outdoor_entity_id=_entity(
             data.get("outdoor_entity_id"), "sensor", "co.outdoor_entity_id"
         ),
+        aggregation=aggregation,
+        groups=groups,
         zones=zones,
-        enabled=_bool(data.get("enabled", True), "co.enabled"),
+        enabled=enabled,
     )
 
 
@@ -224,7 +337,11 @@ def _dhw(value: object) -> DhwConfig:
 def parse_config(data: Mapping[str, Any]) -> InstallationConfig:
     """Parse ConfigEntry JSON into a typed snapshot without changing the entry."""
     schema_version = data.get("schema_version")
-    if schema_version != CONFIG_SCHEMA_VERSION:
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version != CONFIG_SCHEMA_VERSION
+    ):
         raise ConfigurationError(f"unsupported schema_version: {schema_version}")
     co = _co(data["co"]) if "co" in data else None
     dhw = _dhw(data["dhw"]) if "dhw" in data else None
@@ -232,6 +349,7 @@ def parse_config(data: Mapping[str, Any]) -> InstallationConfig:
         raise ConfigurationError("at least one of co or dhw must be configured")
     return InstallationConfig(
         installation_id=_uuid(data.get("installation_id"), "installation_id"),
+        name=_name(data.get("name"), "name"),
         schema_version=schema_version,
         co=co,
         dhw=dhw,
@@ -307,14 +425,15 @@ def refresh_readiness(hass: HomeAssistant, runtime: HeatPumpSteeringRuntime) -> 
                 hass.states.get(co.outdoor_entity_id), co.outdoor_entity_id
             ),
         ]
-        reasons.extend(
-            _temperature_reason(
-                hass.states.get(zone.temperature_entity_id),
-                zone.temperature_entity_id,
-            )
-            for zone in co.zones
-            if zone.enabled
-        )
+        for zone in co.zones:
+            if not zone.enabled:
+                continue
+            source_reasons = [
+                _temperature_reason(hass.states.get(entity_id), entity_id)
+                for entity_id in zone.observed_entity_ids
+            ]
+            if all(source_reasons):
+                reasons.extend(source_reasons)
         runtime.co.readiness = _readiness(reasons, co.enabled)
     if (dhw := runtime.config.dhw) and runtime.dhw:
         runtime.dhw.readiness = _readiness(
