@@ -8,7 +8,9 @@
 3. Przeczytaj [workflow](docs/development/workflow.md), [standardy](docs/development/standards.md)
    i opis swojej roli w [indeksie środowiska](docs/development/README.md).
 4. Przed implementacją wymagany jest przejrzany projekt techniczny.
-   Najbliższe zadanie: [brief Tech Leada](docs/development/technical-design-brief.md).
+   PR #36 jest scalony; właściciel zlecił krok 3. Aktualne zadanie:
+   [przekazania I00 → I01](docs/development/handoffs/README.md).
+   [Brief projektu](docs/development/technical-design-brief.md) pozostaje historią wejścia.
 
 ## Granice i źródła prawdy
 

@@ -34,11 +34,19 @@ dopuszczalny punkt wewnątrz zakresu. W obserwacji pokazujemy propozycję bez za
 Nie zmieniamy dotychczasowych początkowych A/B/Tref z product.md; korekta P10
 dotyczy zachowania na granicy zakresu.
 
-## Co pozostaje przed implementacją
+## Przejście do wykonania po scaleniu projektu
 
-- Przegląd całego projektu dla wskazanego SHA przez właściciela i Reviewera.
-- T08: zgodny plugin/fixtures dla obu przyjętych wersji HA, bez obchodzenia pinów.
-- Zatwierdzony SHA i dowody przeglądu w przekazaniu Developerowi.
+Właściciel scalił PR #36 jako e27621281d119f802e263d427ef9b9d36f6a135e i
+jawnie zlecił przejście do kroku 3. Zapis tej dyspozycji i jawny brak niezależnego
+review są w [indeksie przekazań](../development/handoffs/README.md).
+Historyczna uwaga o oczekiwaniu na przegląd w tabeli P12 dotyczy stanu przed
+scaleniem; nie otwiera ponownie decyzji P12.
+
+- T08: [zlecenie I00](../development/handoffs/i00-ha-test-tooling.md) przygotowuje
+  zgodne plugin/fixtures obu wersji HA, bez obchodzenia pinów.
+- Kod produktu I01 rusza po dowodach i scaleniu I00; jego rzeczywisty SHA wejściowy
+  zostanie dopisany do [przekazania](../development/handoffs/i01-ha-foundation.md).
+- Nie ma niezależnego review PR #36; nie przypisujemy autorowi takiej roli.
 
 P01–P12 nie są już otwartymi pytaniami produktowymi. Nie uruchomiono kodowania,
 merge, wydania ani deploy. Przyszłe F01/prognozy/dwa CO pozostają poza zakresem.

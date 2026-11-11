@@ -3,7 +3,8 @@
 D101 (P12): przyjęta domena `heat_pump_steering`.
 T01/T03: minimum HA Core 2026.10.4, bieżący cel macierzy 2026.11.1.
 Ograniczona macierz zmniejsza koszt testowania nowego produktu; starsze wersje
-nie są deklarowane jako wspierane. Cały projekt nadal oczekuje przeglądu.
+nie są deklarowane jako wspierane. Po scaleniu PR #36 właściciel zlecił krok 3;
+konkretne zakresy są w [przekazaniach](../development/handoffs/README.md).
 Python narzędzi bootstrap nie wyznacza minimum produktu.
 
 ## Odczyt źródeł 11 listopada 2026
@@ -35,7 +36,7 @@ gwarancją zgodności. Odczyt kodu nie oznacza uruchomionego testu.
 | current | zgodny patch >=3.14.2 | 2026.11.1 | Brak zgodnego wydania w odczytanej liście; blokada T08 |
 | frontend | przypięty Node LTS wybrany z lockfile w PR UI | oba HA | Build/unit/browser; obecnie plan |
 
-T08: przed pierwszym kodem należy uzyskać zgodny plugin dla 2026.11.1
+T08: przed pierwszym kodem produktu należy uzyskać zgodny plugin dla 2026.11.1
 albo przygotować i przejrzeć wersjonowany pakiet fixtures z odpowiadającego Core
 na licencji Apache-2.0. Preferowany plugin upstream; drugi wariant zwiększa koszt
 utrzymania. Nie instalować 2026.11.1 przez nadpisanie zależności pluginu 0.13.375,
@@ -119,3 +120,16 @@ frontend/http/websocket_api dla dostarczanego UI przez standardowy mechanizm HA.
 Recorder pozostaje opcjonalnym źródłem historii; bez niego budowa okien
 z raportów live i jawna niepełność. Nie deklarować zależności wymuszającej
 instalację nowej bazy ani uruchamianie transportu urządzeń.
+
+## Zlecenie rozwiązania T08 po scaleniu projektu
+
+[I00](../development/handoffs/i00-ha-test-tooling.md) oddziela przygotowanie
+narzędzi od I01. Odczyt 11 listopada 2026: najnowsze wydanie pluginu to nadal
+0.13.375 (commit f353decb02e28313f1aeeb316a71053f93c76abd); gałąź domyślna
+master, commit a5d0326f2bff12642358a2296807c7dd8067cdbc, również wskazuje 2026.10.4.
+Wybrana alternatywa dla current: odtwarzalnie generowany pakiet fixtures z
+przypiętego Core 2026.11.1, z poprawnymi metadanymi i licencjami, jeśli nadal
+nie ma zgodnego wydania upstream. Nie jest to nadpisanie zależności zainstalowanego
+pluginu 0.13.375. Generator upstream bez adaptacji wybiera latest — build I00
+musi przyjmować konkretny commit. Ta dokumentacja nie wykonała builda/smoke testów;
+T08 kończy dopiero wynik obu środowisk dla SHA I00.
