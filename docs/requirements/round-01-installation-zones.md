@@ -58,3 +58,7 @@ To scenariusze do wdrożenia i weryfikacji w przyszłości, nie testy działają
 - Model encji/API, kompatybilność, migracja i wydania.
 
 Powiązania: [US01](user-stories.md#us01), [US03](user-stories.md#us03), [US05](user-stories.md#us05), [US09](user-stories.md#us09), [US10](user-stories.md#us10), [US15](user-stories.md#us15), [US16](user-stories.md#us16). Decyzje D17–D23 w [rejestrze](decisions.md).
+
+## Aktualizacja po rundzie 6
+
+Wymagane minimum nastawy CO1/outdoor/stref dotyczy modułu CO. [Runda 6](round-06-architecture.md) dopuszcza samo CWU bez tych wejść. Pierwsze wydanie ma maksymalnie jeden CO i jedno CWU; architektura przewiduje przyszłe dwa CO z niezależnymi nastawami i demandami. Nadal blokujemy współdzielenie wyjść wykonawczych.

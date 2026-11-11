@@ -1,6 +1,6 @@
 # User stories
 
-Baza v0.6 z 11 listopada 2026, obejmująca rundy 1–5. Treść poniżej zawiera kryteria akceptacji; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md) · [Scenariusze odbioru — runda 5](round-05-acceptance.md).
+Baza v0.7 z 11 listopada 2026, obejmująca rundy 1–6. Treść poniżej zawiera kryteria akceptacji; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md) · [Scenariusze odbioru — runda 5](round-05-acceptance.md).
 
 <a id="us01"></a>
 
@@ -21,6 +21,9 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Funkcje i okna pomiarów są wspólne dla programu; progi reakcji stref są ustawiane osobno w konfiguracji zaawansowanej.
 - Przy częściowej utracie termometrów strefa działa z pozostałym poprawnym pomiarem i pokazuje liczbę dostępnych źródeł.
 - Skok po zmianie zestawu termometrów sam nie uruchamia zabezpieczenia nagłego spadku.
+
+- Strefa ma trwały identyfikator; zmiana nazwy, grupy i czujnika zachowuje encje i ich powiązania. Usunięcie i ponowne dodanie tworzy nową tożsamość.
+- Zmiana czujnika odbudowuje okna nowego źródła bez mieszania próbek. Zmiana konfiguracji jest walidowana, unieważnia stare polecenia i zachowuje nadal pasujący stan.
 
 ### Do doprecyzowania
 
@@ -45,6 +48,8 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Cel pozostaje zachowany po restarcie i przeładowaniu integracji.
 - Zmiana celu nie usuwa historii pomiarów.
 
+- Aktualizacje zachowują cele, identyfikatory encji i powiązania zgodnie z US08.
+
 ### Do doprecyzowania
 
 - Zakres i krok nastawy pokojowej; reset potwierdzeń po zmianie celu.
@@ -62,7 +67,7 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 ### Wstępne kryteria akceptacji
 
 - Nowa konfiguracja rozpoczyna w obserwacji; obserwowane wyjścia nie otrzymują automatycznych poleceń.
-- Encja nastawy PC jest obowiązkowo wskazywana również dla obserwacji; odczyt służy porównaniu z propozycją algorytmu.
+- Dla włączonego CO encja nastawy PC jest wymagana także w obserwacji. Samo CWU nie wymaga encji CO1.
 - Na dashboardzie są dwa niezależne przełączniki obserwacja/sterowanie: CO i CWU. Aktywacja jednego nie aktywuje drugiego.
 - Przełączniki są poza zbiorczym panelem ustawień CWU; zapis tego panelu nie zmienia trybu obserwacja/sterowanie.
 - W obu trybach widoczne są proponowana decyzja, jej powód i rzeczywisty stan instalacji.
@@ -71,6 +76,9 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Niespełnione warunki i brak danych blokują odpowiednie działania również w trybie aktywnym.
 - Po restarcie odtwarzamy osobno zapisane tryby CO i CWU. Działanie wznawia się po przygotowaniu historii, sprawdzeniu wymaganych danych i bieżącej ocenie.
 - Pierwsza konfiguracja pozostaje w obserwacji. Odbudowa historii nie wydaje poleceń.
+
+- CO i CWU są niezależnie opcjonalne. Ponowne włączenie wyłączonego modułu zaczyna w obserwacji; zwykły restart lub aktualizacja odtwarza zapisany tryb.
+- Wyłączenie/usunięcie integracji zatrzymuje polecenia i ponowienia, pozostawiając ostatni stan urządzeń.
 
 ### Do doprecyzowania
 
@@ -98,6 +106,9 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Diagnostyka pokazuje wysłany zapis, potwierdzenie z niezależnego odczytu, jego brak lub brak możliwości potwierdzenia.
 - Widać utratę pomiarów, odbudowę historii i gotowość okien oraz błąd zapisu po trzeciej nieudanej próbie.
 - Na potwierdzenie zapisu czekamy domyślnie 2 min, z ustawieniem wspólnym dla programu. Późne poprawne potwierdzenie aktualnego polecenia kończy serię przed kolejną próbą.
+
+- Eksport diagnostyki na żądanie przez HA obejmuje wersję, parametry, jakość danych, ostatnie decyzje, blokady i błędy. Nazwy własne i encje są zastąpione spójnymi oznaczeniami; brak sekretów i automatycznego wysyłania.
+- Ostrzeżenie ustępuje po usunięciu przyczyny i spełnieniu warunków powrotu. Oznaczenie jako przeczytane nie kasuje problemu ani blokady; historia zachowuje wystąpienie i ustąpienie.
 
 ### Do doprecyzowania
 
@@ -198,27 +209,30 @@ Scenariusze odbioru [A08, A26, A47, A48, A49](round-05-acceptance.md#scenariusze
 
 <a id="us08"></a>
 
-## US08 — Migracja z POC i możliwość wycofania
+## US08 — Aktualizacje, trwałość danych i możliwość wycofania
 
 Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dyskusja i status: [#15](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/15).
 
-> Jako użytkownik POC chcę przejść do integracji bez dwóch regulatorów sterujących tą samą nastawą.
+> Jako użytkownik chcę aktualizować integrację z zachowaniem ustawień, historii i ciągłości działania oraz znać sposób powrotu do wcześniejszego wydania.
 
 ### Wstępne kryteria akceptacji
 
-- Instrukcja identyfikuje automatykę zapisu CO1 i osobną automatykę auto STOP prototypu.
-- Migracja wymaga usunięcia konfliktu sterowania przed aktywacją produktu.
-- Opisane są stany pozostające w pompie przy wyłączeniu/usunięciu POC i integracji.
-- Zachowane lub jawnie mapowane są cele oraz istotne ustawienia; historia nie jest usuwana.
-- Nowa integracja może zacząć obserwację obok POC bez wysyłania poleceń.
-- Opisany jest powrót do POC bez równoległych aktywnych zapisów.
+- Aktualizacja zachowuje konfigurację, cele, harmonogramy, tożsamość encji, historię pomiarów i decyzji oraz potrzebne stany, timery, nadpisania i ponowienia.
+- Nie powoduje resetu algorytmu, nieplanowanych przełączeń ani zbierania dostępnej historii od zera. Restart oznacza przerwę wykonania, po której następuje poprawna kontynuacja z oceną bieżących danych.
+- Konfiguracja korzysta z mechanizmów HA i migracji; stan z Store, historia z Recordera, bez osobnej bazy danych.
+- Nie usuwamy historii przy aktualizacji. Dostępność starszych pomiarów podlega filtrom i retencji HA; brakujące pomiary pozostają brakami.
+- Każde wydanie określa minimum HA, wersje sprawdzone, zmiany i procedurę powrotu.
+- Starsza wersja przy niezgodnych danych pokazuje błąd bez ich resetowania i uruchamiania sterowania. Instrukcja wskazuje potrzebę odtworzenia właściwej kopii HA.
+- POC jest osobny i nie stanowi warunku instalacji, aktualizacji ani odbioru produktu. Nie tworzymy importera ani obowiązkowej ścieżki migracji POC.
 
 ### Do doprecyzowania
 
-- Migracja ręczna czy importer; przenoszenie historii filtrów i timerów.
-- Dokładna lista wspieranych wersji POC i minimalna wersja HA.
+- Schematy i wersjonowanie konfiguracji/Store, procedury migracji, sprawdzanie zgodności i testy aktualizacji.
+- Minimalna wersja HA i macierz sprawdzanych wersji przed implementacją.
 
-Powiązania: [US03](#us03), [US19](#us19)
+Powiązania: [US02](#us02), [US03](#us03), [US19](#us19)
+
+Scenariusze: A41, A43, A58 oraz B05–B08 w [rundzie 6](round-06-architecture.md).
 
 <a id="us09"></a>
 
@@ -245,6 +259,11 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Przerwę 15 min liczymy od potwierdzonego raportowanego OFF. Po restarcie uwzględniamy upływ przerwy, jeśli odczyt i zapamiętany czas są wiarygodne.
 - ON po przewidywanym otwarciu jednej potrzebującej strefy, po globalnym czasie pracy siłowników domyślnie 3 min i z zachowaniem blokady demandu.
 - Dla OFF o 10:00 i potwierdzonego przekaźnika otwarcia o 10:05 gotowość wypada o 10:08, a ON najwcześniej o 10:15. Zanik zapotrzebowania wcześniej anuluje ON.
+
+- Pierwsze kompletne wydanie developerskie obejmuje CO i strefy, opcjonalne zawory i demand oraz niezależne CWU. Jedna konfiguracja obejmuje jedną pompę, maksymalnie jeden obieg CO i jedno CWU.
+- Architektura przewiduje przyszłe dwa obiegi CO jednej pompy, z osobnymi strefami, nastawami i Demand 1/2, regulowane tymi samymi regułami niezależnie. Funkcja dwóch obiegów pozostaje przyszła.
+- Współdzielenie encji wykonawczej między niezależnymi funkcjami lub konfiguracjami jest blokowane. Czujniki można współdzielić; ostrzegamy o możliwym konflikcie z zewnętrznymi regulatorami bez ich wyłączania.
+- Odłączenie wyjścia pokazuje przed zatwierdzeniem jego stan i ostrzeżenie o pozostawieniu tego stanu; anuluje polecenia i ponowienia.
 
 ### Do doprecyzowania
 
@@ -299,9 +318,11 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Nie wymaga ręcznego tworzenia helperów do podstawowej obsługi celów.
 - Wymaganie uzupełnia US02; nie tworzy drugiego źródła nastaw.
 
+- Gotowa karta i encje do własnych dashboardów są częścią pierwszego wydania; interfejs i komunikaty są w PL/EN. Strojenie pozostaje w osobnym ekranie zaawansowanym.
+
 ### Do doprecyzowania
 
-- Własna karta czy zestaw kart natywnych; reprezentacja celu jako climate lub number.
+- Technologia dostarczanej karty i reprezentacja celu jako climate lub number — projekt techniczny.
 
 Powiązania: [US02](#us02), [US12](#us12), [US15](#us15)
 
@@ -323,6 +344,9 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Ostrzeżenie nieskutecznego zamknięcia wskazuje potrzebę sprawdzenia zaworów i innych źródeł ciepła, bez automatycznej diagnozy usterki.
 - Progi, funkcje i czasy algorytmu są w osobnej konfiguracji zaawansowanej; nie są suwakami codziennego dashboardu.
 - Dashboard pokazuje ograniczoną dostępność termometrów, nieznany stan zaworów, status zapisu, postęp odbudowy historii i braki w oknach.
+
+- Karta produktu dostarcza stan stref, zaworów, pompy, dostępnej mocy/energii i wyjaśnienia decyzji, bez instalacji kart innych autorów.
+- Niedostępność opcjonalnego licznika ogranicza diagnostykę, nie zatrzymuje sprawnego CO ani CWU.
 
 ### Do doprecyzowania
 
@@ -350,9 +374,13 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 - Po restarcie przywracamy ważne nadpisanie albo aktualny przedział. Temperatury respektują zakres urządzenia i jego zabezpieczenia.
 - Dashboard pokazuje bieżący tryb, nastawę i najbliższą zmianę. Włączenie oznacza zezwolenie na podgrzewanie pod kontrolą PC.
 
+- CWU jest niezależnie opcjonalnym modułem pierwszego kompletnego wydania. Może działać bez CO, jego stref i outdoor; niekonfigurowany moduł nie udostępnia swojego panelu i encji.
+- Panel CWU dostarczamy razem z integracją; interfejs, komunikaty i instrukcje instalacji/konfiguracji są w PL/EN.
+- Awaria CWU nie zatrzymuje sprawnego CO; blokujemy tylko zależne działania.
+
 ### Do doprecyzowania
 
-- Opcjonalność modułu, wydanie, inicjalizacja bez wcześniejszej nastawy oraz współpraca z funkcjami higienicznymi.
+- Inicjalizacja bez wcześniejszej nastawy oraz współpraca z funkcjami higienicznymi. Opcjonalność i pierwsze wydanie rozstrzyga runda 6.
 - Techniczne rozpoznawanie zewnętrznych zmian i źródło niezależnego potwierdzenia.
 
 Powiązania: [US14](#us14), [US16](#us16)
@@ -429,8 +457,8 @@ Obszar: [E04](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/6). Dy
 ### Wstępne kryteria akceptacji
 
 - Aktywna strefa wymaga temperatury; regulacja CO1 wymaga bieżącej temperatury zewnętrznej.
-- Encja nastawy PC musi być wskazana już podczas konfiguracji, również dla obserwacji; jej brak uniemożliwia zakończenie konfiguracji.
-- Minimalna konfiguracja zawiera encję nastawy PC, temperaturę zewnętrzną i co najmniej jedną aktywną strefę z termometrem oraz celem.
+- Encja nastawy CO1 musi być wskazana przy konfiguracji modułu CO, również w obserwacji. Sama konfiguracja CWU jej nie wymaga.
+- Minimum modułu CO to nastawa CO1, outdoor i aktywna strefa z termometrem oraz celem. Samo CWU wymaga tylko encji swojego modułu.
 - Zawory i demand wymagają wyjść tylko po włączeniu tych funkcji.
 - Brak opcjonalnego źródła nie blokuje podstawowych funkcji ani nie oznacza wartości zero.
 - Utrata skonfigurowanego źródła jest widoczna wraz z wpływem na działanie.
@@ -440,6 +468,9 @@ Obszar: [E04](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/6). Dy
 - Zakres nastawy czytamy z pompy; użytkownik może go wyłącznie zawęzić. Bieżący outdoor pozostaje wymagany, domyślnie średnia 2 h, konfigurowalna średnia/mediana i okno 30 min–6 h co 30 min.
 - Domyślny limit świeżości to 120 min dla termometrów stref i 30 min dla outdoor, liczony od raportu. Jawnie niedostępny lub niepoprawny odczyt jest utracony od razu.
 - Brak outdoor, nastawy PC albo wiarygodnych limitów wstrzymuje nowe zapisy CO1. Poprawne zawory, demand i CWU działają według własnych źródeł.
+
+- Transport do urządzeń zapewniają integracje źródłowe. Nasz produkt czyta i steruje przez encje HA.
+- Brak opcjonalnego modułu lub urządzenia ogranicza tylko zależne funkcje.
 
 ### Do doprecyzowania
 
@@ -535,9 +566,11 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Scenariusze A01–A59 w rundzie 5 stanowią tabelę odbioru. Limit potwierdzenia 2 min i odstępy prób od wysłania są elementami scenariuszy.
 - Podczas zmiany czasu timery używają rzeczywistego upływu, a harmonogram lokalnej strefy HA.
 
+- POC dostarcza doświadczeń i materiału do testów, ale użytkownik produktu nie musi go znać ani instalować.
+
 ### Do doprecyzowania
 
-- Kontrakty historii, reprezentacja i trwałość pamięci oraz techniczny dowód niezależnego odczytu HiMitII.
+- Szczegółowe kontrakty historii i schematy Store oraz techniczny dowód niezależnego odczytu HiMitII. Podział trwałości danych określa runda 6.
 - Minimalna wersja HA i zachowanie przy cyklach CWU/defrost w ramach odpowiedzialności PC.
 
 Powiązania: [US03](#us03), [US06](#us06), [US08](#us08)
@@ -561,10 +594,11 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Diagnostyka pokazuje wkład i aktywność każdego modułu.
 - Architektura przewiduje przyszłe korekty, w tym prognozy, bez ich implementowania w bieżącej wersji.
 
+- Podział modułów i model danych od początku przewidują niezależne CO/CWU i przyszłe dwa obiegi CO, bez implementowania drugiego obiegu w pierwszym wydaniu.
+
 ### Do doprecyzowania
 
-- Kontrakty modułów, zależności, konfiguracja/migracje i stany gotowości — runda architektury.
-- Zachowanie wyłączonego/niedostępnego modułu przy restarcie i brakach danych — runda awarii.
+- Kontrakty modułów, schematy danych/migracji i techniczna reprezentacja gotowości — projekt techniczny. Zachowanie wyłączania, restartu i niedostępności ustalają rundy 4 i 6.
 
 Powiązania: [US17](#us17), [US18](#us18), [US21](#us21).
 

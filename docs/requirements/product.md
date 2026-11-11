@@ -1,4 +1,4 @@
-# Specyfikacja produktu — projekt v0.6
+# Specyfikacja produktu — projekt v0.7
 
 Stan wymagań: 11 listopada 2026. Uzgodnienia i propozycje rozróżnia [rejestr decyzji](decisions.md). Statusy realizacji znajdują się w [Issues](README.md). Brak implementacji produktu.
 
@@ -12,30 +12,30 @@ PC zachowuje sterowanie sprężarką, defrostem, ochroną urządzenia i pompami 
 
 ## Podstawa i wybór możliwości
 
-Regulacja nastawy temperatury PC jest podstawą produktu. Początkowe preferencje niezależnych modułów zostają doprecyzowane późniejszą decyzją: nie obiecujemy w v1 produktu działającego wyłącznie jako sterownik zaworów bez regulatora PC. Osobny produktowy tryb F01 bez CO1 pozostaje pytaniem.
+CO i CWU są niezależnie wybieranymi modułami: obsługujemy samo CO, samo CWU albo oba. CO obejmuje regulację nastawy wody; nie wprowadzamy osobnego trybu samych zaworów. Konfiguracja tylko CWU nie wymaga stref, outdoor ani encji nastawy CO1. Wymagane są encje sterowania i nastawy CWU. Osobny tryb F01 pozostaje pytaniem przyszłej wersji. Ustalenie rundy 6 zastępuje wcześniejszy wymóg CO1 w każdej konfiguracji.
 
 Dwie niezależne opcje konfiguracji: sterowanie strefami oraz sterowanie demandem. Dopuszczamy wszystkie cztery kombinacje. Bez demandu nie przełączamy ogrzewania ON/OFF, także przez encję obiegu CO1; pompa decyduje o pracy według swoich zasad i nastawy wody.
 
 | Wejście/wyjście | Warunek wymagania |
 | --- | --- |
-| Temperatura wnętrza | Co najmniej jeden czujnik na aktywną strefę |
+| Temperatura wnętrza | Dla CO co najmniej jeden czujnik na aktywną strefę |
 | Cel komfortu | Własny cel każdej aktywnej strefy |
 | Bieżąca temperatura zewnętrzna | Wymagana dla regulacji CO1; sama prognoza jej nie zastępuje |
-| Nastawa PC | Obowiązkowo wskazana już podczas konfiguracji, również dla obserwacji; bez wskazania nie można jej zakończyć |
+| Nastawa CO1 | Wymagana przy konfiguracji modułu CO, także w obserwacji. Nie wymagana dla samego CWU |
 | Wyjścia zaworów | Tylko przy włączeniu sterowania zaworami danej strefy; NC/NO wybierane osobno dla tej strefy |
 | Wyjście demand | Tylko po włączeniu funkcji demand |
 | Prognozy pogody, nasłonecznienia/PV | Odłożone do przyszłej wersji; nie konfigurujemy ani nie używamy w bieżącej |
 | Moc/energia PC, zasilanie i powrót | Opcjonalna diagnostyka |
-| Sterowanie i nastawa CWU | Warunki opcjonalności modułu do uzgodnienia przed aktywacją CWU |
+| Sterowanie i nastawa CWU | Wymagane tylko dla włączonego modułu CWU, także przy konfiguracji bez CO |
 
-Brak opcjonalnego źródła nie oznacza zera ani awarii całego produktu. Niedostępność uprzednio wybranego źródła jest jawna. Szczegółowe progi świeżości i zachowanie awaryjne nie zostały jeszcze zatwierdzone.
+Brak opcjonalnego źródła nie oznacza zera ani awarii całego produktu. Niedostępność uprzednio wybranego źródła jest jawna. Progi świeżości i zachowanie awaryjne określa runda 4. Awaria ogranicza zależne funkcje, nie całą integrację.
 
 ## Model instalacji i stref — ustalenia rundy 1
 
 Pełny zapis uzgodnień i scenariuszy: [runda 1](round-01-installation-zones.md).
 
-- Pierwsza wersja obsługuje jeden wspólny obieg grzewczy i jedną nastawę temperatury wody PC dla wszystkich stref. Wiele niezależnych obiegów nie należy do jej zakresu.
-- Wymagane minimum konfiguracji: wskazana encja nastawy PC, czujnik bieżącej temperatury zewnętrznej oraz co najmniej jedna aktywna strefa z termometrem i celem.
+- Jedna konfiguracja pierwszej wersji developerskiej obejmuje jedną pompę, maksymalnie jeden obieg CO i jedno CWU. Moduły są niezależnie opcjonalne. Architektura od początku przewiduje przyszłe dwa obiegi CO jednej pompy: osobne przypisania stref, nastawy oraz opcjonalne Demand 1 i Demand 2, z tym samym algorytmem działającym niezależnie. Obsługa dwóch obiegów nie jest funkcją pierwszego wydania.
+- Minimum dla modułu CO: wskazana encja nastawy CO1, outdoor oraz co najmniej jedna aktywna strefa z termometrem i celem. Dla samego CWU obowiązują tylko wymagania jego modułu.
 - W obserwacji odczytujemy nastawę PC i porównujemy z propozycją, bez wysyłania zmian. Późniejsza niedostępność encji należy do rundy awarii.
 - Strefy są niezależne. Grupy porządkowe, np. Parter, służą prezentacji; nie mają odrębnych celów, wyjść ani dodatkowego udziału w regulacji.
 - Strefa może mieć jeden lub kilka termometrów: główny albo agregacja, domyślnie średnia. Funkcje i okna są wspólne dla programu; progi reakcji i priorytety są ustawieniami strefy. Reguły liczbowe ustalono w rundzie 3, a zachowanie przy brakach danych w rundzie 4.
@@ -109,7 +109,7 @@ Uzgodnione reguły panelu i harmonogramu oraz przykłady zawiera [runda 5](round
 - Plan korzysta z lokalnej strefy HA. Przeskok zegara stosuje aktualny przedział, a cofnięcie ponawia te same lokalne pola. Zapis do urządzenia wynika z różnicy żądanego i aktualnego stanu. Timery mierzą rzeczywisty czas.
 - CO i CWU mają osobne przełączniki obserwacja/sterowanie poza panelem zbiorczego zapisu. W obserwacji zapis ustawień przygotowuje decyzję.
 - Po restarcie wraca ważne nadpisanie albo aktualny przedział. Włączenie wymaga potwierdzenia docelowej temperatury. Wyłączenie jest niezależne od zapisu temperatury. Częściowe wykonanie uruchamia wspólne ponowienia dla brakującego, nadal potrzebnego polecenia.
-- Opcjonalność i wydanie modułu, inicjalizacja bez wcześniejszej nastawy i współpraca z funkcjami higienicznymi pozostają do dopracowania.
+- CWU jest opcjonalne, może działać bez CO i należy do pierwszego kompletnego wydania developerskiego. Inicjalizacja bez wcześniejszej nastawy i współpraca z funkcjami higienicznymi wymagają projektu technicznego.
 
 ### F07 — prognozy odłożone do przyszłej wersji
 
@@ -144,11 +144,26 @@ Propozycja łączenia timerów: wyłączenie nie wcześniej niż późniejszy z 
 - Czas oczekiwania na potwierdzenie wynosi domyślnie 2 min, wspólnie konfigurowalny dla programu. Spóźnione poprawne potwierdzenie aktualnego polecenia kończy serię przed kolejną próbą.
 - Wspólne ponowienia zapisów obejmują trzy próby łącznie w odstępach 5 min, potem błąd i odstępy 10, 15, 25, 40, 65, 105, 120… min. Licznik osobno dla wyjścia. Kolejna próba wynika z aktualnego żądania. Ponowienie CO1 nie jest kolejnym krokiem zmiany o 1°C.
 - Przy uruchomieniu odbudowujemy pomiary i filtry z dostępnej historii, domyślnie 48 h, oraz odtwarzamy pamięć i tryby. Przed wznowieniem uzgadniamy bieżące dane i stany. Blokady mogą upływać podczas przerwy przy wiarygodnym odczycie. Potwierdzenia temperatury nie liczą czasu bez poprawnej obserwacji.
-- Szczegóły awarii zaworów, demandu, CO1 i CWU opisuje [runda 4](round-04-failures-restarts.md). Ręczna zmiana CO1 poza panelem pozostawia algorytm aktywny i stosuje jego limity. Usunięcie integracji oraz techniczne rozpoznawanie i kontrakty źródeł pozostają na rundę architektury.
+- Szczegóły awarii zaworów, demandu, CO1 i CWU opisuje [runda 4](round-04-failures-restarts.md). Ręczna zmiana CO1 poza panelem pozostawia algorytm aktywny i stosuje jego limity. Wyłączenie/usunięcie zatrzymuje polecenia i ponowienia bez przywracania poprzednich nastaw. Kontrakty źródeł i techniczne rozpoznawanie potwierdzeń wymagają projektu technicznego.
 - Rozróżniamy zezwolenie na grzanie, raport HA, rzeczywistą pracę sprężarki i fizyczne wykonanie polecenia.
 - Dashboard: cele i pomiary, zawory, dostępny stan pompy, moc i energia, jakość danych, filtry/trendy, decyzje, nastawy proponowane/wysłane/potwierdzone, limity i timery.
-- Encje produktu mają umożliwiać także własny dashboard. Nie rozstrzygnięto wyboru climate/number ani konieczności własnej karty. Parametry strojenia i programów są w osobnym oknie konfiguracji zaawansowanej, nie na pierwszym planie dashboardu.
-- Diagnostyka bez sekretów; bez obowiązkowej telemetrii produktu.
+- Pierwsze wydanie dostarcza encje do własnych dashboardów i automatyzacji, gotową kartę produktu, panel CWU oraz osobny ekran konfiguracji zaawansowanej. Karta i panel są dostarczane razem z integracją, bez dodatkowych kart innych autorów. Dokładne platformy encji i technologia frontendu wymagają projektu technicznego.
+- Diagnostyka jest pobierana na żądanie przez standardową funkcję HA. Obejmuje wersję, parametry, jakość danych, ostatnie decyzje, blokady i błędy. Nazwy własne i identyfikatory encji zastępujemy spójnymi oznaczeniami; brak haseł, tokenów i automatycznego wysyłania.
+
+## Architektura i cykl życia — runda 6
+
+Pełny zapis: [runda 6](round-06-architecture.md). Odczyty i polecenia korzystają z encji HA; transport do urządzeń zapewniają ich integracje. Optymistyczna aktualizacja nie jest niezależnym potwierdzeniem.
+
+- Konfiguracja instalacji używa standardowych wpisów konfiguracji HA z migracjami. Harmonogramy, cele i potrzebny stan działania korzystają z wersjonowanego mechanizmu Store. Historia jest w Recorderze, a okna pomiarowe w pamięci odbudowujemy z dostępnej historii. Nie instalujemy dodatkowej bazy danych.
+- Aktualizacja ma zachować konfigurację, cele, harmonogramy, historię pomiarów i decyzji, identyfikatory encji, timery, nadpisania i ponowienia. Nie może powodować nieplanowanych przełączeń ani zbierania historii od zera. Restart przerywa wykonywanie programu, ale po nim odtwarzamy stan i sprawdzamy bieżące dane.
+- Zachowanie historii podlega retencji i filtrom Recordera użytkownika. Aktualizacja nie usuwa danych; nie obiecujemy odtworzenia historii, której HA nie przechował. Braki są jawne.
+- Wyłączenie lub usunięcie integracji zatrzymuje polecenia i ponowienia, pozostawiając ostatni stan urządzeń. Wyłączenie modułu zachowuje jego ustawienia. Jego ponowne włączenie zaczyna w obserwacji; zwykła aktualizacja lub restart przywraca zapisany tryb.
+- Zmiana konfiguracji wymaga walidacji całości zmienianego zakresu, unieważnia nieaktualne polecenia i ponownie ocenia dane. Zachowujemy pasującą historię i pamięć. Zmiana czujnika odbudowuje okna nowego źródła bez mieszania ze starym.
+- Strefy mają trwałe identyfikatory niezależne od nazwy, grupy i czujnika. Zmiany nie zrywają encji, dashboardów i automatyzacji. Usunięcie i ponowne dodanie tej samej nazwy tworzy nową tożsamość.
+- Odłączenie wyjścia lub usunięcie strefy pokazuje przed zatwierdzeniem aktualny stan i ostrzeżenie, że wyjście pozostanie w nim bez dalszego sterowania. Anulujemy jego oczekujące polecenia.
+- Blokujemy współdzielenie encji wykonawczych między niezależnymi funkcjami i konfiguracjami integracji. Czujniki można współdzielić. Nie gwarantujemy wykrycia zewnętrznych regulatorów i nie wyłączamy cudzych automatyzacji; przy aktywacji ostrzegamy o konflikcie.
+- Ustąpienie przyczyny i spełnienie warunków powrotu kasuje aktywne ostrzeżenie automatycznie. Oznaczenie jako przeczytane nie usuwa problemu ani blokady. Historia zachowuje wystąpienie i ustąpienie. Podejrzenie niesprawnego zaworu nie jest potwierdzoną diagnozą.
+- Starsze wydanie może wrócić do działania tylko przy zgodnym formacie danych. Przy niezgodności zgłasza błąd bez resetu danych i aktywacji sterowania. Instrukcja wydania określa powrót oraz potrzebę odtworzenia właściwej kopii HA.
 
 ## Codzienna obsługa CO
 
@@ -172,6 +187,8 @@ Pompa wtórna i zapewnienie przepływu zostały przez użytkownika odłożone do
 
 ## Publiczna dystrybucja
 
-Plan: instalacja ręczna i HACS jako custom repository, jedna integracja w repozytorium, PL/EN, wersjonowane wydania, opis kompatybilności i ograniczeń, instrukcje migracji/wycofania. Zgłoszenie do katalogu domyślnego HACS jest późniejszym zadaniem, nie warunkiem rozpoczęcia.
+Pierwsze kompletne wydanie developerskie obejmuje CO i strefy, opcjonalne zawory i demand oraz opcjonalne CWU z harmonogramem. Samo CO, samo CWU i oba moduły muszą działać. Prognozy i skropliny są poza tym wydaniem; skropliny są wstępnie kolejnym etapem.
+
+Dystrybucja: HACS jako custom repository i instalacja ręczna. Wydania testowe, np. 0.1.0-beta.1, są wybierane przez użytkownika. Od pierwszego wydania pełne PL/EN interfejsu, komunikatów i instrukcji instalacji/konfiguracji. Zgłoszenie do domyślnego katalogu HACS po stabilizacji. Każde wydanie określa minimum HA, sprawdzone wersje, zmiany i sposób powrotu. POC jest osobnym projektem, bez importera ani wymaganej ścieżki migracji dla użytkownika produktu.
 
 Domena techniczna, minimalna wersja HA i kontrakty encji zostaną ustalone przed pierwszym kodem. Kandydat domeny: heat_pump_steering. Nie ustalamy jeszcze usług ani schematów API, których zachowanie nie jest uzgodnione.

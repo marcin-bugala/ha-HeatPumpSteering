@@ -1,6 +1,6 @@
 # Wymagania HA HeatPumpSteering
 
-Wersja dokumentacji 0.6 z 11 listopada 2026 obejmuje rundy 1–5 i tabelę scenariuszy odbioru. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
+Wersja dokumentacji 0.7 z 11 listopada 2026 obejmuje rundy 1–6, scenariusze odbioru oraz decyzje architektury i wydań. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
 
 ## Dokumenty
 
@@ -15,6 +15,8 @@ Wersja dokumentacji 0.6 z 11 listopada 2026 obejmuje rundy 1–5 i tabelę scena
 | [Runda 3](round-03-regulation.md) | Pomiary, progi, korekty, demand, ostrzeżenia i modularność. Prognozy odłożone. |
 | [Runda 4](round-04-failures-restarts.md) | Braki danych, zapisy, ponowienia, odtwarzanie historii, timery i CWU po restarcie |
 | [Runda 5](round-05-acceptance.md) | Potwierdzanie zapisów, panel i nadpisania CWU, zmiana czasu, czas pracy siłowników oraz scenariusze A01–A59 |
+
+| [Runda 6](round-06-architecture.md) | Niezależne CO/CWU, trwałość danych, cykl życia, interfejs, diagnostyka i kompletne wydanie developerskie |
 
 ## Źródło prawdy i sposób pracy
 
@@ -62,7 +64,7 @@ Przy utworzeniu bazy wszystkie historie i obszary były do doprecyzowania. Po ko
 | [US05](user-stories.md#us05) | Niezależne ograniczanie grzania przegrzanej strefy | E02 | [#12](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/12) |
 | [US06](user-stories.md#us06) | Odporność na wietrzenie i krótkie zyski ciepła | E01 | [#13](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/13) |
 | [US07](user-stories.md#us07) | Sterowanie ręczne i oddawanie kontroli | E01 | [#14](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/14) |
-| [US08](user-stories.md#us08) | Migracja z POC i możliwość wycofania | E01 | [#15](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/15) |
+| [US08](user-stories.md#us08) | Aktualizacje, trwałość danych i możliwość wycofania | E01 | [#15](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/15) |
 | [US09](user-stories.md#us09) | Niezależny wybór sterowania strefami i demandem | E02 | [#16](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/16) |
 | [US10](user-stories.md#us10) | Konfiguracja siłowników NC i NO | E02 | [#17](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/17) |
 | [US11](user-stories.md#us11) | Dashboard temperatur i celów stref | E02 | [#18](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/18) |
@@ -81,7 +83,7 @@ US02 i US11, US01 i US15 oraz US06 i US19 częściowo się uzupełniają. Zachow
 
 ## Źródła i granice
 
-- Ustalenia właściciela produktu w rozmowach projektu, skonsolidowane do 10 listopada 2026.
+- Ustalenia właściciela produktu w rozmowach projektu, skonsolidowane do 11 listopada 2026.
 - [README POC](https://github.com/marcin-bugala/ha-HeatPumpSteering/blob/poc/co1-automation/README.md) i [projekt prognoz](https://github.com/marcin-bugala/ha-HeatPumpSteering/blob/poc/co1-automation/docs/full-integration-forecast.md).
 - Przegląd źródeł POC: commit `44efb4e39acb888eb3368ce46b735cd37c6f3b72`. Dalszy rozwój POC nie zmienia automatycznie specyfikacji produktu.
 - [Konfiguracja UI HA](https://contributors.home-assistant.io/core/integrations/config-flow/) i [wymagania publikacji HACS](https://www.hacs.xyz/docs/publish/integration/).

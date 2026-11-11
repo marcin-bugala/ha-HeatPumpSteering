@@ -1,6 +1,6 @@
 # Rejestr decyzji i pytań
 
-Stan: 11 listopada 2026, po rundach 1–5. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
+Stan: 11 listopada 2026, po rundach 1–6. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
 
 ## Przyjęte decyzje
 
@@ -9,8 +9,8 @@ Stan: 11 listopada 2026, po rundach 1–5. „Przyjęte” oznacza potwierdzony 
 | D01 | Publiczna custom integration HA, repozytorium ha-HeatPumpSteering, PL/EN i planowana dystrybucja HACS | Produkt, etapy |
 | D02 | main dla produktu; poc/co1-automation dla POC; osobne gałęzie i PR-y do main | US08 |
 | D03 | Produkt uniwersalny przez encje HA; Hisense/HiMitII pierwszy profil referencyjny | US16, US19 |
-| D04 | Pierwsza publiczna wersja testowa: CO1 i strefy; F01 później | Etapy |
-| D05 | Regulacja nastawy PC zawsze podstawą; zawory stref i demand jako dwie niezależne opcje | US09 |
+| D04 — zastąpione przez D76 | Pierwsza publiczna wersja testowa: CO1 i strefy; F01 później | Etapy |
+| D05 — zastąpione przez D69 | Regulacja nastawy PC zawsze podstawą; zawory stref i demand jako dwie niezależne opcje | US09 |
 | D06 | Bez demandu nie przełączamy ogrzewania ON/OFF, także przez encję CO1 | US09, US19 |
 | D07 | Jedna strefa Dom albo wiele stref; każda aktywna wymaga co najmniej termometru i celu | US01, US15 |
 | D08 | Sterownik zaworów wymagany tylko po włączeniu ich sterowania; konfiguracja NC/NO | US05, US10 |
@@ -28,7 +28,7 @@ Stan: 11 listopada 2026, po rundach 1–5. „Przyjęte” oznacza potwierdzony 
 | D20 | Każde wyjście zaworów należy do jednej strefy; wiele wyjść w strefie i przekaźnik grupowy dozwolone | US05, US15 |
 | D21 | NC/NO osobno dla strefy, wspólne dla wszystkich jej wyjść; bez globalnego typu i wyjątków na wyjściach | US10 |
 | D22 — zastąpione przez D31 | Historyczny wybór pola o otwartych pętlach usunięty: nie ma takiego modelu ani pola w programie | US05, US15 |
-| D23 | Encja nastawy PC wymagana już przy konfiguracji obserwacji; minimum także outdoor i aktywna strefa z termometrem/celem | US03, US16 |
+| D23 — zawężone przez D69 | Encja nastawy PC wymagana już przy konfiguracji obserwacji; minimum także outdoor i aktywna strefa z termometrem/celem | US03, US16 |
 | D24 | Osobne przełączniki obserwacja/sterowanie dla CO i CWU | US03 |
 | D25 | Ręczna zmiana celu CO to trwała nastawa konkretnej strefy, także po restarcie; brak harmonogramu CO | US02, US07, US11 |
 | D26 | CWU: Wyłączone, Stałe i Harmonogram; przedział może wyłączać CWU | US13, US14 |
@@ -74,11 +74,34 @@ Stan: 11 listopada 2026, po rundach 1–5. „Przyjęte” oznacza potwierdzony 
 | D66 | Jeden globalny „Czas pracy siłowników”, domyślnie 3 min, obejmuje otwieranie i zamykanie oraz start oceny ostrzeżenia | US05, US09, US10 |
 | D67 | Scenariusze A01–A59 obejmują US01–US21 jako kryteria przyszłego odbioru | Wszystkie historie |
 
+| D68 | Odczyty i polecenia przez encje HA; transport zapewniają integracje urządzeń | US16 |
+| D69 | CO i CWU niezależnie opcjonalne: samo CO, samo CWU lub oba. Wymagania nastawy CO1/outdoor/stref dotyczą wyłącznie CO; zastępuje ogólne D05 i zawęża D23 | US03, US09, US13, US16 |
+| D70 | Pierwsza konfiguracja: jedna pompa, maks. jeden CO i jedno CWU. Architektura przewiduje przyszłe dwa CO z osobnymi strefami, nastawami i Demand 1/2 | US09, US20 |
+| D71 | Konfiguracja HA + Store dla potrzebnego stanu + Recorder dla historii + okna w pamięci; bez dodatkowej bazy | US08, US19 |
+| D72 | Aktualizacja musi zachować dane, tożsamość encji i ciągłość stanu; retencja HA obowiązuje, restart jest przerwą wykonania | US02, US08, US19 |
+| D73 | Wyłączenie/usunięcie zatrzymuje polecenia i ponowienia bez zmiany ostatniego stanu urządzeń | US03, US09 |
+| D74 | Ponowne włączenie modułu zachowuje ustawienia, lecz zaczyna w obserwacji. Restart/aktualizacja przywraca zapisany tryb | US03 |
+| D75 | POC osobny, bez wymaganego importera i migracji produktu; doświadczenia są materiałem testowym | US08, US19 |
+| D76 | Pierwsze kompletne wydanie developerskie: CO, strefy, opcjonalne zawory/demand i CWU z planem. Zastępuje etapowy zakres D04 | US09, US13, etapy |
+| D77 | Prognozy i skropliny później; skropliny wstępnie kolejne. Odbiór wymaga testów, wyników na instalacji i jawnego zakresu symulacji | US19, US21, E05 |
+| D78 | HACS custom repo i ręcznie, wersje testowe wybierane przez użytkownika; domyślny katalog po stabilizacji | Etapy |
+| D79 | Pełny interfejs/komunikaty i instrukcje instalacji/konfiguracji PL/EN od pierwszego wydania | US11–US14 |
+| D80 | Minimum HA ustalimy przed implementacją; wydanie podaje minimum, sprawdzone wersje i jawne podniesienia wymagań | US08 |
+| D81 | Encje do własnych dashboardów, karta, panel CWU i osobna konfiguracja zaawansowana dostarczane razem z produktem | US11–US14 |
+| D82 | Eksport diagnostyki na żądanie z anonimizacją nazw/encji, bez sekretów i automatycznej wysyłki | US04, US12 |
+| D83 | Ostrzeżenie ustępuje po przyczynie i warunkach powrotu; przeczytanie nie usuwa problemu/blokady. Zachowujemy historię wystąpienia/ustąpienia | US04, US05 |
+| D84 | Walidacja zmienianej konfiguracji, anulowanie nieaktualnych poleceń, zachowanie pasujących danych i odbudowa okien nowego czujnika | US01, US16 |
+| D85 | Trwała tożsamość stref niezależna od nazwy/grupy/czujnika; usunięcie i ponowne dodanie tworzy nową | US01, US02 |
+| D86 | Przed odłączeniem wyjścia/usunięciem strefy pokazujemy stan i ostrzeżenie o pozostawieniu; anulujemy polecenia | US01, US09 |
+| D87 | Blokada współdzielenia encji wykonawczych między funkcjami/konfiguracjami; czujniki mogą być wspólne. Wycofano propozycję zaworu współdzielonego | US09, US15 |
+| D88 | Awaria ogranicza działania zależne, sprawne moduły pozostają aktywne | US12, US13, US16 |
+| D89 | Powrót tylko ze zgodnymi danymi; niezgodność daje błąd bez resetu/sterowania, instrukcja wymaga właściwej kopii HA | US08 |
+
 D24–D30 uzgodniono w [rundzie 2](round-02-daily-operation.md) 10 listopada 2026. D26 rozszerza D13 o jawny tryb Wyłączone; D27–D28 odrzucają błędną interpretację, że harmonogram blokuje ręczne włączenie. D29 dotyczy spójności zapisu ustawień, nie transakcji sprzętowej pompy.
 
 Decyzje D17–D23 przyjęto 10 listopada 2026 w [rundzie 1](round-01-installation-zones.md), aktualizacja w [PR #27](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/27). D21 doprecyzowuje D08; nie przyjęto proponowanego wariantu globalnego NC/NO z wyjątkami na wyjściach.
 
-Wczesne propozycje zaworów na całych rozdzielaczach, 16 siłowników NO i dokładnej krzywej producenta nie są aktualną konfiguracją referencyjną. Wczesna deklaracja pełnej niezależności modułów wymaga doprecyzowania w świetle późniejszego wymogu stałej podstawy CO1.
+Wczesne propozycje zaworów na całych rozdzielaczach, 16 siłowników NO i dokładnej krzywej producenta nie są aktualną konfiguracją referencyjną. D69 ustala niezależność CO/CWU; wymóg nastawy CO1 obowiązuje tylko przy module CO.
 
 ## Domyślne parametry przyjęte w rundzie 3
 
@@ -96,12 +119,12 @@ Nadal propozycjami pozostają domena heat_pump_steering, szczegóły F01 i archi
 | Q04 — doprecyzowane | D49 rozróżnia wszystkie strefy zamknięte i utratę temperatur wszystkich stref. Reguły ważenia pozostają w rundzie 3 | US17–US19 |
 | Q05 — doprecyzowane | Reguły braków danych, gotowości i restartów są w rundzie 4. Pozostaje sposób pozyskania i oceny historii źródeł | US05, US16, US19 |
 | Q06 — doprecyzowane | Ręczne zmiany CO1 i CWU, zapis panelu oraz nadpisanie bez następnej zmiany określono w rundzie 5. Pozostają źródła wykrywania i ręczny demand | US07, US13, US14 |
-| Q07 — doprecyzowane | Panel, nadpisania, zmiana czasu i restart ustalone. Pozostają wydanie, opcjonalność, inicjalizacja i higiena | US13, US14 |
+| Q07 — doprecyzowane | Panel, nadpisania, zmiana czasu i restart ustalone. D69 i D76 rozstrzygają opcjonalność i wydanie; pozostają inicjalizacja i higiena | US13, US14 |
 | Q08 — doprecyzowane | D51 i D55 ustalają raportowany OFF oraz odtworzenie blokady. Pozostają profil/polaryzacja i techniczny dowód raportu | US09 |
 | Q09 — doprecyzowane | Domyślne potwierdzenie 2 min i polityka ponowień przyjęte. Pozostaje techniczne źródło niezależnego odczytu | US04, US17, US19 |
 | Q10 — odłożone | Brak prognoz w bieżącej wersji. Algorytm/adaptery, jakość, archiwizacja i uczenie wrócą przed przyszłym wydaniem | US21 |
-| Q11 — częściowo rozstrzygnięte | D29–D30: wspólny zapis panelu CWU i potwierdzenie odrzucenia. Technologia UI, encje, historia i eksport nadal otwarte | US04, US11–US14 |
-| Q12 | Minimalna wersja HA, domena, obsługiwane wersje integracji źródłowych i migracja | US08, US19 |
+| Q11 — częściowo rozstrzygnięte | D29–D30: wspólny zapis panelu CWU i potwierdzenie odrzucenia. D71, D81 i D82 ustalają historię, dostarczenie UI i eksport; technologia oraz platformy encji wymagają projektu | US04, US11–US14 |
+| Q12 — doprecyzowane | D71–D80 i D89 ustalają trwałość, aktualizacje i wycofanie. Minimum HA, domena i macierz zgodności pozostają do projektu technicznego | US08, US19 |
 | Q13 | Czy F01 może działać samodzielnie, bez konfiguracji regulatora CO1? | E05 |
 | Q14 | Kalibracja F01, faktyczna praca PC, temperatura/histereza, powrót i awarie | E05 |
 
@@ -109,7 +132,7 @@ Otwarte pytania nie są poleceniem dobrania domyślnych wartości podczas implem
 
 ## Rozstrzygnięcia rundy 1
 
-Nie ma już otwartego pytania o dopuszczenie konfiguracji bez encji nastawy PC: D23 wymaga jej wskazania również dla obserwacji. Późniejsza niedostępność źródła jest innym zagadnieniem, do rundy awarii. Zamknięcie rundy modelu nie oznacza zakończenia wszystkich powiązanych user stories.
+D23 wymaga nastawy CO1 również dla obserwacji modułu CO; D69 w rundzie 6 dopuszcza konfigurację tylko CWU bez encji CO1. Późniejsza niedostępność źródła jest innym zagadnieniem, do rundy awarii. Zamknięcie rundy modelu nie oznacza zakończenia wszystkich powiązanych user stories.
 
 ## Rozstrzygnięcia rundy 2
 
@@ -130,6 +153,10 @@ D46–D59 zapisano w [rundzie 4](round-04-failures-restarts.md). Polityka trzech
 ## Rozstrzygnięcia rundy 5
 
 D60–D67 przyjęto 11 listopada 2026. [Zapis i tabela odbioru](round-05-acceptance.md) doprecyzowują panel CWU, pierwszeństwo zapisu harmonogramu oraz nadpisania zewnętrzne. Zastąpiona jest propozycja osobnego czasu zamykania. Wspólny parametr obejmuje oba kierunki ruchu.
+
+## Rozstrzygnięcia rundy 6
+
+D68–D89 przyjęto 11 listopada 2026. [Pełny zapis i kryteria B01–B13](round-06-architecture.md). Runda zamknięta na poziomie produktu; projekt techniczny nadal wymagany przed kodowaniem. CWU może działać bez CO, a kompletne pierwsze wydanie obejmuje opcjonalny demand i CWU. POC nie jest wymogiem użytkownika produktu. Wycofana propozycja współdzielenia zaworu nie obowiązuje; obowiązuje blokada.
 
 ## Jak aktualizować
 
