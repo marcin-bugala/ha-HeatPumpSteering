@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import json
 from collections.abc import Callable
+from pathlib import Path
 from uuid import UUID
 
 import pytest
@@ -13,6 +15,17 @@ from homeassistant.core import HomeAssistant
 from custom_components.heat_pump_steering.models import ModuleMode
 
 from .conftest import INSTALLATION_ID, entry_data, set_number
+
+
+def test_i01_does_not_advertise_incomplete_user_flow() -> None:
+    """The required version platform must not expose a creator before I02."""
+    manifest = json.loads(
+        (
+            Path(__file__).parents[2]
+            / "custom_components/heat_pump_steering/manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert "config_flow" not in manifest
 
 
 @pytest.mark.parametrize(
