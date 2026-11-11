@@ -2,7 +2,10 @@
 
 Po scaleniu PR #36 i jawnej dyspozycji właściciela przejścia do kroku 3
 konkretne zlecenia określa [indeks przekazań](../development/handoffs/README.md).
-Najpierw I00 domyka T08, potem I01; pozostałe pakiety wymagają osobnego handoffu.
+I00/I01 scalono razem w PR #38; aktualny handoff to
+[I02](../development/handoffs/i02-installation-model.md) na main 552ea42.
+[Dowody](../development/handoffs/i00-i01-verification.md) potwierdzają CI i ujawniają
+brak formalnego review. Dalsze pakiety wymagają osobnego handoffu.
 Baza analizy main: 6891b473a646c3d9e0783edf6cd437eb27a9b758.
 Gałęzie każdego pakietu od aktualnego origin/main po scaleniu zależności.
 Każdy PR do main, bez auto-merge, deploy i automatycznego zamykania US.
@@ -16,8 +19,8 @@ w indeksie przekazań. Nie utożsamiamy samego merge z wynikiem testu produktu.
 
 Podstawa przejścia do wykonania i brak niezależnego review są zapisane
 w indeksie przekazań; decyzję właściciela wiążemy z konkretną bazą SHA.
-Przed kodem produktu I01 wymagane rozwiązanie T08 w I00. I00 jako zadanie
-narzędziowe nie wymaga wyniku samego siebie przed rozpoczęciem.
+T08 ma dowód rozwiązania w I00; I01 ma pełny CI w PR #38 i na main.
+Dla I02 obowiązuje baza 552ea42 i warunki nowego handoffu, bez ponawiania I00/I01.
 Tech Lead wpisuje zatwierdzony SHA oraz link odpowiedzi właściciela w handoff.
 Treść wymagań i powiązanych Issues zsynchronizowana; bez nowych statusów w docs.
 Developer odświeża main, czyta Issue z komentarzami, sprawdza instrukcje i
@@ -30,7 +33,7 @@ Nie wystarcza samo zielone CI dokumentacji.
 | --- | --- | --- | --- | --- |
 | I00 chore/ha-test-matrix | Zgodne środowiska i fixtures minimum/current, realne smoke tests oraz odtwarzalny pakiet current, bez custom_components | US08/16/20; #15 #23 #29; D80,D101; przygotowanie A/B/C | Przyjęty projekt i T08 jako zakres do rozwiązania | Oba środowiska i pip check PASS, licencje/źródła sprawdzone; Reviewer → Tester → Tech Lead |
 | I01 feat/10-ha-foundation | Rzeczywisty manifest, ConfigEntry/runtime, minimum i macierz CI; setup/unload i observation na poprawnych wpisach, użytkowy config_flow w I02 | US03/08/16/20; #10 #15 #23 #29; D09,D68–D71,D80; A02,A08; B01,B02,B04 | Przyjęty projekt/P12, scalone I00 z dowodami T08 | Prawdziwe testy HA na obu wersjach; mock dowodzi braku usług w observation; hassfest. Reviewer → Tester |
-| I02 feat/8-installation-model | Typy i walidacja jednej pompy/jednego CO/CWU, stref/grup, trwałe UUID, bez wykonawcy | US01/09/15; #8 #16 #22; D07,D17–D21,D69–D70,D85; A01,A03–A05; B01,B02,B06 | I01; P07/P12 | UI konfiguruje samo CO/samo CWU/oba; brak pustych modułów i nowych ID przy rename; Reviewer |
+| I02 feat/8-installation-model | [Konkretny handoff](../development/handoffs/i02-installation-model.md): user/reconfigure, nazwy/grupy/listy sensorów, trwałe UUID i migracja wpisów I01, bez wykonawcy | US01/09/15; #8 #16 #22; D07,D17–D21,D69–D70,D85; A01,A03–A05; B01,B02,B06 | I01; P07/P12 | UI konfiguruje samo CO/samo CWU/oba; brak pustych modułów i nowych ID przy rename; Reviewer |
 | I03 feat/16-output-ownership | Atomowe rezerwacje między wpisami, ostrzeżenia odłączenia, binding registry_id i rename źródła | US01/09/16; #8 #16 #23; D84–D87; A04; B04,B06,B09,B10 | I02; P04 | Dwa równoczesne flow nie współdzielą wyjścia; odłączenie niczego nie przełącza; Reviewer → Tester |
 | I04 feat/15-versioned-store | Store v1, cele/tryby, walidacja payload, protokół rewizji ConfigEntry/Store i odmowa niezgodności | US02/08/19; #9 #15 #26; D25,D54,D71–D72,D89; A07,A43; B05–B07 | I02; P07 | Restart zachowuje UUID i ustawienia; błąd zapisu i crash granicy nie resetują; Reviewer |
 | I05 feat/23-source-quality | Adaptery wartości, jednostek, świeżości, raportów changed/reported; bez historii i usług | US01/16; #8 #23; D46–D47,D50,D68; A30,A32,A35 | I02; P08 | Jednakowy raport odświeża tylko HA freshness; NaN/unknown/unavailable nigdy 0; Tester |
@@ -78,17 +81,20 @@ Scalenie dokumentacji lub części kodu nie zamyka US pełnego zakresu.
 
 ## Konkretne przekazania po scaleniu projektu
 
-- [I00 — narzędzia testowe HA](../development/handoffs/i00-ha-test-tooling.md):
-  bieżący zakres Developera, domyka techniczną zależność T08 bez kodu integracji.
-- [I01 — fundament integracji](../development/handoffs/i01-ha-foundation.md):
-  kompletny kontrakt następnego małego PR; start po wynikach i scaleniu I00.
-- [Indeks](../development/handoffs/README.md) zapisuje bazę e276212 i dyspozycję
-  właściciela przejścia do kroku 3. Commit wykonawczy I01 będzie aktualnym main po I00.
+- [Weryfikacja I00/I01](../development/handoffs/i00-i01-verification.md):
+  oba pakiety scalono w PR #38, commit main 552ea427086786e3b3411d95ed0305dc35ba80c0.
+- [I02](../development/handoffs/i02-installation-model.md):
+  aktualny zakres Developera; model/config_flow/reconfigure/migracja, bez wykonawcy.
+- [Pierwotny I00](../development/handoffs/i00-ha-test-tooling.md) i
+  [I01](../development/handoffs/i01-ha-foundation.md) pozostają historią kontraktu;
+  nie uruchamiać ich ponownie. Zmianę drogi current i wspólny PR opisuje raport.
+- I03 nadal obejmuje pełną własność/registry binding wyjść. I02 musi jedynie
+  zachować D87 dla podstawowych wyjść już konfigurowanych przez jego kreator.
 
-Doprecyzowanie podziału: I01 nie dodaje pustego config_flow. Testuje prawdziwy
-setup/unload na poprawnych ConfigEntry; I02 dodaje użytkowy kreator i model stref.
-Nie zmienia to docelowego działania produktu ani pierwszego kompletnego wydania.
-Reviewer/Tester otrzymują rzeczywiste SHA i wyniki; żaden handoff nie wykonuje merge.
+I02 doprecyzowuje realną migrację z uproszczonego modelu I01 do rozszerzonego
+modelu stref. Bieżący cel w ConfigEntry jest wartością bootstrap odziedziczoną
+po I01; Store pozostaje I04, bez równoległej kopii celu w options.
+Nie zmienia to docelowego działania ani zakresu pierwszego kompletnego wydania.
 
 C01–C13 w verification.md uzupełniają testy pakietów I01–I18: C01/C02 I10–I11,
 C03/C06 I14–I15, C04 I13, C05 I03/I12, C07 I14/I17/I18, C08 I04/I07/I16,

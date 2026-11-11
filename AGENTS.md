@@ -8,8 +8,10 @@
 3. Przeczytaj [workflow](docs/development/workflow.md), [standardy](docs/development/standards.md)
    i opis swojej roli w [indeksie środowiska](docs/development/README.md).
 4. Przed implementacją wymagany jest przejrzany projekt techniczny.
-   PR #36 jest scalony; właściciel zlecił krok 3. Aktualne zadanie:
-   [przekazania I00 → I01](docs/development/handoffs/README.md).
+   I00/I01 są scalone w PR #38. Aktualne zadanie:
+   [I02 — kreator HA i model instalacji/stref](docs/development/handoffs/i02-installation-model.md).
+   Sprawdź [dowody I00/I01](docs/development/handoffs/i00-i01-verification.md)
+   i [indeks przekazań](docs/development/handoffs/README.md).
    [Brief projektu](docs/development/technical-design-brief.md) pozostaje historią wejścia.
 
 ## Granice i źródła prawdy

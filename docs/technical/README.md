@@ -31,15 +31,26 @@ w opisach Issues nie zastępują późniejszych D69–D89. POC nie odczytywano.
 P01–P12 zostały rozstrzygnięte przez Marcina Bugałę i zapisane jako D90–D101.
 Domena, minimum/macierz HA, platformy encji i Lit z P12 są przyjęte.
 Pozostałe szczegóły techniczne T podlegają przeglądowi całego projektu;
-T08 (zgodne zależności testów HA) jest pierwszym wydzielonym zleceniem I00.
-Aktualna dyspozycja właściciela i zakresy I00/I01 są w indeksie przekazań.
+T08 ma dowód rozwiązania w scalonym I00. Aktualna dyspozycja właściciela
+i zakres I02 są w indeksie przekazań.
 
 Pierwsze kompletne wydanie nadal zawiera CO, strefy, opcjonalne zawory/demand i CWU,
 kartę, panel oraz PL/EN; warianty samo CO / samo CWU / oba. Przyszłe dwa CO
 mają miejsce w identyfikatorach, bez drugiego regulatora, prognoz, skroplin i importera.
 
-Następny odbiorca: Developer dla I00, następnie Reviewer/Tester i Tech Lead.
+Następny odbiorca: Developer dla I02, następnie Reviewer/Tester i Tech Lead.
 Autor wykonał samokontrolę, nie niezależne review; brak niezależnego review
-PR #36 pozostaje jawny. I01 zależy od dowodów i scalenia I00.
+PR #36 pozostaje jawny. I00/I01 scalono w PR #38; ich dowody i brak formalnego
+review są w raporcie I00/I01.
 P01–P12 nie są blokerami produktowymi.
 Wyniki kontroli dokumentacyjnego commitu będą w PR; A01–A59/B01–B13 pozostają planem.
+
+## Aktualne przekazanie po I00/I01
+
+[I02 — kreator i model](../development/handoffs/i02-installation-model.md)
+ma bazę main 552ea42, po scaleniu PR #38. T08 rozwiązano w I00, a I01 przeszedł
+13 testów integracji w obu środowiskach i hassfest. Szczegóły SHA, logów
+oraz brak formalnego niezależnego review dokumentuje
+[raport Tech Leada](../development/handoffs/i00-i01-verification.md).
+Pierwotne kontrakty I00/I01 są historyczne; nie rozpoczynaj ich ponownie
+i nie traktuj ich jako blokady I02.

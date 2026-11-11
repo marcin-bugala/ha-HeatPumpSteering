@@ -1,42 +1,45 @@
 # Przekazania Tech Lead → Developer
 
-Data: 11 listopada 2026. Podstawa produktu i projektu:
-[main e276212](https://github.com/marcin-bugala/ha-HeatPumpSteering/commit/e27621281d119f802e263d427ef9b9d36f6a135e),
-po scaleniu [PR #36](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/36).
+Aktualizacja: 11 listopada 2026. Aktualna baza:
+[main 552ea42](https://github.com/marcin-bugala/ha-HeatPumpSteering/commit/552ea427086786e3b3411d95ed0305dc35ba80c0),
+po scaleniu I00/I01 w [PR #38](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/38).
+Projekt i D90–D101 pochodzą z PR #36, pierwotne przekazania z PR #37.
 
-Właściciel po scaleniu polecił: „Zgodnie z docs/development/workflow.md Przejdźmy
-do punktu 3. Planowanie i implementacja Jako Tech Lead przygotuj projekt dla
-Developera”. Ta dyspozycja jest podstawą przejścia do planowania wykonania
-zatwierdzonej bazy, a nie sam zielony wynik CI. Nie oznacza wydania/deploy.
-P01–P12 / D90–D101 są przyjęte i nie wracają jako pytania produktowe.
+Właściciel zlecił: „Jako Tech Lead sprawdź scalone I00 i I01, wyniki review
+oraz testów. Przygotuj konkretne przekazanie I02 dla Developera, zgodnie
+z planem implementacji. Nie rozpoczynaj kodowania”.
+To podstawa aktualnego przekazania, bez automatycznego uruchamiania implementacji.
 
-Brak niezależnego review pozostaje jawny: PR #36 nie ma zgłoszonego review
-GitHub; autor wykonał samokontrolę, właściciel scalił projekt i zlecił następny
-etap. Nie przedstawiamy tego jako niezależnego zatwierdzenia przez agenta.
-Przegląd kodu każdego pakietu pozostaje osobnym krokiem workflow.
+| Zakres | Dokument / rezultat |
+| --- | --- |
+| Sprawdzenie I00/I01 | [Dowody review/testów i ograniczenia](i00-i01-verification.md), baza 552ea42; oba środowiska HA i pełny CI PASS |
+| Aktualne przekazanie I02 | [Kreator HA i model instalacji/stref](i02-installation-model.md), gałąź kodu feat/8-installation-model |
+| Pierwotny kontrakt I00 | [Narzędzia testów HA](i00-ha-test-tooling.md); droga narzędziowa wykonana w PR #38 jest opisana w tools/ha_test_tooling/README.md |
+| Pierwotny kontrakt I01 | [Fundament integracji](i01-ha-foundation.md); wykonany w tym samym PR po dyspozycji właściciela, nie ponawiaj go |
+| Kolejne pakiety | [Plan implementacji](../../technical/implementation-plan.md); I03 dopiero po odbiorze I02 i osobnym przekazaniu |
 
-| Kolejność | Zlecenie | Co Developer dostarcza | Warunek następnego zakresu |
-| --- | --- | --- | --- |
-| 1 | [I00 — macierz testowa HA / T08](i00-ha-test-tooling.md) | Mały PR narzędziowy: zgodne, przypięte środowiska HA 2026.10.4 i 2026.11.1 z rzeczywistymi fixtures i dowodami smoke testów | Oba środowiska działają, Reviewer sprawdził źródła/metadata/licencje, właściciel scalił PR |
-| 2 | [I01 — fundament integracji](i01-ha-foundation.md) | Osobny PR pierwszego kodu produktu: prawdziwy setup/unload ConfigEntry, niezależne moduły w obserwacji, testy HA i hassfest | Aktualny main po I00, konkretne SHA i wyniki T08 wpisane w przekazaniu |
-| 3 | I02 z [planu](../../technical/implementation-plan.md) | Tech Lead po odbiorze I01 wydaje osobne zlecenie config_flow i modelu instalacji/stref | Nie rozpoczynać automatycznie po I01 |
+To indeks dokumentów i zależności, nie druga tablica statusów US.
+Statusy pozostają wyłącznie w Issues; I02 nie zamyka całych historii.
 
-To kolejność i zależności, nie druga tablica statusów US. Statusy pozostają
-w Issues. I00 jest wydzieleniem technicznej zależności zatwierdzonego I01;
-nie tworzy nowej funkcji produktu i nie podnosi minimum HA.
-
-Developer zaczyna od I00. I01 jest konkretnym przygotowanym kontraktem, ale
-jego kod wolno rozpocząć dopiero po spełnieniu opisanej zależności T08.
-Ten PR zawiera wyłącznie dokumentację, nie implementację narzędzi ani integracji.
+I00/I01 mają dowody CI na main. PR #38 nie ma formalnych reviews ani komentarzy;
+opis raportuje samokontrolę i akceptację I00 przez Testera w rozmowie.
+Nie nazywamy tego formalnym niezależnym review końcowego SHA.
+Właściciel scalił PR i zlecił dalszy etap; kod I02 nadal wymaga review i testów.
 
 ## Instrukcja rozpoczęcia dla Developera
 
-Pracuj jako Developer repozytorium marcin-bugala/ha-HeatPumpSteering. Przeczytaj
-AGENTS.md, docs/development/roles/developer.md i
-docs/development/handoffs/i00-ha-test-tooling.md. Zweryfikuj aktualny origin/main,
-czystość katalogu i powiązane Issues z komentarzami. Wykonaj wyłącznie I00
-na osobnej gałęzi chore/ha-test-matrix i przygotuj PR do main z dowodami dla
-konkretnego SHA. Nie dodawaj kodu custom_components ani nie rozpoczynaj I01.
-Nie obchodź zależności pluginu/HA i bramek CI. Nie korzystaj z poc, nie wykonuj
-merge, wydania, deploy ani operacji na instalacji domu. Wynik przekaż Reviewerowi
-i Tech Leadowi według szablonu repozytorium.
+Pracuj jako Developer repozytorium marcin-bugala/ha-HeatPumpSteering.
+Przeczytaj AGENTS.md, docs/development/roles/developer.md,
+docs/development/handoffs/i00-i01-verification.md oraz
+docs/development/handoffs/i02-installation-model.md. Bazą jest main
+552ea427086786e3b3411d95ed0305dc35ba80c0 lub nowszy main zawierający ten commit.
+Sprawdź gałąź, czystość katalogu i aktualne Issues z komentarzami.
+Wykonaj wyłącznie I02 na feat/8-installation-model i przygotuj PR do main.
+Zachowaj obserwację bez usług urządzeń, UUID i zgodną migrację danych I01.
+Dodaj testy kreatora/reconfigure/modelu/migracji w obu istniejących środowiskach HA.
+Nie otwieraj ponownie T08 ani P01–P12. Nie dodawaj aktywnego sterowania,
+Store/historii/frontendu ani pełnej własności wyjść I03. Nie korzystaj z poc,
+nie wykonuj merge, wydania, deploy lub operacji na instalacji domu.
+Raport dla konkretnego SHA przekaż Reviewerowi → Testerowi → Tech Leadowi.
+
+Niniejsze przekazanie jest dokumentacją. W tej sesji nie rozpoczęto kodowania I02.
