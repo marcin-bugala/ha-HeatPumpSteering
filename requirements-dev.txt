@@ -1,0 +1,2 @@
+# Bootstrap tooling only; HA test dependencies are selected with the technical design.
+ruff==0.14.4
