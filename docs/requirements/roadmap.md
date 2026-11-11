@@ -1,6 +1,6 @@
 # Etapy wydań, weryfikacja i migracja
 
-Projekt v0.5 z 10 listopada 2026 obejmuje rundy 1–4. Nie ustalamy dat realizacji ani nie obiecujemy niezweryfikowanych funkcji. Numeracja poniżej opisuje etapy, nie opublikowane wersje programu.
+Projekt v0.6 z 11 listopada 2026 obejmuje rundy 1–5. Nie ustalamy dat realizacji ani nie obiecujemy niezweryfikowanych funkcji. Numeracja poniżej opisuje etapy, nie opublikowane wersje programu.
 
 ## Kolejność
 
@@ -21,7 +21,7 @@ Nie rozpoczynamy kodowania produktu przy otwartych decyzjach istotnych dla daneg
 
 ## Postęp doprecyzowania wymagań
 
-Uzgodniono [model stref](round-01-installation-zones.md), [codzienną obsługę](round-02-daily-operation.md), [reguły regulacji](round-03-regulation.md) oraz [awarie i restarty](round-04-failures-restarts.md). Kolejne rundy obejmują szczegółowe scenariusze odbioru oraz architekturę, migrację i wydania.
+Uzgodniono [model stref](round-01-installation-zones.md), [codzienną obsługę](round-02-daily-operation.md), [reguły regulacji](round-03-regulation.md) oraz [awarie i restarty](round-04-failures-restarts.md). [Runda 5](round-05-acceptance.md) zawiera tabelę A01–A59 i przyjęte doprecyzowania. Kolejna runda obejmuje architekturę, migrację i wydania.
 
 ## Scenariusze odbioru
 
@@ -53,7 +53,7 @@ Uzgodniono [model stref](round-01-installation-zones.md), [codzienną obsługę]
 - CWU: trzy tryby, granice przedziałów, osobne dni i temperatura na przedział.
 - Ręczne włączenie w przerwie harmonogramu, podpowiedź ostatniej nastawy, nadpisanie do rzeczywistej zmiany i brak kasowania przez identyczne pola.
 - Zbiorczy Zapisz tylko CWU: robocze zmiany nie sterują urządzeniem, walidacja całości, potwierdzenie odrzucenia; w obserwacji brak poleceń również po zapisie.
-- CWU po restarcie odtwarza ważne nadpisanie lub stosuje bieżący przedział. Potwierdzamy temperaturę przed ON, a OFF wykonujemy niezależnie. Zmiana czasu i edycja harmonogramu podczas nadpisania pozostają do dopracowania.
+- CWU po restarcie odtwarza ważne nadpisanie lub stosuje bieżący przedział. Potwierdzamy temperaturę przed ON, a OFF wykonujemy niezależnie. Zapis panelu w Harmonogram od razu stosuje jego bieżący przedział. Zmianę czasu opisuje runda 5.
 - Prognozy: luki, zasięg krótszy od oczekiwanego, przeterminowanie, zmieniona prognoza, brak PV, podwójne źródła słońca i konflikt komfortu.
 - F01: stop przed 30 min, wybieg ≥20 min, restart PC w wybiegu, restart HA, brak poboru grzałki, ocieplenie i nieznana praca PC.
 
@@ -62,6 +62,8 @@ Przed implementacją określimy mierzalne oczekiwane wyniki i tolerancje każdeg
 Dodatkowe scenariusze liczbowe i czasowe zawiera [runda 3](round-03-regulation.md). W bieżącej wersji prognozy są odłożone, ale od początku wymagamy rozdzielenia modułów korekt i zawsze obowiązujących ograniczeń (US20). Nie rozpoczynamy implementacji prognoz w ramach modularności.
 
 Scenariusze [rundy 4](round-04-failures-restarts.md) obejmują świeżość i pokrycie okien, awaryjne otwarcie, blokady CO1, sekwencję ponowień, start z 48 h historii i odtworzenie timerów.
+
+Tabela [A01–A59](round-05-acceptance.md#scenariusze-odbioru) wiąże każdą US z konkretnymi warunkami i oczekiwanym wynikiem. Wyniki wykonania będą dołączane podczas realizacji i odbioru.
 
 ## Weryfikacja techniczna
 

@@ -9,7 +9,7 @@ Codzienny dashboard służy odczytom, celom komfortu i trybom pracy. Szczegóło
 - Funkcje i okna pomiarowe są wspólne dla programu.
 - Strefy mają własne progi reakcji, priorytety i wskazane niżej czasy zabezpieczeń.
 - NC/NO pozostaje wyborem strefy z rundy 1.
-- Czas otwierania siłowników jest wspólny dla domu.
+- Runda 5 określa jeden globalny „Czas pracy siłowników” dla otwierania i zamykania.
 - Nie ma pola ani logiki stale otwartych pętli, przepływów lub częściowego odcięcia hydraulicznego. To założenia sprzętowe użytkownika.
 
 Przy konfiguracji sterowania zaworami wyświetlamy:
@@ -87,7 +87,7 @@ Ostrzeżenie nieskutecznego zamknięcia:
 - komunikat: „Strefa nadal się nagrzewa mimo polecenia zamknięcia. Sprawdź zawory i inne źródła ciepła.”;
 - ostrzeżenie nie przesądza o awarii i samo nie wyłącza całej pompy.
 
-Program nie uwzględnia otwartych pętli w klasyfikacji ostrzeżenia. Czas zamykania, potwierdzanie poleceń, kasowanie ostrzeżenia oraz dane niepełne pozostają do uszczegółowienia w rundzie awarii; nie dopisujemy im nieuzgodnionych wartości.
+Program nie uwzględnia otwartych pętli w klasyfikacji ostrzeżenia. Runda 5 ustala wspólny czas pracy siłowników, domyślnie 3 min dla obu kierunków. Potwierdzenie zapisu i awarie opisują rundy 4–5. Techniczne źródło potwierdzenia i kasowanie ostrzeżenia pozostają na dalszy etap.
 
 ## 6. Długoterminowa korekta trendu CO1
 
@@ -121,7 +121,7 @@ Przykład limitu sumy: komfort +1,5°C i hipotetyczna przyszła korekta +0,8°C 
 - Przy potrzebie ciepła najpierw wydajemy otwarcie zaworów.
 - Demand może się włączyć, gdy co najmniej jedna potrzebująca ciepła strefa ma przewidywane otwarcie. Nie czekamy na wszystkie; już otwarta strefa nie zaczyna oczekiwania od nowa.
 - Strefa bez sterowanych zaworów nie wymaga opóźnienia otwierania.
-- Czas otwierania: domyślnie 3 min, wspólny dla domu, konfigurowalny w programie. Upływ czasu nie jest fizycznym dowodem otwarcia.
+- „Czas pracy siłowników” ma domyślnie 3 min, jest wspólny dla domu i konfigurowalny. Obejmuje otwieranie i zamykanie zgodnie z rundą 5. Upływ czasu oznacza przewidywany stan.
 - Brak zapotrzebowania wszystkich stref wyłącza demand bez dodatkowego opóźnienia. Nie wprowadzamy minimalnego czasu ON blokującego to wyłączenie.
 - Przed ponownym ON wymagane minimum 15 min od OFF, wspólne dla domu i konfigurowalne. Zawory mogą otworzyć się wcześniej; ON nadal wymaga aktualnego zapotrzebowania i gotowości.
 - Nie sterujemy zasilaniem PC ani wybiegiem pomp producenta.

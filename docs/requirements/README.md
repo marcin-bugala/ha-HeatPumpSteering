@@ -1,6 +1,6 @@
 # Wymagania HA HeatPumpSteering
 
-Wersja dokumentacji 0.5 z 10 listopada 2026 obejmuje również uzgodnione reguły awarii i restartów. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
+Wersja dokumentacji 0.6 z 11 listopada 2026 obejmuje rundy 1–5 i tabelę scenariuszy odbioru. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
 
 ## Dokumenty
 
@@ -14,6 +14,7 @@ Wersja dokumentacji 0.5 z 10 listopada 2026 obejmuje również uzgodnione reguł
 | [Runda 2](round-02-daily-operation.md) | Cele CO, tryby CO/CWU, nadpisania i wspólny zapis ustawień CWU |
 | [Runda 3](round-03-regulation.md) | Pomiary, progi, korekty, demand, ostrzeżenia i modularność. Prognozy odłożone. |
 | [Runda 4](round-04-failures-restarts.md) | Braki danych, zapisy, ponowienia, odtwarzanie historii, timery i CWU po restarcie |
+| [Runda 5](round-05-acceptance.md) | Potwierdzanie zapisów, panel i nadpisania CWU, zmiana czasu, czas pracy siłowników oraz scenariusze A01–A59 |
 
 ## Źródło prawdy i sposób pracy
 

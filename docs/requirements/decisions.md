@@ -1,6 +1,6 @@
 # Rejestr decyzji i pytań
 
-Stan: 10 listopada 2026, po rundach 1–4. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
+Stan: 11 listopada 2026, po rundach 1–5. „Przyjęte” oznacza potwierdzony kierunek produktu; nie oznacza implementacji ani zatwierdzenia wszystkich parametrów. Status realizacji historii znajduje się w Issues.
 
 ## Przyjęte decyzje
 
@@ -32,8 +32,8 @@ Stan: 10 listopada 2026, po rundach 1–4. „Przyjęte” oznacza potwierdzony 
 | D24 | Osobne przełączniki obserwacja/sterowanie dla CO i CWU | US03 |
 | D25 | Ręczna zmiana celu CO to trwała nastawa konkretnej strefy, także po restarcie; brak harmonogramu CO | US02, US07, US11 |
 | D26 | CWU: Wyłączone, Stałe i Harmonogram; przedział może wyłączać CWU | US13, US14 |
-| D27 | Nadpisanie CWU działa po Zapisz do następnej rzeczywistej zmiany harmonogramu; identyczne pola 30 min go nie kasują | US07, US13, US14 |
-| D28 | Ręczne włączenie CWU omija zaplanowaną przerwę do końca okresu; podpowiedź ostatniej temperatury z edycją przed zapisem | US07, US13 |
+| D27 — doprecyzowane | Nadpisanie CWU z zewnętrznej zmiany trwa do kolejnej rzeczywistej zmiany planu lub zapisu panelu w Harmonogram. Identyczne pola 30 min nie kasują go | US07, US13, US14 |
+| D28 — częściowo zastąpione | Zewnętrzne ręczne włączenie może ominąć przerwę planu. Układ pól panelu ustala D62, bez edycji ręcznej temperatury w Harmonogram | US07, US13 |
 | D29 | Jeden panel i Zapisz tylko dla ustawień CWU; edycja robocza, walidacja całości, bez częściowego zapisu ustawień | US13, US14 |
 | D30 | Zamknięcie panelu z niezapisanymi zmianami wymaga potwierdzenia odrzucenia; brak osobnego potwierdzenia Wyłączone | US13 |
 | D31 | Brak modelu i pola stale otwartych pętli; ostrzeżenie hydrauliczne przy konfiguracji zaworów. Zastępuje D22 | US05, US09, US15 |
@@ -65,6 +65,14 @@ Stan: 10 listopada 2026, po rundach 1–4. „Przyjęte” oznacza potwierdzony 
 | D57 | Nagły spadek względem temperatury komfortowej przekracza domyślnie 0,7°C. Próg strefy | US06 |
 | D58 | Bez poprzedniego żądania w strefie między progami zachowujemy odczytany stan i czekamy na warunek otwarcia przed zgłoszeniem zapotrzebowania | US05, US09 |
 | D59 | Przy gotowym pomiarze do zaworów i braku gotowego trendu używamy progów niejasnego trendu z komunikatem o brakujących danych | US05, US19 |
+| D60 | Czas potwierdzenia zapisu domyślnie 2 min, wspólny i konfigurowalny. Odstęp ponowienia od wysłania poprzedniej próby | US04, US17, US19 |
+| D61 | Ręczna zmiana nastawy wody na pompie pozostawia regulator aktywny, bez dodatkowej pauzy. Kolejny dozwolony zapis realizuje bieżący wynik | US07, US17 |
+| D62 | CWU Wyłączone blokuje temperaturę i plan, Stałe udostępnia temperaturę, Harmonogram udostępnia plan | US13 |
+| D63 | Zapis panelu w Harmonogram natychmiast stosuje aktualny przedział i kończy nadpisanie, także przy identycznym planie | US07, US13, US14 |
+| D64 | Nadpisania spoza panelu przy stałym planie tygodniowym trwają do ręcznej zmiany lub zapisu panelu w Harmonogram | US07, US13, US14 |
+| D65 | Harmonogram według strefy HA, pominięte pola przy przeskoku, powtórzone pola przy cofnięciu. Timery według rzeczywistego upływu | US14, US19 |
+| D66 | Jeden globalny „Czas pracy siłowników”, domyślnie 3 min, obejmuje otwieranie i zamykanie oraz start oceny ostrzeżenia | US05, US09, US10 |
+| D67 | Scenariusze A01–A59 obejmują US01–US21 jako kryteria przyszłego odbioru | Wszystkie historie |
 
 D24–D30 uzgodniono w [rundzie 2](round-02-daily-operation.md) 10 listopada 2026. D26 rozszerza D13 o jawny tryb Wyłączone; D27–D28 odrzucają błędną interpretację, że harmonogram blokuje ręczne włączenie. D29 dotyczy spójności zapisu ustawień, nie transakcji sprzętowej pompy.
 
@@ -84,13 +92,13 @@ Nadal propozycjami pozostają domena heat_pump_steering, szczegóły F01 i archi
 | --- | --- | --- |
 | Q01 — doprecyzowane | D54 ustala odtworzenie trybów CO/CWU. Zakres F01 pozostaje otwarty | US03, US13 |
 | Q02 — doprecyzowane | D46–D47 określają częściową dostępność i świeżość. Techniczne źródło czasu raportu pozostaje do określenia | US01, US16 |
-| Q03 — doprecyzowane | D51 ustala reakcję na awarię i raport przekaźnika. Pozostają logika odwrócona i czas zamykania | US05, US10 |
+| Q03 — doprecyzowane | NC/NO na strefę i wspólny czas pracy siłowników określone. Pozostają logika odwrócona i techniczne potwierdzenie | US05, US10 |
 | Q04 — doprecyzowane | D49 rozróżnia wszystkie strefy zamknięte i utratę temperatur wszystkich stref. Reguły ważenia pozostają w rundzie 3 | US17–US19 |
 | Q05 — doprecyzowane | Reguły braków danych, gotowości i restartów są w rundzie 4. Pozostaje sposób pozyskania i oceny historii źródeł | US05, US16, US19 |
-| Q06 — doprecyzowane | D56 ustala nadpisanie po restarcie. Pozostają ręczne zmiany poza panelem, demand i edycja planu podczas nadpisania | US07, US13, US14 |
-| Q07 — doprecyzowane | Runda 4 ustala zachowanie CWU przy restarcie i częściowym zapisie. Pozostają wydanie, opcjonalność, zmiana czasu i higiena | US13, US14 |
+| Q06 — doprecyzowane | Ręczne zmiany CO1 i CWU, zapis panelu oraz nadpisanie bez następnej zmiany określono w rundzie 5. Pozostają źródła wykrywania i ręczny demand | US07, US13, US14 |
+| Q07 — doprecyzowane | Panel, nadpisania, zmiana czasu i restart ustalone. Pozostają wydanie, opcjonalność, inicjalizacja i higiena | US13, US14 |
 | Q08 — doprecyzowane | D51 i D55 ustalają raportowany OFF oraz odtworzenie blokady. Pozostają profil/polaryzacja i techniczny dowód raportu | US09 |
-| Q09 — doprecyzowane | D50 i D52 ustalają blokady oraz ponowienia CO1. Pozostają źródło niezależnego odczytu i czas potwierdzenia | US04, US17, US19 |
+| Q09 — doprecyzowane | Domyślne potwierdzenie 2 min i polityka ponowień przyjęte. Pozostaje techniczne źródło niezależnego odczytu | US04, US17, US19 |
 | Q10 — odłożone | Brak prognoz w bieżącej wersji. Algorytm/adaptery, jakość, archiwizacja i uczenie wrócą przed przyszłym wydaniem | US21 |
 | Q11 — częściowo rozstrzygnięte | D29–D30: wspólny zapis panelu CWU i potwierdzenie odrzucenia. Technologia UI, encje, historia i eksport nadal otwarte | US04, US11–US14 |
 | Q12 | Minimalna wersja HA, domena, obsługiwane wersje integracji źródłowych i migracja | US08, US19 |
@@ -117,7 +125,11 @@ D31 usuwa model otwartych pętli i zastępuje D22. Zawory są oceniane według p
 
 ## Rozstrzygnięcia rundy 4
 
-D46–D59 zapisano w [rundzie 4](round-04-failures-restarts.md). Polityka trzech prób i narastających odstępów zastępuje wcześniejszą propozycję sześciu prób oraz stałe ponawianie co 5 min. Czas oczekiwania na potwierdzenie zapisu pozostaje otwarty.
+D46–D59 zapisano w [rundzie 4](round-04-failures-restarts.md). Polityka trzech prób i narastających odstępów zastępuje wcześniejszą propozycję sześciu prób oraz stałe ponawianie co 5 min. Czas oczekiwania na potwierdzenie został doprecyzowany przez D60 w rundzie 5.
+
+## Rozstrzygnięcia rundy 5
+
+D60–D67 przyjęto 11 listopada 2026. [Zapis i tabela odbioru](round-05-acceptance.md) doprecyzowują panel CWU, pierwszeństwo zapisu harmonogramu oraz nadpisania zewnętrzne. Zastąpiona jest propozycja osobnego czasu zamykania. Wspólny parametr obejmuje oba kierunki ruchu.
 
 ## Jak aktualizować
 

@@ -1,6 +1,6 @@
 # User stories
 
-Baza v0.4 z 10 listopada 2026, uzupełniona o [rundę 1](round-01-installation-zones.md) [rundę 2](round-02-daily-operation.md) i [rundę 3](round-03-regulation.md). Treść poniżej zawiera wstępne kryteria do uzgodnienia; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md).
+Baza v0.6 z 11 listopada 2026, obejmująca rundy 1–5. Treść poniżej zawiera kryteria akceptacji; status procesu znajduje się w powiązanym Issue. Identyfikatory są trwałe. [Indeks i zasady](README.md) · [Produkt](product.md) · [Decyzje](decisions.md) · [Scenariusze odbioru — runda 5](round-05-acceptance.md).
 
 <a id="us01"></a>
 
@@ -97,12 +97,15 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Program nie ocenia konfiguracji stale otwartych pętli; prognozy są odłożone i nie tworzą aktywnych korekt.
 - Diagnostyka pokazuje wysłany zapis, potwierdzenie z niezależnego odczytu, jego brak lub brak możliwości potwierdzenia.
 - Widać utratę pomiarów, odbudowę historii i gotowość okien oraz błąd zapisu po trzeciej nieudanej próbie.
+- Na potwierdzenie zapisu czekamy domyślnie 2 min, z ustawieniem wspólnym dla programu. Późne poprawne potwierdzenie aktualnego polecenia kończy serię przed kolejną próbą.
 
 ### Do doprecyzowania
 
-- Techniczny dowód odczytu i czas oczekiwania na potwierdzenie.
+- Techniczne źródło niezależnego odczytu oraz format przechowywania dowodów i historii decyzji.
 
 Powiązania: [US03](#us03), [US17](#us17), [US19](#us19)
+
+Scenariusze odbioru [A37, A38, A39, A59](round-05-acceptance.md#scenariusze-odbioru).
 
 <a id="us05"></a>
 
@@ -128,12 +131,16 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Stan zaworu jest nieznany po błędzie przekaźnika. Strefa nie wystarcza wtedy do ON demandu. Nieudane zamknięcie nie usuwa strefy z ochrony przegrzewania.
 - Bez wcześniejszego żądania między progami utrzymujemy odczytany stan i czekamy na warunek otwarcia przed zgłoszeniem zapotrzebowania.
 - Gotowy pomiar zaworów bez gotowego trendu używa progów trendu niejasnego. Blokada otwarcia może upłynąć w przerwie przy wiarygodnym stanie.
+- Jeden globalny Czas pracy siłowników, domyślnie 3 min, obejmuje otwieranie i zamykanie. Po raporcie przekaźnika pokazujemy ruch, a po czasie przewidywany stan.
+- Ocenę 120-minutowego warunku ostrzeżenia rozpoczynamy po czasie pracy przy zamykaniu.
 
 ### Do doprecyzowania
 
-- Czas zamykania, techniczne potwierdzenia wyjść i reguła kasowania ostrzeżenia nieskutecznego zamknięcia.
+- Techniczne potwierdzenia wyjść, odwrócona logika oraz reguła kasowania ostrzeżenia nieskutecznego zamknięcia.
 
 Powiązania: [US09](#us09), [US10](#us10), [US15](#us15)
+
+Scenariusze odbioru [A10, A11, A12, A13, A14, A15, A16, A17, A20, A31, A36, A42](round-05-acceptance.md#scenariusze-odbioru).
 
 <a id="us06"></a>
 
@@ -173,19 +180,21 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Ręczna zmiana jest rozpoznawana w zakresie pozwalającym na to przez encje HA.
 - Dashboard pokazuje obowiązujący tryb i ewentualne nadpisanie.
 - Cel CO zmieniony ręcznie jest trwałą nastawą konkretnej strefy.
-- W CWU/Harmonogram ręczne nadpisanie stanu lub temperatury obowiązuje po Zapisz do następnej zaplanowanej zmiany; identyczne sąsiednie pola nie kończą nadpisania.
-- Ręczne włączenie CWU może ominąć aktualnie zaplanowany okres wyłączenia, bez przełączania do Stałe.
-- Panel podpowiada ostatnią nastawę CWU do edycji przed zatwierdzeniem włączenia.
 - Reguły pierwszeństwa są jawne i spójne dla danego modułu.
 - Odzyskanie kontroli nie wykonuje nieaktualnych poleceń.
+- Rozpoznana ręczna zmiana CO1 na pompie lub w aplikacji pozostawia regulator aktywny, bez dodatkowej pauzy. Kolejny dozwolony zapis realizuje jego bieżącą decyzję.
+- W CWU/Harmonogram zmiany spoza panelu tworzą nadpisanie do następnej rzeczywistej zmiany planu lub zapisu panelu w Harmonogram.
+- Zapis panelu w Harmonogram kończy nadpisanie i natychmiast stosuje bieżący przedział, także przy identycznym planie.
+- Przy jednakowym planie całotygodniowym nadpisanie trwa do ręcznej zmiany lub zapisu panelu w Harmonogram. Dashboard informuje o braku zaplanowanej zmiany.
+- Zależna od trybu dostępność pól CWU wyklucza równoczesną edycję temperatury stałej i harmonogramu.
 
 ### Do doprecyzowania
 
-- Edycja harmonogramu przy aktywnym nadpisaniu i przypadek braku przyszłych zmian w cyklicznym harmonogramie.
-- Czy zmiana poza dashboardem integracji wstrzymuje regulator i na jak długo?
-- Zachowanie przy ręcznym OFF demandu; odtwarzanie nadpisania CWU po restarcie.
+- Techniczne rozpoznawanie zmian zewnętrznych, ich pochodzenia i ręcznego OFF demandu.
 
 Powiązania: [US03](#us03)
+
+Scenariusze odbioru [A08, A26, A47, A48, A49](round-05-acceptance.md#scenariusze-odbioru).
 
 <a id="us08"></a>
 
@@ -228,19 +237,22 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Można później dołączyć te możliwości bez ponownego tworzenia całej konfiguracji.
 - Zmiana konfiguracji sama nie aktywuje nowych wyjść.
 - Demand jest OR zapotrzebowań aktywnych stref według reguł otwarcia, również wirtualnych dla stref bez wyjść.
-- ON po przewidywanym otwarciu co najmniej jednej potrzebującej strefy; domyślnie 3 min otwierania, globalnie dla domu. Strefa już otwarta nie czeka od nowa; bez wyjść nie wymaga opóźnienia.
 - Brak wszystkich zapotrzebowań wyłącza demand bez dodatkowego opóźnienia; brak minimalnego ON.
 - Ponowne ON wymaga minimum 15 min od OFF, globalnie konfigurowalne; wyjścia mogą otworzyć się wcześniej, lecz ON wymaga aktualnego zapotrzebowania i gotowości.
 - Program nie modeluje otwartych pętli i nie steruje zasilaniem ani wybiegiem PC; ostrzeżenie hydrauliczne w konfiguracji zaworów.
 - Awaryjne otwarcie strefy bez pomiaru po okresie przejściowym nie dodaje zapotrzebowania. Po utracie wszystkich temperatur wycofujemy demand i pozostawiamy krzywą z outdoor.
 - Po błędzie wyjścia pokazujemy stan żądany i raportowany. Aktualne polecenie podlega wspólnym ponowieniom. Strefa bez potwierdzenia przekaźnika nie jest gotowa do ON.
 - Przerwę 15 min liczymy od potwierdzonego raportowanego OFF. Po restarcie uwzględniamy upływ przerwy, jeśli odczyt i zapamiętany czas są wiarygodne.
+- ON po przewidywanym otwarciu jednej potrzebującej strefy, po globalnym czasie pracy siłowników domyślnie 3 min i z zachowaniem blokady demandu.
+- Dla OFF o 10:00 i potwierdzonego przekaźnika otwarcia o 10:05 gotowość wypada o 10:08, a ON najwcześniej o 10:15. Zanik zapotrzebowania wcześniej anuluje ON.
 
 ### Do doprecyzowania
 
 - Profil, polaryzacja i techniczne potwierdzenie raportu demandu oraz ręczna zmiana poza integracją.
 
 Powiązania: [US03](#us03), [US15](#us15), [US16](#us16)
+
+Scenariusze odbioru [A01, A02, A03, A14, A27, A28, A29, A31, A33, A34, A36, A40, A43, A56](round-05-acceptance.md#scenariusze-odbioru).
 
 <a id="us10"></a>
 
@@ -258,15 +270,17 @@ Obszar: [E02](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/4). Dy
 - Dashboard przedstawia polecenie i przewidywany stan hydrauliczny niezależnie od ON/OFF przekaźnika.
 - Bez sprzężenia zwrotnego przewidywany stan nie jest oznaczany jako potwierdzony.
 - Sam wybór lub zmiana typu nie wysyła poleceń.
-- Czas otwierania jest parametrem całego domu, domyślnie 3 min, nie parametrem strefy.
-- Upływ tego czasu oznacza przewidywane otwarcie; bez sprzężenia nie potwierdza stanu hydraulicznego.
 - Raport przełączenia przekaźnika jest wymagany przed uznaniem przewidywanego otwarcia po upływie czasu ruchu. Błąd oznacza stan nieznany i wspólną politykę ponowień.
+- Jeden Czas pracy siłowników jest ustawieniem domu, domyślnie 3 min, wspólnym dla otwierania i zamykania.
+- Po raporcie przekaźnika pokazujemy Otwieranie/Zamykanie, następnie przewidywany stan końcowy. Dalsza ocena ostrzeżenia zamknięcia rozpoczyna się po tym czasie.
 
 ### Do doprecyzowania
 
-- Odwrócona logika przekaźnika i czas zamykania. Techniczny sposób uzyskania wiarygodnego raportu stanu.
+- Odwrócona logika przekaźnika i techniczne pozyskanie wiarygodnego raportu stanu.
 
 Powiązania: [US09](#us09)
+
+Scenariusze odbioru [A04, A17, A27](round-05-acceptance.md#scenariusze-odbioru).
 
 <a id="us11"></a>
 
@@ -326,28 +340,24 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 
 ### Wstępne kryteria akceptacji
 
-- Dostępne są trzy tryby CWU: Wyłączone, Stałe i Harmonogram. Wyłączone nie wyłącza ogrzewania domu.
-- Tryb stały używa jednej ustawionej temperatury CWU niezależnie od harmonogramu.
-- W Harmonogramie można nadpisać stan i temperaturę do następnej rzeczywistej zmiany harmonogramu; dotyczy również włączenia w zaplanowanej przerwie.
-- Ręczne włączenie podpowiada ostatnią nastawę CWU, edytowalną przed zapisem.
-- Tryb, ręczny stan, temperatury i harmonogram są w jednym panelu, ze zmianami roboczymi i jednym przyciskiem Zapisz.
-- Całość ustawień jest walidowana przed zatwierdzeniem; błąd nie zapisuje części zmian. Nie jest to gwarancja atomowego wykonania poleceń pompy.
-- Przy zamknięciu z niezapisanymi zmianami pojawia się pytanie Odrzucić niezapisane zmiany?; brak osobnego potwierdzenia samego Wyłączone.
-- Panel nie obejmuje celów CO ani dwóch przełączników obserwacja/sterowanie. Zapis w obserwacji nie wykonuje poleceń urządzenia.
-- Tryb harmonogramu korzysta z aktualnego przedziału.
-- Włączenie CWU oznacza zezwolenie na podgrzewanie; pompa zachowuje własną regulację i zabezpieczenia.
-- Dashboard pokazuje aktualny tryb, nastawę i najbliższą zmianę.
-- Temperatury są ograniczone zakresem obsługiwanym przez urządzenie.
-- Po restarcie odtwarzamy tryb i ważne nadpisanie. Po wygaśnięciu stosujemy aktualny przedział harmonogramu.
-- Włączenie CWU wymaga zapisu i potwierdzenia temperatury docelowej. Wyłączenie jest niezależne od wyniku zapisu temperatury.
-- Częściowe wykonanie zachowuje zatwierdzone ustawienia, pokazuje wynik i ponawia nadal potrzebne działanie według wspólnej polityki.
+- Panel ma trzy tryby. Wyłączone blokuje pole temperatury i obszar planu. Stałe udostępnia temperaturę i blokuje plan. Harmonogram udostępnia plan i blokuje temperaturę stałą.
+- W Wyłączone żądamy OFF CWU bez wyłączania ogrzewania domu. Stałe używa jednej nastawy. Harmonogram stosuje aktualny przedział.
+- Jeden Zapisz zatwierdza poprawny zestaw ustawień, a zamknięcie niezapisanej edycji wymaga potwierdzenia odrzucenia. Brak osobnego potwierdzenia samego Wyłączone.
+- Zapis panelu w Harmonogram kończy wcześniejsze nadpisanie i od razu stosuje bieżący przedział, także przy identycznym planie.
+- Ręczne nadpisania spoza panelu trwają do kolejnej rzeczywistej zmiany planu lub zapisu panelu w Harmonogram. Przy stałym planie tygodniowym trwają do ręcznej zmiany albo tego zapisu, z komunikatem o braku zaplanowanej zmiany.
+- Cele CO i przełączniki obserwacja/sterowanie pozostają poza panelem. W obserwacji zapis przygotowuje ustawienia i decyzje.
+- Włączenie CWU wymaga wcześniejszego potwierdzenia temperatury. OFF jest niezależne od zapisu temperatury. Po częściowym wykonaniu ponawiamy nadal potrzebne działanie.
+- Po restarcie przywracamy ważne nadpisanie albo aktualny przedział. Temperatury respektują zakres urządzenia i jego zabezpieczenia.
+- Dashboard pokazuje bieżący tryb, nastawę i najbliższą zmianę. Włączenie oznacza zezwolenie na podgrzewanie pod kontrolą PC.
 
 ### Do doprecyzowania
 
-- Opcjonalność modułu, wydanie, funkcje higieniczne i brak wcześniejszej nastawy.
-- Źródło potwierdzenia, jego limit czasu oraz edycja harmonogramu podczas nadpisania.
+- Opcjonalność modułu, wydanie, inicjalizacja bez wcześniejszej nastawy oraz współpraca z funkcjami higienicznymi.
+- Techniczne rozpoznawanie zewnętrznych zmian i źródło niezależnego potwierdzenia.
 
 Powiązania: [US14](#us14), [US16](#us16)
+
+Scenariusze odbioru [A44, A45, A46, A47, A48, A49, A50, A51, A52, A53](round-05-acceptance.md#scenariusze-odbioru).
 
 <a id="us14"></a>
 
@@ -362,19 +372,24 @@ Obszar: [E03](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/5). Dy
 - Każdy dzień ma 48 logicznych przedziałów półgodzinnych.
 - Przedział oznacza wyłączone albo zezwolenie na grzanie do wskazanej temperatury.
 - Harmonogram i nastawy są zachowane po restarcie.
-- Ręczne nadpisanie działa po zatwierdzeniu do następnej zaplanowanej zmiany stanu/temperatury, nie do dowolnej granicy 30 minut.
+- Ręczne nadpisanie spoza panelu działa do następnej rzeczywistej zmiany stanu/temperatury planu albo zapisu panelu w Harmonogram. Identyczne sąsiednie pola zachowują nadpisanie.
 - Sąsiednie identyczne pola tworzą ciągły okres; nie kasują nadpisania.
 - Harmonogram edytujemy razem z pozostałymi ustawieniami CWU, z jednym Zapisz i potwierdzeniem odrzucenia niezapisanej edycji.
 - Harmonogram CWU nie steruje ogrzewaniem pomieszczeń ani ich celami.
 - Wartości temperatur są walidowane względem urządzenia.
 - Restart zachowuje nadpisanie tylko do zapisanego terminu. Po jego upływie stosujemy bieżący przedział harmonogramu bez odtwarzania pominiętych zmian.
+- Zapis w Harmonogram natychmiast stosuje jego aktualny przedział i kończy nadpisanie zewnętrzne, także przy ponownym zapisie identycznego planu.
+- Plan używa strefy czasowej HA. Po przeskoku zegara stosujemy aktualny lokalny przedział, a cofnięcie powtarza te same pola.
+- Blokady i ponowienia mierzą rzeczywisty upływ czasu. Nadpisanie kończy kolejna rzeczywista zmiana ustawienia z lokalnego planu.
+- Brak następnej zmiany w tygodniu zachowuje nadpisanie do ręcznej zmiany albo zapisu panelu w Harmonogram, z komunikatem diagnostycznym.
 
 ### Do doprecyzowania
 
-- Strefa czasowa, zmiana czasu, granice tygodnia oraz edycja/kopiowanie dni.
-- Stan początkowy planu, edycja planu przy aktywnym nadpisaniu i brak przyszłej zmiany w całym tygodniu.
+- Stan początkowy harmonogramu, edycja/kopiowanie dni i techniczny wybór reprezentacji czasu.
 
 Powiązania: [US13](#us13), [US07](#us07)
+
+Scenariusze odbioru [A44, A47, A48, A49, A50, A51, A54, A55, A56](round-05-acceptance.md#scenariusze-odbioru).
 
 <a id="us15"></a>
 
@@ -458,13 +473,17 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Po utracie temperatur wszystkich stref i upływie okresu przejściowego stosujemy krzywą bez korekt przy poprawnym outdoor. Gdy wszystkie poprawnie mierzone strefy są zamknięte, utrzymujemy nastawę.
 - Ponowienie niepotwierdzonej wartości dotyczy tej samej bezwzględnej nastawy. Kolejny krok regulatora wymaga wiarygodnego potwierdzenia oraz blokady 1°C/120 min.
 - Trzy próby łącznie w odstępach 5 min, potem błąd i narastające przerwy do 120 min zgodnie z rundą 4.
+- Rozpoznana ręczna zmiana nastawy PC pozostawia CO1 aktywne, bez dodatkowej pauzy. Kolejne dozwolone polecenie uwzględnia bieżącą wartość oraz ograniczenia.
+- Limit oczekiwania na potwierdzenie wynosi domyślnie 2 min. Próby bez potwierdzenia o 10:00, 10:05 i 10:10 dają błąd o 10:12, następne próby o 10:20 i 10:35.
 
 ### Do doprecyzowania
 
-- Walidacja zakresów, źródło niezależnego potwierdzenia i czas oczekiwania.
+- Walidacja zakresów i techniczne źródło niezależnego potwierdzenia.
 - Zachowanie przy zmianie limitów i pozostałych przypadkach bez kwalifikujących się stref.
 
 Powiązania: [US04](#us04), [US16](#us16), [US19](#us19)
+
+Scenariusze odbioru [A06, A18, A19, A20, A21, A22, A23, A24, A25, A26, A33, A34, A35, A37, A38, A39, A40](round-05-acceptance.md#scenariusze-odbioru).
 
 <a id="us18"></a>
 
@@ -513,14 +532,17 @@ Obszar: [E01](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/3). Dy
 - Każde okno potrzebuje 80% pokrycia i świeżego bieżącego pomiaru. Brak trendu przy gotowym pomiarze zaworów pozwala użyć progów niejasnego trendu.
 - Pamięć obejmuje zapisane tryby, stany, timery, postęp potwierdzeń i terminy ponowień. Blokady mogą upływać przy wiarygodnym stanie, a potwierdzenia nie liczą przerw w obserwacji.
 - Wspólna polityka zapisów to 3 próby łącznie, błąd i odstępy Fibonacciego do 120 min z licznikiem na wyjście i resetem po potwierdzonym sukcesie.
+- Scenariusze A01–A59 w rundzie 5 stanowią tabelę odbioru. Limit potwierdzenia 2 min i odstępy prób od wysłania są elementami scenariuszy.
+- Podczas zmiany czasu timery używają rzeczywistego upływu, a harmonogram lokalnej strefy HA.
 
 ### Do doprecyzowania
 
-- Kontrakty historii, reprezentacja i trwałość pamięci oraz dowód niezależnego odczytu HiMitII.
-- Minimalna wersja HA, przypadki CWU/defrost oraz szczegółowe kryteria odbioru.
+- Kontrakty historii, reprezentacja i trwałość pamięci oraz techniczny dowód niezależnego odczytu HiMitII.
+- Minimalna wersja HA i zachowanie przy cyklach CWU/defrost w ramach odpowiedzialności PC.
 
 Powiązania: [US03](#us03), [US06](#us06), [US08](#us08)
 
+Scenariusze odbioru [A37, A38, A41, A42, A43, A56](round-05-acceptance.md#scenariusze-odbioru).
 
 <a id="us20"></a>
 
