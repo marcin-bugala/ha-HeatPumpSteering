@@ -254,7 +254,7 @@ def _zone(value: object, index: int) -> ZoneConfig:
         primary = _entity(
             primary, "sensor", f"co.zones[{index}].primary_temperature_entity_id"
         )
-    if source_mode is ZoneSourceMode.PRIMARY and primary not in sensors:
+    if primary is not None and primary not in sensors:
         raise ConfigurationError(
             f"co.zones[{index}].primary_temperature_entity_id must belong to the zone"
         )

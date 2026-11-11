@@ -75,6 +75,16 @@ def test_unknown_group_and_duplicate_ids_are_rejected() -> None:
         parse_config(duplicated)
 
 
+def test_aggregate_mode_rejects_foreign_primary_sensor() -> None:
+    """D19: a stale primary never survives outside the configured source set."""
+    data = entry_data(co=True)
+    zone = data["co"]["zones"][0]
+    zone["source_mode"] = "aggregate"
+    zone["primary_temperature_entity_id"] = "sensor.foreign"
+    with pytest.raises(ConfigurationError):
+        parse_config(data)
+
+
 @pytest.mark.parametrize("schema_version", [True, 2.0, "2", None])
 def test_schema_version_requires_a_real_integer(schema_version: object) -> None:
     """Persisted booleans and equivalent-looking values are not version 2."""

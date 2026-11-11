@@ -8,6 +8,9 @@
       "active_zone_required": "Enabled space heating requires an enabled zone.",
       "configuration_changed": "The saved configuration changed while this form was open. Start again.",
       "invalid_configuration": "The complete configuration is not valid.",
+      "invalid_number_entity": "Select a valid number entity.",
+      "invalid_sensor_entity": "Select a valid sensor entity.",
+      "invalid_switch_entity": "Select a valid switch entity.",
       "invalid_zone": "The zone is not valid. Check its name, sensors, target and group.",
       "module_required": "Select space heating, domestic hot water, or both.",
       "output_conflict": "An output entity is already assigned to another function or installation.",
@@ -67,11 +70,11 @@
       },
       "select_zone": {
         "title": "Select zone",
-        "data": {"operation": "Operation", "zone_id": "Zone"}
+        "data": {"zone_id": "Zone"}
       },
       "select_group": {
         "title": "Select group",
-        "data": {"operation": "Operation", "group_id": "Group"}
+        "data": {"group_id": "Group"}
       },
       "dhw": {
         "title": "Domestic hot water sources",
@@ -86,6 +89,28 @@
         "description": "Save {name} with {zones} heating zones. Saving does not send device commands.",
         "data": {"confirm": "Save configuration"}
       }
+    }
+  },
+  "selector": {
+    "aggregation": {
+      "options": {"mean": "Mean", "median": "Median"}
+    },
+    "source_mode": {
+      "options": {"aggregate": "Aggregate", "primary": "Primary sensor"}
+    },
+    "co_menu_action": {
+      "options": {
+        "add_zone": "Add zone",
+        "add_group": "Add group",
+        "edit_zone": "Edit zone",
+        "remove_zone": "Remove zone",
+        "edit_group": "Edit group",
+        "remove_group": "Remove group",
+        "continue": "Continue"
+      }
+    },
+    "zone_label": {
+      "options": {"unnamed": "Unnamed zone"}
     }
   }
 }

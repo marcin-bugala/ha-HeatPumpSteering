@@ -9,14 +9,17 @@ from uuid import uuid4
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import valid_entity_id
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector
+from homeassistant.helpers.translation import async_get_translations
 
 from .const import CONFIG_ENTRY_VERSION, CONFIG_SCHEMA_VERSION, DOMAIN
 from .models import ConfigurationError, parse_config
 
 _FINALIZE_LOCK = asyncio.Lock()
-_AGGREGATIONS = {"mean": "Mean", "median": "Median"}
-_SOURCE_MODES = {"aggregate": "Aggregate", "primary": "Primary sensor"}
+_AGGREGATIONS = ["mean", "median"]
+_SOURCE_MODES = ["aggregate", "primary"]
 
 
 def migrate_v1_data(data: dict[str, Any], title: str) -> dict[str, Any]:
@@ -61,6 +64,25 @@ def _outputs(data: dict[str, Any]) -> list[str]:
     return outputs
 
 
+def _valid_binding(value: object, domain: str) -> bool:
+    return (
+        isinstance(value, str)
+        and valid_entity_id(value)
+        and value.startswith(f"{domain}.")
+    )
+
+
+def _translated_select(
+    options: list[str], translation_key: str
+) -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=options,
+            translation_key=translation_key,
+        )
+    )
+
+
 class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Create or atomically replace one installation configuration."""
 
@@ -74,6 +96,7 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._original_data: dict[str, Any] | None = None
         self._editing_zone_id: str | None = None
         self._editing_group_id: str | None = None
+        self._pending_operation: str | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -176,9 +199,15 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Collect the single CO circuit bindings."""
         co = self._draft["co"]
+        errors: dict[str, str] = {}
         if user_input is not None:
-            co.update(user_input)
-            return await self.async_step_co_menu()
+            if not _valid_binding(user_input["setpoint_entity_id"], "number"):
+                errors["setpoint_entity_id"] = "invalid_number_entity"
+            if not _valid_binding(user_input["outdoor_entity_id"], "sensor"):
+                errors["outdoor_entity_id"] = "invalid_sensor_entity"
+            if not errors:
+                co.update(user_input)
+                return await self.async_step_co_menu()
         return self.async_show_form(
             step_id="co",
             data_schema=vol.Schema(
@@ -193,21 +222,22 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ): str,
                     vol.Required(
                         "aggregation", default=co.get("aggregation", "mean")
-                    ): vol.In(_AGGREGATIONS),
+                    ): _translated_select(_AGGREGATIONS, "aggregation"),
                 }
             ),
+            errors=errors,
         )
 
     async def async_step_co_menu(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage presentation groups and stable zone records in the draft."""
-        options = {"add_zone": "Add zone", "add_group": "Add group"}
+        options = ["add_zone", "add_group"]
         if self._draft["co"]["zones"]:
-            options |= {"edit_zone": "Edit zone", "remove_zone": "Remove zone"}
+            options.extend(("edit_zone", "remove_zone"))
         if self._draft["co"]["groups"]:
-            options |= {"edit_group": "Edit group", "remove_group": "Remove group"}
-        options["continue"] = "Continue"
+            options.extend(("edit_group", "remove_group"))
+        options.append("continue")
         errors: dict[str, str] = {}
         if user_input is not None:
             action = user_input["action"]
@@ -218,9 +248,11 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._editing_group_id = None
                 return await self.async_step_group()
             if action in {"edit_zone", "remove_zone"}:
-                return await self.async_step_select_zone({"operation": action})
+                self._pending_operation = action
+                return await self.async_step_select_zone()
             if action in {"edit_group", "remove_group"}:
-                return await self.async_step_select_group({"operation": action})
+                self._pending_operation = action
+                return await self.async_step_select_group()
             if self._draft["co"]["enabled"] and not any(
                 zone["enabled"] for zone in self._draft["co"]["zones"]
             ):
@@ -231,7 +263,9 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_confirm()
         return self.async_show_form(
             step_id="co_menu",
-            data_schema=vol.Schema({vol.Required("action"): vol.In(options)}),
+            data_schema=vol.Schema(
+                {vol.Required("action"): _translated_select(options, "co_menu_action")}
+            ),
             errors=errors,
             description_placeholders={
                 "zones": str(len(self._draft["co"]["zones"])),
@@ -239,26 +273,41 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_select_zone(self, user_input: dict[str, Any]) -> FlowResult:
+    async def _async_unnamed_zone_label(self, zone_id: str) -> str:
+        """Return the localized neutral label for a migrated unnamed zone."""
+        language = self.context.get("language", self.hass.config.language)
+        translations = await async_get_translations(
+            self.hass, language, "selector", integrations={DOMAIN}
+        )
+        key = f"component.{DOMAIN}.selector.zone_label.options.unnamed"
+        label = translations.get(key, zone_id[:8])
+        return f"{label} {zone_id[:8]}"
+
+    async def async_step_select_zone(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Select a zone to edit or remove."""
-        operation = user_input["operation"]
-        choices = {
-            zone["zone_id"]: (zone.get("name") or zone["zone_id"][:8])
-            for zone in self._draft["co"]["zones"]
-        }
-        if "zone_id" not in user_input:
+        operation = self._pending_operation
+        assert operation in {"edit_zone", "remove_zone"}
+        choices = []
+        for zone in self._draft["co"]["zones"]:
+            label = zone.get("name") or await self._async_unnamed_zone_label(
+                zone["zone_id"]
+            )
+            choices.append({"value": zone["zone_id"], "label": label})
+        if user_input is None:
             return self.async_show_form(
                 step_id="select_zone",
                 data_schema=vol.Schema(
                     {
-                        vol.Required("operation", default=operation): vol.In(
-                            {operation: operation}
+                        vol.Required("zone_id"): selector.SelectSelector(
+                            selector.SelectSelectorConfig(options=choices)
                         ),
-                        vol.Required("zone_id"): vol.In(choices),
                     }
                 ),
             )
         zone_id = user_input["zone_id"]
+        self._pending_operation = None
         if operation == "remove_zone":
             self._draft["co"]["zones"] = [
                 zone
@@ -277,18 +326,21 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         existing = next(
             (zone for zone in zones if zone["zone_id"] == self._editing_zone_id), {}
         )
-        groups = {"": "No group"} | {
-            group["group_id"]: group["name"] for group in self._draft["co"]["groups"]
-        }
+        groups = [
+            {"value": group["group_id"], "label": group["name"]}
+            for group in self._draft["co"]["groups"]
+        ]
         errors: dict[str, str] = {}
         if user_input is not None:
             sensors = _csv_entities(user_input["temperature_entity_ids"])
             primary = user_input.get("primary_temperature_entity_id") or None
             if not sensors:
                 errors["temperature_entity_ids"] = "sensor_required"
-            elif user_input["source_mode"] == "primary" and primary not in sensors:
+            elif primary is not None and primary not in sensors:
                 errors["primary_temperature_entity_id"] = "primary_not_in_sources"
             else:
+                if user_input["source_mode"] == "aggregate":
+                    primary = None
                 zone = {
                     "zone_id": existing.get("zone_id", str(uuid4())),
                     "name": user_input["name"].strip(),
@@ -333,47 +385,62 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "enabled", default=existing.get("enabled", True)
                     ): bool,
                     vol.Optional(
-                        "group_id", default=existing.get("group_id") or ""
-                    ): vol.In(groups),
+                        "group_id",
+                        **(
+                            {"default": existing["group_id"]}
+                            if existing.get("group_id")
+                            else {}
+                        ),
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=groups)
+                    ),
                     vol.Required(
                         "temperature_entity_ids",
                         default=", ".join(existing.get("temperature_entity_ids", [])),
                     ): str,
                     vol.Required(
                         "source_mode", default=existing.get("source_mode", "aggregate")
-                    ): vol.In(_SOURCE_MODES),
+                    ): _translated_select(_SOURCE_MODES, "source_mode"),
                     vol.Optional(
                         "primary_temperature_entity_id",
                         default=existing.get("primary_temperature_entity_id") or "",
                     ): str,
-                    vol.Required(
-                        "target_temperature",
-                        default=existing.get("target_temperature", 21.0),
+                    (
+                        vol.Required(
+                            "target_temperature",
+                            default=existing["target_temperature"],
+                        )
+                        if "target_temperature" in existing
+                        else vol.Required("target_temperature")
                     ): vol.Coerce(float),
                 }
             ),
             errors=errors,
         )
 
-    async def async_step_select_group(self, user_input: dict[str, Any]) -> FlowResult:
+    async def async_step_select_group(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Select a presentation group to edit or remove."""
-        operation = user_input["operation"]
-        choices = {
-            group["group_id"]: group["name"] for group in self._draft["co"]["groups"]
-        }
-        if "group_id" not in user_input:
+        operation = self._pending_operation
+        assert operation in {"edit_group", "remove_group"}
+        choices = [
+            {"value": group["group_id"], "label": group["name"]}
+            for group in self._draft["co"]["groups"]
+        ]
+        if user_input is None:
             return self.async_show_form(
                 step_id="select_group",
                 data_schema=vol.Schema(
                     {
-                        vol.Required("operation", default=operation): vol.In(
-                            {operation: operation}
+                        vol.Required("group_id"): selector.SelectSelector(
+                            selector.SelectSelectorConfig(options=choices)
                         ),
-                        vol.Required("group_id"): vol.In(choices),
                     }
                 ),
             )
         group_id = user_input["group_id"]
+        self._pending_operation = None
         if operation == "remove_group":
             self._draft["co"]["groups"] = [
                 group
@@ -419,9 +486,15 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Collect only the I02 DHW source bindings."""
         dhw = self._draft["dhw"]
+        errors: dict[str, str] = {}
         if user_input is not None:
-            dhw.update(user_input)
-            return await self.async_step_confirm()
+            if not _valid_binding(user_input["setpoint_entity_id"], "number"):
+                errors["setpoint_entity_id"] = "invalid_number_entity"
+            if not _valid_binding(user_input["enable_entity_id"], "switch"):
+                errors["enable_entity_id"] = "invalid_switch_entity"
+            if not errors:
+                dhw.update(user_input)
+                return await self.async_step_confirm()
         return self.async_show_form(
             step_id="dhw",
             data_schema=vol.Schema(
@@ -435,6 +508,7 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ): str,
                 }
             ),
+            errors=errors,
         )
 
     async def async_step_confirm(
