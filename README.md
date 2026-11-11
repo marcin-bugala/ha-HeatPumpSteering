@@ -16,6 +16,14 @@ Planowany produkt korzysta z encji HA, bez wymogu jednej marki sterowników. His
 
 Pierwsze kompletne wydanie developerskie ma objąć CO1 i strefy, opcjonalne zawory i demand oraz opcjonalne CWU z harmonogramem. Prognozy i ogrzewanie odpływu pozostają na kolejne wydania. [Runda 6](docs/requirements/round-06-architecture.md) określa zakres, architekturę i warunki odbioru. To plan produktu, nie funkcje już dostępne.
 
+## Rozwój z agentami
+
+Punkt wejścia: [AGENTS.md](AGENTS.md). [Środowisko rozwoju](docs/development/README.md)
+opisuje role, workflow, standardy, CI i przekazania. Następny etap to
+[projekt techniczny](docs/development/technical-design-brief.md) przed implementacją.
+CI na tym etapie sprawdza dokumentację i narzędzia; testy integracji HA zostaną
+uruchomione po dodaniu kodu. Agenci przygotowują PR, bez automatycznego merge i deploy.
+
 ## Gałęzie
 
 - `main` — specyfikacja i docelowa integracja produktu.
