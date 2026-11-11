@@ -13,6 +13,8 @@ from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.heat_pump_steering.const import DOMAIN
 
+from .conftest import set_temperature
+
 
 async def _submit(hass: HomeAssistant, result: dict, data: dict) -> dict:
     return await hass.config_entries.flow.async_configure(result["flow_id"], data)
@@ -214,4 +216,76 @@ async def test_reconfigure_preserves_ids_and_rejects_concurrent_change(
     assert (
         entry.data["co"]["zones"][0]["zone_id"] == original["co"]["zones"][0]["zone_id"]
     )
+    assert source_service_calls == []
+
+
+async def test_successful_reconfigure_preserves_zone_id_and_replaces_sources(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    source_service_calls: list,
+) -> None:
+    """D84/D85/B06: reload owns only the new source set and a fresh runtime."""
+    entry = make_entry(co=True)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    first_runtime = entry.runtime_data
+    installation_id = entry.data["installation_id"]
+    zone_id = entry.data["co"]["zones"][0]["zone_id"]
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await _submit(
+        hass,
+        result,
+        {"name": "Renamed", "enable_co": True, "enable_dhw": False},
+    )
+    result = await _submit(
+        hass,
+        result,
+        {
+            "setpoint_entity_id": "number.co_setpoint",
+            "outdoor_entity_id": "sensor.outdoor_temperature",
+            "aggregation": "mean",
+        },
+    )
+    result = await _submit(hass, result, {"action": "edit_zone"})
+    result = await _submit(hass, result, {"operation": "edit_zone", "zone_id": zone_id})
+    result = await _submit(
+        hass,
+        result,
+        {
+            "name": "New room name",
+            "enabled": True,
+            "group_id": "",
+            "temperature_entity_ids": "sensor.new_temperature",
+            "source_mode": "primary",
+            "primary_temperature_entity_id": "sensor.new_temperature",
+            "target_temperature": 22.0,
+        },
+    )
+    result = await _submit(hass, result, {"action": "continue"})
+    set_temperature(hass, "sensor.new_temperature", "21.5")
+    result = await _submit(hass, result, {"confirm": True})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data["installation_id"] == installation_id
+    assert entry.data["co"]["zones"][0]["zone_id"] == zone_id
+    assert entry.data["co"]["zones"][0]["name"] == "New room name"
+    assert entry.runtime_data is not first_runtime
+    assert "sensor.new_temperature" in entry.runtime_data.config.entity_ids
+    assert "sensor.living_temperature" not in entry.runtime_data.config.entity_ids
+    assert entry.runtime_data.co.readiness.ready
+
+    previous_readiness = entry.runtime_data.co.readiness
+    hass.states.async_set("sensor.living_temperature", "unavailable")
+    await hass.async_block_till_done()
+    assert entry.runtime_data.co.readiness is previous_readiness
     assert source_service_calls == []
