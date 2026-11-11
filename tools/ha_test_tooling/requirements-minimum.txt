@@ -1,0 +1,5 @@
+# Public plugin MIT; bundled Core test code Apache-2.0.
+homeassistant==2026.10.4
+pytest-homeassistant-custom-component==0.13.375
+pytest==9.0.3
+pytest-asyncio==1.4.0

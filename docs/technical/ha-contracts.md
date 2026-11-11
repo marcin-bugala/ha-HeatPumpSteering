@@ -133,3 +133,19 @@ nie ma zgodnego wydania upstream. Nie jest to nadpisanie zależności zainstalow
 pluginu 0.13.375. Generator upstream bez adaptacji wybiera latest — build I00
 musi przyjmować konkretny commit. Ta dokumentacja nie wykonała builda/smoke testów;
 T08 kończy dopiero wynik obu środowisk dla SHA I00.
+
+### Wykonanie narzędzi I00
+
+Odczyt przypiętego Core w I00 wykazał gotowy samodzielny pakiet
+packages/pytest-homeassistant. Zamiast dostosowywać stary generator, który oczekuje
+już przeniesionych plików tests/common.py, budujemy ten pakiet z tego samego
+SHA d8a0dc698c8946b44e455d904000db563cfbf1ba. Lokalna wersja to
+pytest-homeassistant==0.0.0+ha2026.11.1 z dokładnym pinem homeassistant==2026.11.1.
+Nie zmienia to D101 ani minimum. Minimum pozostaje z publicznym pluginem 0.13.375.
+Fixtures current są w całości kodem Apache-2.0 Core; nie wymagają generatora MIT.
+
+[Implementacja i komendy](../../tools/ha_test_tooling/README.md) opisują kontrolę
+SHA, licencji, niezmienionych plików .py i dwóch buildów, a także różne importy
+helperów w obu środowiskach. Wyniki dla konkretnego SHA i link do CI są w PR I00.
+Sam udany build lub odczyt źródła nie rozwiązuje T08: wymagane są pip check
+i rzeczywiste testy hass w obu wierszach. I01 rusza po odbiorze i scaleniu I00.

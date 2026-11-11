@@ -8,9 +8,10 @@
 | Job | Kontrola |
 | --- | --- |
 | quality | Ruff lint/format, testy bramek CI, lokalne cele linków Markdown i gotowość testów HA |
+| ha-tooling | Obowiązkowe dwa środowiska fixtures: HA 2026.10.4 i 2026.11.1, pip check i realne smoke testy |
 | ha-tests | Pytest z pluginem HA, automatycznie po pojawieniu się manifestu/kodu |
 | hassfest | Walidacja struktury HA, automatycznie po pojawieniu się integracji |
-| ci | Zbiorcza bramka: quality musi przejść; z integracją także oba zadania HA |
+| ci | Zbiorcza bramka: quality i oba wiersze ha-tooling muszą przejść; z integracją także oba zadania HA |
 
 Obecnie `ha-tests` i `hassfest` są jawnie pomijane: nie ma jeszcze integracji.
 Testy `tests/bootstrap` dotyczą narzędzi CI, nie regulacji pompy. Zielony wynik nie
@@ -33,6 +34,22 @@ git diff --check
 
 Linux: zamiast `.venv/Scripts/python` użyj `.venv/bin/python`.
 Kontrole wymagają tylko repo i danych syntetycznych, bez konfiguracji HA domu.
+
+## I00 — środowiska testów HA
+
+[Instrukcja odtworzenia i pochodzenie pakietów](../../tools/ha_test_tooling/README.md)
+podaje komplet komend obu izolowanych venv. Python HA: 3.14 >=3.14.2.
+Minimum używa publicznego pluginu 0.13.375; current buduje dwa razy niezmienione
+fixtures samodzielnego pakietu z Core d8a0dc6, zmieniając wyłącznie wersję i pin HA.
+Licencja Apache-2.0, metadane i pliki Python są weryfikowane przy buildzie.
+Nie uruchamiamy starego generatora wybierającego latest. Nie instalujemy pluginów
+razem ani nie nadpisujemy ich zależności. Nie ma zależności runtime produktu.
+
+Job ha-tooling działa także bez manifestu integracji i blokuje ci przy błędzie
+lub pominięciu dowolnego wiersza. Log zapisuje pełne zainstalowane wersje,
+pip check, testy oraz provenance/hash wheel current. Wyniki dla SHA są w PR I00;
+same komendy i testy bootstrap nie są dowodem rozwiązania T08. Testy produktu
+A/B/C oraz hassfest nadal czekają na kod I01 i kolejne pakiety.
 
 ## Pierwszy PR implementacji — bramka HA
 
