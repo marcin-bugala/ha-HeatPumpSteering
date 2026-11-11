@@ -4,7 +4,7 @@ Uzgodnienia właściciela produktu z 11 listopada 2026. Runda jest zamknięta na
 
 ## Zakres i model instalacji
 
-- Czytamy i sterujemy przez encje HA. Komunikację z urządzeniami zapewniają istniejące integracje, bez osobnego połączenia produktu do chmury producenta. Sam optymistyczny stan nie potwierdza wykonania.
+- Czytamy i sterujemy przez encje HA. Komunikację z urządzeniami zapewniają istniejące integracje, bez osobnego połączenia produktu do chmury producenta. D90 przyjmuje wstępne potwierdzenie od razu i ostateczne po zgodnym ponownym odczycie tej samej encji po 2 min; nie utożsamiamy tego z fizycznym wykonaniem.
 - Jedna konfiguracja obejmuje jedną pompę, maksymalnie jeden obieg CO i jedno CWU. CO i CWU są niezależnie opcjonalne: samo CO, samo CWU albo oba.
 - W CO wymagamy nastawy CO1 także dla obserwacji, outdoor i aktywnej strefy z temperaturą oraz celem. Wyjścia zaworów i demand wymagane są wyłącznie po włączeniu tych funkcji.
 - Przy samym CWU wymagamy tylko jego encji. Nie wymagamy nastawy CO1, outdoor ani stref; panel i encje nieskonfigurowanego modułu nie są udostępniane.
@@ -90,6 +90,11 @@ To scenariusze przyszłej implementacji, nie wykonane testy. Rozszerzają [A01�
 
 ## Projekt techniczny przed kodowaniem
 
-Do przygotowania: podział modułów, model danych i przyszłych obiegów, domena, minimalna wersja HA i macierz testowa, platformy i kontrakty encji, niezależne potwierdzanie zapisów oraz rozpoznawanie zmian zewnętrznych, schematy/migracje Store, dostęp do historii i jakość jej raportów, technologia frontendu, plan implementacji i testów. Zachowania ręcznego demandu, logiki odwróconej i inicjalizacji CWU bez wcześniejszej nastawy wymagają jawnego rozstrzygnięcia w tym projekcie.
+Do przygotowania: podział modułów, model danych i przyszłych obiegów, domena, minimalna wersja HA i macierz testowa, platformy i kontrakty encji, dwuetapowe potwierdzanie D90 oraz rozpoznawanie zmian zewnętrznych D91, schematy/migracje Store, dostęp do historii i jakość jej raportów, technologia frontendu, plan implementacji i testów. Zachowania ręcznego demandu, logiki odwróconej i inicjalizacji CWU bez wcześniejszej nastawy wymagają jawnego rozstrzygnięcia w tym projekcie.
 
 To zapis wymagań. Nie rozpoczynamy kodowania w ramach tego PR.
+
+Aktualizacja po P01–P12: D90–D101 rozstrzygają pytania produktowe powyżej;
+domena/minimum/macierz i kontrakty P12 są przyjęte. Higieny CWU nie obsługujemy.
+Cały projekt nadal wymaga przeglądu, T08 wymaga zgodnych zależności testowych.
+Dodatkowy odbiór: C01–C13 w rundzie 5; żaden test nie został tu wykonany.

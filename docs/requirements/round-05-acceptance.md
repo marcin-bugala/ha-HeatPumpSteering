@@ -4,7 +4,7 @@ Uzgodnienia z 11 listopada 2026. Zestaw konkretyzuje rundy 1–4 i doprecyzowani
 
 ## Doprecyzowania rundy 5
 
-- Czas potwierdzenia zapisu wynosi domyślnie 2 minuty i jest konfigurowalny wspólnie dla programu. Odstępy ponowień liczymy od wysłania poprzedniej próby. Późniejsze poprawne potwierdzenie nadal aktualnego polecenia kończy serię przed kolejnym ponowieniem.
+- Aktualizacja D90: wstępne potwierdzenie następuje od razu po zgodnym odczycie encji po zapisie; ostateczne po ponownym poprawnym zgodnym odczycie tej samej encji po domyślnie 2 min. Czas kontroli jest konfigurowalny wspólnie dla programu. Odstępy ponowień liczymy od wysłania poprzedniej próby. Późniejsze poprawne potwierdzenie nadal aktualnego polecenia kończy serię przed kolejnym ponowieniem.
 - Ręczna zmiana nastawy wody na pompie lub w jej aplikacji pozostawia regulator CO1 aktywny. Bieżąca wartość jest odczytywana, a następny dozwolony zapis zmierza do aktualnego wyniku algorytmu. Nie wprowadzamy dodatkowej pauzy za samą taką zmianę.
 - Panel CWU udostępnia pola zależnie od trybu. W Wyłączone temperatura i harmonogram są niedostępne. W Stałe dostępna jest temperatura, w Harmonogram dostępny jest plan. Dzięki temu jedna edycja nie łączy ręcznej temperatury i harmonogramu.
 - Zapis w trybie Harmonogram kończy wcześniejsze nadpisanie i natychmiast stosuje aktualny przedział zapisanego planu. Dotyczy również ponownego zapisania identycznego planu.
@@ -79,7 +79,7 @@ Uzgodnienia z 11 listopada 2026. Zestaw konkretyzuje rundy 1–4 i doprecyzowani
 | A34 | [US09](user-stories.md#us09), [US17](user-stories.md#us17) | Wszystkie aktywne strefy poprawnie mierzone i zamknięte | Utrzymanie bieżącego CO1 oraz OFF demandu przy braku zapotrzebowania. |
 | A35 | [US16](user-stories.md#us16), [US17](user-stories.md#us17) | Utrata outdoor albo aktualnej nastawy/wiarygodnego zakresu PC | Odpowiednie zapisy CO1 wstrzymane. Sprawne zawory, demand i CWU działają według własnych danych. |
 | A36 | [US05](user-stories.md#us05), [US09](user-stories.md#us09) | Błąd przekaźnika otwierania albo zamykania | Stan nieznany i ponowienia. Niepotwierdzone otwarcie nie wystarcza do ON demandu. Nieudane zamknięcie zachowuje strefę w ochronie przegrzewania. |
-| A37 | [US04](user-stories.md#us04), [US17](user-stories.md#us17), [US19](user-stories.md#us19) | Zapis CO1 wysłany 10:00 bez niezależnego potwierdzenia | Próba niepotwierdzona o 10:02. Kolejne wysłania 10:05 i 10:10. Błąd zapisu po braku potwierdzenia do 10:12. |
+| A37 | [US04](user-stories.md#us04), [US17](user-stories.md#us17), [US19](user-stories.md#us19) | Zapis CO1 wysłany 10:00; ponowny odczyt po 2 min niezgodny lub niedostępny | Próba niepotwierdzona o 10:02. Kolejne wysłania 10:05 i 10:10. Błąd zapisu po braku potwierdzenia do 10:12. |
 | A38 | [US04](user-stories.md#us04), [US17](user-stories.md#us17), [US19](user-stories.md#us19) | Seria A37 nadal bez sukcesu | Dalsze próby 10:20, 10:35, 11:00, 11:40, 12:45, 14:30, 16:30, potem co 120 min. Przed każdą aktualna ocena potrzeby. |
 | A39 | [US04](user-stories.md#us04), [US17](user-stories.md#us17) | Po limicie 10:02 poprawne potwierdzenie aktualnego polecenia dociera 10:03 | Koniec ponowień i reset serii błędów. Próba 10:05 nie jest wysyłana. |
 | A40 | [US03](user-stories.md#us03), [US09](user-stories.md#us09), [US17](user-stories.md#us17) | Oczekujące ponowienie, lecz użytkownik przechodzi w obserwację albo aktualne żądanie się zmienia | Przed kolejną próbą obowiązuje bieżący tryb i decyzja. Poprzednie polecenie nie jest odtwarzane z kolejki. |
@@ -124,3 +124,24 @@ Dalsze decyzje obejmują minimalną wersję HA, domenę, kontrakty modułów i �
 ## Aktualizacja po rundzie 6
 
 [Ustalenia architektury](round-06-architecture.md) zawężają wymagania A01/A02 do modułu CO i dodają konfigurację tylko CWU. A58 zastąpiono uruchomieniem bez POC. Dalsze decyzje o trwałości, cyklu życia, diagnostyce i wydaniach są w rundzie 6; minimum HA, domena i kontrakty techniczne pozostają do projektu. Kryteria B01–B13 rozszerzają tabelę bez zmiany identyfikatorów A.
+
+## Scenariusze po rozstrzygnięciu P01–P12 — C01–C13
+
+Przyjęte 11 listopada 2026 z D90–D101. Uzupełniają A01–A59/B01–B13 bez
+zmiany ich identyfikatorów. Wszystkie są planem, nie wykonanymi testami.
+
+| ID | Decyzja | Warunek | Oczekiwany wynik |
+| --- | --- | --- | --- |
+| C01 | P01 / D90 | Zapis 29°C o 10:00, od razu zgodna encja; ponowny odczyt o 10:02 nadal 29°C | Wstępne potwierdzenie od razu, ostateczne 10:02; brak retry 10:05. Wcześniejszy raport nie kończy kontroli 2 min. |
+| C02 | P01 / D90 | Jedna encja HiMitII ma poprawny zgodny stan po 2 min, bez nowego last_reported i znacznika odczytu chmury | Ostateczne potwierdzenie operacyjne; brak wymogu drugiej encji/pochodzenia limitów/dowodu fizycznego. UI nie nazywa go dowodem fizycznym. |
+| C03 | P02 / D91 | Zmiana CWU bez powiązania z algorytmem, brak informacji o autorze; jednakowe pola do 16:00 | External jak użytkownik, nadpisanie do rzeczywistej zmiany planu lub zapisu panelu; bez ambiguous i blokady pochodzenia. |
+| C04 | P03 / D92 | Aktywny CO, ręczny OFF demandu podczas serii błędów | Tryb pozostaje control, licznik/next_retry zachowane. Następna dozwolona ocena uzgadnia aktualne żądanie; observation oddaje kontrolę. |
+| C05 | P04 / D93 | Strefy NC/NO z normalnym i odwróconym bindingiem; edycja mapowania | Mapowanie hydraulika→zasilanie→stan HA jest poprawne. NC/NO wspólne strefie; sama edycja nie wysyła polecenia. |
+| C06 | P05 / D94 | Brak encji higieny, następnie zmiana nastawy CWU przez mechanizm pompy | Brak wymogu/obsługi higieny nie blokuje aktywacji CWU; zmiana niealgorytmiczna external. Brak dedykowanych zapisów/blokad higieny. |
+| C07 | P06 / D95 | Nowe CWU bez temperatury/planu, szkic 7×48 OFF, kopiowanie dnia | Nieskonfigurowane, bez usług urządzenia. Stałe/ON wymaga temperatury; jeden jawny zapis całego poprawnego planu, draft nie wykonuje OFF. |
+| C08 | P07 / D96 | Cel strefy 5°C/35°C, próba 4,5°C/35,5°C; zmiana podczas potwierdzania | Granice i krok 0,5°C walidowane; początkowy cel użytkownika. Zmiana zeruje zależny postęp temperatury, zachowuje historię i blokady zamknięcia/demandu. |
+| C09 | P08 / D97 | Długa niezmienna historia bez heartbeat i mediana ważona dokładnie 50/50 | Niepewne fragmenty są lukami; brak fikcyjnego pokrycia. Mediana średnią dwóch środkowych wartości. |
+| C10 | P09 / D98 | Mieszane zamknięte/niedostępne/niegotowe strefy, brak kwalifikowanych korekt, poprawny outdoor | Baza outdoor bez korekt pokojowych z blokadami; odrębnie wszystkie poprawne zamknięte → hold, wszystkie utracone po grace → baza i wycofanie demandu. |
+| C11 | P10 / D99 | Nastawa 40°C przy zakresie 23–35°C, limit zmiany 1°C/120 min; analogicznie 20°C poniżej minimum | Żądanie 35°C lub 23°C i konflikt; zwykły limit nie blokuje korekty granicznej. Obserwacja nic nie wysyła; retry/walidacja nadal obowiązują; po zgodnym odczycie konflikt ustępuje z historią. |
+| C12 | P11 / D100 | Licznik energii obecny/brak; aktywne ostrzeżenie i utrata pomiaru, potem otwarcie/wiarygodny zanik warunku | Energia z licznika lub brak danych, bez całki i nowych okresów. Brak danych wstrzymuje ocenę ostrzeżenia, read go nie kasuje; otwarcie/wiarygodne ustąpienie kasuje z historią. |
+| C13 | P12 / D101 | Instalacja na przyjętych wersjach HA, number celu i Lit; nowy binding w aktywnym module | Kontrakty heat_pump_steering, HA 2026.10.4/2026.11.1, number/switch i bundle spełnione. Nowy binding czeka na jawną aktywację, nie dziedziczy starej. |

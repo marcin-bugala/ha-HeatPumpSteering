@@ -1,6 +1,6 @@
 # Wymagania HA HeatPumpSteering
 
-Wersja dokumentacji 0.7 z 11 listopada 2026 obejmuje rundy 1–6, scenariusze odbioru oraz decyzje architektury i wydań. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
+Wersja dokumentacji 0.7 z 11 listopada 2026 obejmuje rundy 1–6, scenariusze odbioru oraz decyzje architektury i wydań. Aktualizacja PR #36 dodaje przyjęte D90–D101 (rozstrzygnięcia P01–P12) i scenariusze C01–C13; cały projekt techniczny pozostaje do przeglądu. To baza do wspólnego dopracowania, nie zamknięta specyfikacja implementacji ani wydanie oprogramowania.
 
 ## Dokumenty
 

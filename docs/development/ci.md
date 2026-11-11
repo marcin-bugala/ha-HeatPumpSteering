@@ -61,7 +61,7 @@ W tym samym PR:
 6. Sprawdź działający hassfest dla rzeczywistego manifestu; konfigurację HACS i jej
    walidację dodaj wraz z metadanymi dystrybucji. Nie obchodź reguł dla custom integration.
 
-Frontend jest jeszcze bez wybranej technologii. Pierwszy PR frontendu musi dodać
+D101 (P12) przyjmuje frontend TypeScript/Lit; jego implementacja i testy jeszcze nie istnieją. Pierwszy PR frontendu musi dodać
 lint/build/test jego stosu do CI i zbiorczej bramki: PL/EN, edycja/odrzucenie/zapis
 CWU, dostępność i komunikaty awarii. Obecne CI nie testuje przyszłej karty.
 

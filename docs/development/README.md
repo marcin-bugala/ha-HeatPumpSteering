@@ -14,6 +14,7 @@ sterującego pompą. Punktem wejścia jest [AGENTS.md](../../AGENTS.md).
 | [Release / Deployment](roles/release-deployment.md) | Gotowość wydania i plan wycofania |
 | [Standardy i bezpieczeństwo](standards.md) | Czytelny kod i granice sterowania |
 | [CI i uruchomienie lokalne](ci.md) | Kontrole teraz i po dodaniu integracji |
+| [Projekt techniczny do przeglądu](../technical/README.md) | Architektura, pytania, macierz A/B i plan PR-ów |
 | [Brief projektu technicznego](technical-design-brief.md) | Konkretne następne zadanie |
 | [Szablon przekazania](templates/handoff.md) | Kontrakt między rolami |
 
