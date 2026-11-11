@@ -2,7 +2,10 @@
 
 Rola: Tech Lead / Orchestrator. Data: 11 listopada 2026. Baza produktu:
 `6891b473a646c3d9e0783edf6cd437eb27a9b758` (main, po PR #35).
-To dokumentacyjna propozycja, nie zgoda na implementację ani wykonany odbiór.
+Projekt scalono w PR #36 jako e27621281d119f802e263d427ef9b9d36f6a135e.
+Właściciel następnie zlecił krok 3; konkretne zakresy wykonania i warunki T08
+są w [przekazaniach dla Developera](../development/handoffs/README.md).
+To nie wynik odbioru produktu ani zgoda na dowolny zakres implementacji.
 Wiążące są [wymagania](../requirements/README.md) i D01–D101 z jawnymi
 zastąpieniami. Ustalenia P01–P12 właściciela zsynchronizowano z kryteriami;
 statusy realizacji pozostają wyłącznie w Issues, bez ich zamykania.
@@ -28,15 +31,15 @@ w opisach Issues nie zastępują późniejszych D69–D89. POC nie odczytywano.
 P01–P12 zostały rozstrzygnięte przez Marcina Bugałę i zapisane jako D90–D101.
 Domena, minimum/macierz HA, platformy encji i Lit z P12 są przyjęte.
 Pozostałe szczegóły techniczne T podlegają przeglądowi całego projektu;
-T08 (zgodne zależności testów HA) pozostaje zadaniem technicznym.
-Przyjęcie decyzji nie oznacza zgody na implementację ani zatwierdzenia projektu.
+T08 (zgodne zależności testów HA) jest pierwszym wydzielonym zleceniem I00.
+Aktualna dyspozycja właściciela i zakresy I00/I01 są w indeksie przekazań.
 
 Pierwsze kompletne wydanie nadal zawiera CO, strefy, opcjonalne zawory/demand i CWU,
 kartę, panel oraz PL/EN; warianty samo CO / samo CWU / oba. Przyszłe dwa CO
 mają miejsce w identyfikatorach, bez drugiego regulatora, prognoz, skroplin i importera.
 
-Następny odbiorca: właściciel produktu i niezależny Reviewer. Autor wykona
-samokontrolę, nie niezależne review. Pakiety Developera są warunkowe:
-wymagają wskazania zatwierdzonego SHA projektu i rozwiązania zależności technicznych.
-P01–P12 nie są już blokerami produktowymi.
+Następny odbiorca: Developer dla I00, następnie Reviewer/Tester i Tech Lead.
+Autor wykonał samokontrolę, nie niezależne review; brak niezależnego review
+PR #36 pozostaje jawny. I01 zależy od dowodów i scalenia I00.
+P01–P12 nie są blokerami produktowymi.
 Wyniki kontroli dokumentacyjnego commitu będą w PR; A01–A59/B01–B13 pozostają planem.

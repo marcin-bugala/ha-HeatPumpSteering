@@ -1,17 +1,23 @@
 # Małe PR-y i przekazanie Developerowi
 
-To plan po zatwierdzeniu projektu, nie zlecenie rozpoczęcia integracji.
+Po scaleniu PR #36 i jawnej dyspozycji właściciela przejścia do kroku 3
+konkretne zlecenia określa [indeks przekazań](../development/handoffs/README.md).
+Najpierw I00 domyka T08, potem I01; pozostałe pakiety wymagają osobnego handoffu.
 Baza analizy main: 6891b473a646c3d9e0783edf6cd437eb27a9b758.
 Gałęzie każdego pakietu od aktualnego origin/main po scaleniu zależności.
 Każdy PR do main, bez auto-merge, deploy i automatycznego zamykania US.
 Numer pakietu to kolejność techniczna, nie status Issue.
 P01–P12 w tabeli są odnośnikami do przyjętych D90–D101, nie otwartymi blokerami.
-Właściciel przyjął ustalenia, ale jeszcze nie zatwierdził całego SHA projektu.
+Baza projektu przyjęta do dalszych prac: e27621281d119f802e263d427ef9b9d36f6a135e.
+Właściciel scalił PR #36 i zlecił krok 3; brak niezależnego review jest jawny
+w indeksie przekazań. Nie utożsamiamy samego merge z wynikiem testu produktu.
 
 ## Definition of Ready
 
-Właściciel przejrzał konkretny SHA projektu, niezależny Reviewer sprawdził
-zgodność z US/D, uwzględniono przyjęte D90–D101 i rozwiązano T08 dla fundamentu.
+Podstawa przejścia do wykonania i brak niezależnego review są zapisane
+w indeksie przekazań; decyzję właściciela wiążemy z konkretną bazą SHA.
+Przed kodem produktu I01 wymagane rozwiązanie T08 w I00. I00 jako zadanie
+narzędziowe nie wymaga wyniku samego siebie przed rozpoczęciem.
 Tech Lead wpisuje zatwierdzony SHA oraz link odpowiedzi właściciela w handoff.
 Treść wymagań i powiązanych Issues zsynchronizowana; bez nowych statusów w docs.
 Developer odświeża main, czyta Issue z komentarzami, sprawdza instrukcje i
@@ -22,7 +28,8 @@ Nie wystarcza samo zielone CI dokumentacji.
 
 | Pakiet / gałąź | Zakres i rezultat do przeglądu | Refs US / Issues, D, A/B | Zależności / decyzje | Kryterium końca i odbiorca |
 | --- | --- | --- | --- | --- |
-| I01 feat/10-ha-foundation | Rzeczywisty manifest, ConfigEntry/runtime, minimum i macierz CI, PL/EN flow; tylko setup/unload i observation | US03/08/16/20; #10 #15 #23 #29; D09,D68–D71,D80; A02,A08; B01,B02,B04 | Zatwierdzenie projektu, P12 i T08 | Prawdziwe testy HA na obu wersjach; mock dowodzi braku usług w observation; hassfest. Reviewer → Tester |
+| I00 chore/ha-test-matrix | Zgodne środowiska i fixtures minimum/current, realne smoke tests oraz odtwarzalny pakiet current, bez custom_components | US08/16/20; #15 #23 #29; D80,D101; przygotowanie A/B/C | Przyjęty projekt i T08 jako zakres do rozwiązania | Oba środowiska i pip check PASS, licencje/źródła sprawdzone; Reviewer → Tester → Tech Lead |
+| I01 feat/10-ha-foundation | Rzeczywisty manifest, ConfigEntry/runtime, minimum i macierz CI; setup/unload i observation na poprawnych wpisach, użytkowy config_flow w I02 | US03/08/16/20; #10 #15 #23 #29; D09,D68–D71,D80; A02,A08; B01,B02,B04 | Przyjęty projekt/P12, scalone I00 z dowodami T08 | Prawdziwe testy HA na obu wersjach; mock dowodzi braku usług w observation; hassfest. Reviewer → Tester |
 | I02 feat/8-installation-model | Typy i walidacja jednej pompy/jednego CO/CWU, stref/grup, trwałe UUID, bez wykonawcy | US01/09/15; #8 #16 #22; D07,D17–D21,D69–D70,D85; A01,A03–A05; B01,B02,B06 | I01; P07/P12 | UI konfiguruje samo CO/samo CWU/oba; brak pustych modułów i nowych ID przy rename; Reviewer |
 | I03 feat/16-output-ownership | Atomowe rezerwacje między wpisami, ostrzeżenia odłączenia, binding registry_id i rename źródła | US01/09/16; #8 #16 #23; D84–D87; A04; B04,B06,B09,B10 | I02; P04 | Dwa równoczesne flow nie współdzielą wyjścia; odłączenie niczego nie przełącza; Reviewer → Tester |
 | I04 feat/15-versioned-store | Store v1, cele/tryby, walidacja payload, protokół rewizji ConfigEntry/Store i odmowa niezgodności | US02/08/19; #9 #15 #26; D25,D54,D71–D72,D89; A07,A43; B05–B07 | I02; P07 | Restart zachowuje UUID i ustawienia; błąd zapisu i crash granicy nie resetują; Reviewer |
@@ -69,34 +76,19 @@ po zmianie danych według macierzy schematów i zgodnej kopii HA.
 Nigdy revert schematu z cichym czyszczeniem Store.
 Scalenie dokumentacji lub części kodu nie zamyka US pełnego zakresu.
 
-## Przygotowany kontrakt pierwszego przekazania
+## Konkretne przekazania po scaleniu projektu
 
-- Nadawca: Tech Lead; odbiorca: Developer; data przygotowania: 11 listopada 2026.
-- Repo: marcin-bugala/ha-HeatPumpSteering; gałąź docelowej pracy: feat/10-ha-foundation.
-- Commit wejściowy analizy: 6891b473a646c3d9e0783edf6cd437eb27a9b758.
-- Commit zatwierdzonego projektu i potwierdzenie przeglądu: do wpisania po przeglądzie
-  właściciela; aktualny dokumentacyjny commit wskazuje PR. P01–P12 przyjęte jako
-  D90–D101; nie ma jeszcze zatwierdzenia całego projektu.
-- Zakres: wyłącznie I01; pozostałe pakiety osobnymi handoffami po ich DoR.
-- Refs: #10 #15 #23 #29; US03/08/16/20, D09/D68–D71/D80,
-  A02/A08, B01/B02/B04. To nie zamknięcie tych historii.
-- Kontrakty: domena/minimum/macierz z ha-contracts, observation bez usług,
-  runtime_data i kontrolowany unload; nowe moduły nie aktywują wyjść.
-- Zależności: przyjęte P12/D101, przegląd projektu i rozwiązanie T08; bez aktywnego wykonawcy,
-  profilu HiMitII, algorytmu, frontendu i migracji POC.
-- Dane i błędy: syntetyczne encje, brak wymagań CO dla CWU-only,
-  setup failure bez usług, anulowanie subskrypcji/timerów po unload.
-- Trwała tożsamość: InstallationConfig UUID nie z nazwy; zachowanie wymagane
-  również w przyszłych pakietach. Bez fikcyjnego Store/manifestu na etapie projektu.
-- Weryfikacja: komendy z docs/development/ci.md plus realne testy setup/unload
-  i zero call_service do źródeł, oba HA i hassfest. Raport dla SHA kodu.
-- Braki teraz: brak kodu i wykonanych A/B; T08; nieprzejrzany projekt.
-- Kryterium przyjęcia przez Reviewera: mały diff I01, działające obie macierze,
-  jawne ograniczenia i żadnej ukrytej aktywacji. Tester dostaje potem ten sam SHA.
+- [I00 — narzędzia testowe HA](../development/handoffs/i00-ha-test-tooling.md):
+  bieżący zakres Developera, domyka techniczną zależność T08 bez kodu integracji.
+- [I01 — fundament integracji](../development/handoffs/i01-ha-foundation.md):
+  kompletny kontrakt następnego małego PR; start po wynikach i scaleniu I00.
+- [Indeks](../development/handoffs/README.md) zapisuje bazę e276212 i dyspozycję
+  właściciela przejścia do kroku 3. Commit wykonawczy I01 będzie aktualnym main po I00.
 
-Kolejne handoffy wykorzystują ten sam [szablon](../development/templates/handoff.md)
-i konkretny wiersz I02–I20, wskazując przyjęte D90–D101 oraz scenariusze C01–C13.
-Nie wydajemy polecenia „zbuduj całość” ani zgody na kod przed przeglądem.
+Doprecyzowanie podziału: I01 nie dodaje pustego config_flow. Testuje prawdziwy
+setup/unload na poprawnych ConfigEntry; I02 dodaje użytkowy kreator i model stref.
+Nie zmienia to docelowego działania produktu ani pierwszego kompletnego wydania.
+Reviewer/Tester otrzymują rzeczywiste SHA i wyniki; żaden handoff nie wykonuje merge.
 
 C01–C13 w verification.md uzupełniają testy pakietów I01–I18: C01/C02 I10–I11,
 C03/C06 I14–I15, C04 I13, C05 I03/I12, C07 I14/I17/I18, C08 I04/I07/I16,
