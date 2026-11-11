@@ -1,88 +1,51 @@
-# Etapy wydań, weryfikacja i migracja
+# Etapy wydań, weryfikacja i aktualizacje
 
-Projekt v0.6 z 11 listopada 2026 obejmuje rundy 1–5. Nie ustalamy dat realizacji ani nie obiecujemy niezweryfikowanych funkcji. Numeracja poniżej opisuje etapy, nie opublikowane wersje programu.
+Projekt v0.7 z 11 listopada 2026 obejmuje rundy 1–6. Numeracja etapów nie oznacza opublikowanych wersji. Nie ustalamy dat realizacji.
 
-## Kolejność
+## Zakres pierwszego kompletnego wydania developerskiego
+
+[Decyzja rundy 6](round-06-architecture.md) zastępuje wcześniejsze odkładanie demandu i CWU poza pierwsze wydanie. Zakres: CO i strefy, opcjonalne zawory i demand oraz niezależnie opcjonalne CWU z harmonogramem. Musi umożliwiać pełne działanie samo CO / samo CWU / obu modułów. Jedna konfiguracja obejmuje jedną pompę, maksymalnie jeden CO i jedno CWU.
+
+Architektura przewiduje przyszłe dwa CO jednej pompy z osobnymi strefami, nastawami i Demand 1/2. Funkcja jest poza pierwszym wydaniem. Prognozy i skropliny pozostają późniejsze; skropliny są wstępnie kolejne w kolejności.
+
+## Kolejność prac
 
 | Etap | Zakres | Warunek zakończenia |
 | --- | --- | --- |
-| R0 — wymagania | Produkt, US01–US21, decyzje i scenariusze | Kluczowe pytania zakresu kolejnego etapu rozstrzygnięte przez właściciela produktu |
-| R1 — fundament obserwacyjny | Konfiguracja UI, encje, pamięć, jakość danych, cele, decyzje i dashboard | Działa instalacja/cykl życia; obserwacja nie wysyła żadnych automatycznych poleceń do objętych nią wyjść |
-| R2 — pierwsza publiczna wersja testowa | Regulator CO1 i strefy, opcjonalne wyjścia zaworów, diagnostyka i świadoma aktywacja | Testy porównawcze, scenariusze awarii, sprawdzone limity i dowód odbioru konfiguracji referencyjnej |
-| R3 — opcjonalny demand | Agregacja, sekwencje zaworów, timery i potwierdzenia | Zweryfikowane znaczenie wejścia i gotowość instalacji; bez demandu brak ON/OFF CO1 |
-| R4 — CWU | Tryb stały i harmonogram 7×48 | Uzgodnione nadpisania, obserwacja, restart, zmiana czasu, brak łączności i relacja do ochrony producenta |
-| R5 — prognozy, odłożone do kolejnej wersji | Wymagania US21 zachowane; brak w bieżącym programie | Walidacja słonecznych/pochmurnych dni, zmian pogody i awarii; porównanie z bazą bez prognoz |
-| R6 — F01 skroplin | Kalibracja pracy PC, grzałka, timery i diagnostyka | Potwierdzone klasy pracy/progi i testy odbioru grzałki oraz restartów |
-| R7 — stabilizacja | Kompatybilność, aktualizacje, dokumentacja PL/EN, wydania | Powtarzalne kontrole, instrukcje wsparcia i udokumentowane ograniczenia |
+| P0 — wymagania | Rundy 1–6, US01–US21, decyzje, A01–A59 i B01–B13 | Zapis i przegląd uzgodnień produktu; bez twierdzenia o gotowej implementacji |
+| P1 — projekt techniczny | Moduły, dane, domena, minimum HA, encje/potwierdzenia, historia, Store, frontend i testy | Rozwiązanie pytań niezbędnych do implementacji |
+| P2 — budowa etapami | Fundament obserwacyjny, potem pełne sterowanie CO/strefami/zaworami/demandem i CWU | Wszystkie funkcje pierwszego wydania działają, nie tylko demonstrator |
+| P3 — odbiór i pierwsze wydanie developerskie | Testy, konfiguracje modułów, awarie/restarty/aktualizacje, PL/EN, HACS i ręczna instalacja | Wyniki na instalacji referencyjnej, wskazane konfiguracje tylko symulowane i komplet instrukcji |
+| P4 — kolejne rozszerzenia | Skropliny wstępnie następne; prognozy i drugi obieg w przyszłych wersjach | Osobno dopracowany i zatwierdzony zakres każdego rozszerzenia |
+| P5 — stabilizacja | Kompatybilność, dokumentacja, regresje i publikacja | Powtarzalny odbiór; zgłoszenie do domyślnego katalogu HACS po stabilizacji |
 
-Zakres i kolejność R3–R6 to propozycja organizacyjna do zatwierdzenia, nie nowa decyzja o priorytetach. Demand jest opcją modelu produktu od początku; jego aktywna obsługa nie jest obiecana w pierwszej wersji testowej. Tak samo obecność CWU i prognoz w wymaganiach nie oznacza ich implementacji w R2.
+Dokumentacja nie uruchamia implementacji. Kolejność wewnątrz P2 ustalimy w projekcie technicznym. POC jest całkowicie osobny, nie stanowi etapu produktu.
 
-Nie rozpoczynamy kodowania produktu przy otwartych decyzjach istotnych dla danego etapu. Nie blokuje to dalszego rozwijania POC na jego własnej gałęzi.
+## Weryfikacja i dowody odbioru
 
-## Postęp doprecyzowania wymagań
+- Deterministyczne testy algorytmu i czasu, filtry, zakłócenia, konflikty stref, limity, kwantyzacja i ponowienia.
+- Konfiguracja, cykl życia i trzy warianty CO/CWU; cztery kombinacje zaworów/demandu dla CO.
+- Brak poleceń w obserwacji; świadoma aktywacja; odłączenie wyjść; blokada współdzielenia.
+- Braki danych, odbudowa historii i gotowość okien; brak fikcyjnych próbek.
+- Restarty, aktualizacje/migracje, zachowanie tożsamości, timerów i nadpisań; niezgodny powrót do starszego wydania.
+- CWU: plan 7×48, walidacja edycji, nadpisania, Zapisz, zmiana czasu i częściowe wykonanie.
+- Kontrole struktury integracji i frontendu, tłumaczeń oraz publikacji, w tym odpowiednie hassfest/HACS.
+- Odbiór na rzeczywistej instalacji z wersją, ustawieniami, wejściami, stanami, czasami i wynikami. Jawnie zaznaczamy przypadki tylko symulowane.
 
-Uzgodniono [model stref](round-01-installation-zones.md), [codzienną obsługę](round-02-daily-operation.md), [reguły regulacji](round-03-regulation.md) oraz [awarie i restarty](round-04-failures-restarts.md). [Runda 5](round-05-acceptance.md) zawiera tabelę A01–A59 i przyjęte doprecyzowania. Kolejna runda obejmuje architekturę, migrację i wydania.
+Scenariusze są w [rundzie 3](round-03-regulation.md), [rundzie 4](round-04-failures-restarts.md), [A01–A59](round-05-acceptance.md#scenariusze-odbioru) i [B01–B13](round-06-architecture.md). Nie deklarujemy oszczędności ani wykonania testów, które dopiero powstaną.
 
-## Scenariusze odbioru
+F01 wymaga przed implementacją klasyfikacji pracy pompy, progów, histerezy i odbioru grzałki/restartów. Prognozy są odłożone; wymagają osobnej walidacji i archiwizacji prognozy dostępnej w chwili decyzji. Modularność nie jest ich implementacją.
 
-### Konfiguracja i cykl życia
+## Aktualizacje i wycofanie
 
-- Jeden wspólny obieg; jedna strefa Dom albo wiele niezależnych stref; grupy porządkowe bez podwójnej regulacji.
-- Jeden lub kilka termometrów na strefę; wybór głównego albo średniej/mediany, szczegóły w rundzie regulacji.
-- Minimalna konfiguracja wymaga encji nastawy PC także w obserwacji, outdoor i aktywnej strefy z termometrem oraz celem.
-- Wyjścia nie mogą należeć do dwóch stref; typ NC/NO osobno dla strefy, wspólny dla wszystkich jej wyjść.
-- Bez modelu i pola pętli stale otwartych; ostrzeżenie hydrauliczne przy konfiguracji sterowania zaworami, zgodnie z rundą 3.
-- Cztery kombinacje zaworów i demandu, poprawne wymaganie encji.
-- NC i NO, wyjście grupy lub kilka wyjść; samo zapisanie konfiguracji nie uruchamia urządzeń.
-- Restart, przeładowanie, zmiana ustawień i usunięcie integracji według uzgodnionej polityki.
-- Zachowanie celów i potrzebnej pamięci; brak fikcyjnych próbek po przerwie.
-- Dwie niezależne obserwacje CO/CWU bez poleceń; aktywacja bez odtwarzania zaległej kolejki.
-- Zmiana celu jednej strefy CO to trwała nastawa tylko tej strefy, zachowana po restarcie.
+Konfiguracja HA i Store są wersjonowane i migrowane. Aktualizacja musi zachować ustawienia, historię, tożsamość encji i potrzebny stan działania; nie resetuje timerów i nadpisań ani nie wywołuje nieplanowanych przełączeń. Restart przerywa wykonywanie, po czym odtwarzamy i uzgadniamy stan. Retencja i filtry Recordera nadal obowiązują.
 
-### CO1 i strefy
+Każde wydanie określa możliwość powrotu. Starsza wersja odczytuje tylko zgodny format; przy niezgodności błąd bez kasowania danych i aktywacji sterowania. Instrukcja wskazuje właściwą kopię HA do odtworzenia. Dowolna zgodność przyszłych danych ze starszym kodem nie jest obiecana.
 
-- Gotowanie/słońce, wietrzenie, trwały wzrost i spadek oraz konflikt stref.
-- Zmiana celu i współczynników krzywej, minimum/maksimum, kwantyzacja i odstępy zmian.
-- Niepoprawne jednostki, stary outdoor, luki danych, rozgrzewanie filtrów i awaria jednej strefy.
-- Ręczna zmiana, nieudany zapis, brak niezależnego potwierdzenia i powrót łączności.
-- Po zamknięciu wszystkich przypisanych wyjść strefa nie wpływa na korektę CO1, ale jest monitorowana; brak sprzężenia nie jest przedstawiany jako potwierdzone fizyczne odcięcie.
-- Brak demandu: żadnych poleceń ON/OFF ogrzewania.
-
-### CWU, prognozy i skropliny — przed wdrożeniem danego modułu
-
-- CWU: trzy tryby, granice przedziałów, osobne dni i temperatura na przedział.
-- Ręczne włączenie w przerwie harmonogramu, podpowiedź ostatniej nastawy, nadpisanie do rzeczywistej zmiany i brak kasowania przez identyczne pola.
-- Zbiorczy Zapisz tylko CWU: robocze zmiany nie sterują urządzeniem, walidacja całości, potwierdzenie odrzucenia; w obserwacji brak poleceń również po zapisie.
-- CWU po restarcie odtwarza ważne nadpisanie lub stosuje bieżący przedział. Potwierdzamy temperaturę przed ON, a OFF wykonujemy niezależnie. Zapis panelu w Harmonogram od razu stosuje jego bieżący przedział. Zmianę czasu opisuje runda 5.
-- Prognozy: luki, zasięg krótszy od oczekiwanego, przeterminowanie, zmieniona prognoza, brak PV, podwójne źródła słońca i konflikt komfortu.
-- F01: stop przed 30 min, wybieg ≥20 min, restart PC w wybiegu, restart HA, brak poboru grzałki, ocieplenie i nieznana praca PC.
-
-Przed implementacją określimy mierzalne oczekiwane wyniki i tolerancje każdego scenariusza. Nie deklarujemy na tym etapie procentowej poprawy komfortu ani oszczędności.
-
-Dodatkowe scenariusze liczbowe i czasowe zawiera [runda 3](round-03-regulation.md). W bieżącej wersji prognozy są odłożone, ale od początku wymagamy rozdzielenia modułów korekt i zawsze obowiązujących ograniczeń (US20). Nie rozpoczynamy implementacji prognoz w ramach modularności.
-
-Scenariusze [rundy 4](round-04-failures-restarts.md) obejmują świeżość i pokrycie okien, awaryjne otwarcie, blokady CO1, sekwencję ponowień, start z 48 h historii i odtworzenie timerów.
-
-Tabela [A01–A59](round-05-acceptance.md#scenariusze-odbioru) wiąże każdą US z konkretnymi warunkami i oczekiwanym wynikiem. Wyniki wykonania będą dołączane podczas realizacji i odbioru.
-
-## Weryfikacja techniczna
-
-- Deterministyczne testy rdzenia i czasu oraz odtwarzanie historii POC.
-- Testy konfiguracji i cyklu życia w HA oraz brak niezamierzonych wywołań wyjść.
-- Kontrole struktury integracji, tłumaczeń i publikacji, w tym hassfest/HACS w zakresie odpowiednim dla wydania.
-- Odtwarzanie historii bez dostępu do przyszłych pomiarów lub później poprawionych prognoz.
-- Testy lokalne nie zastępują odbioru na rzeczywistej instalacji. Dobór zestawu narzędzi i minimalnej wersji HA nastąpi przed kodowaniem.
-
-## Migracja z POC
-
-1. Zidentyfikować aktywne automatyzacje zapisu nastawy oraz oddzielny auto STOP/START CO1. Brak jednego zapisu nie oznacza wyłączenia drugiej funkcji.
-2. Rozpocząć obserwację produktu bez przejmowania wyjść; porównać dane i decyzje.
-3. Przed aktywacją usunąć konflikt regulatorów i udokumentować stan pozostawiony w urządzeniu.
-4. Zachować lub jawnie przenieść cele i ustawienia; nie usuwać historii. Import buforów pozostaje decyzją.
-5. Udokumentować wycofanie: zatrzymanie nowych poleceń, sprawdzenie bieżących nastaw i uruchomienie tylko jednego regulatora.
-
-Samo usunięcie POC lub produktu nie musi przywrócić poprzedniej nastawy ani stanu obiegu. Produkt bez demandu nie dziedziczy automatycznie auto STOP CO1.
+POC dostarcza doświadczeń do projektowania/testów, ale nie wymaga importera ani instrukcji migracji użytkownika produktu. Osobna instrukcja przejścia instalacji właściciela może powstać poza wymaganiami publicznego uruchomienia. Niezależnie od POC aktywacja wymaga braku konfliktu regulatorów.
 
 ## Publikacja
 
-Publiczne repozytorium, instalacja ręczna i HACS custom repository; kolejne wydania z opisem zmian, kompatybilnością, PL/EN i procedurą wycofania. Zgłoszenie do domyślnego katalogu HACS po stabilizacji. Dokumentacyjny PR nie tworzy wydania i nie zamyka Issues funkcji.
+Instalacja ręczna i HACS custom repository. Pierwsze wydania developerskie testowe, np. 0.1.0-beta.1; aktualizacje wybiera użytkownik. Od pierwszego wydania pełny interfejs, komunikaty i instrukcje instalacji/konfiguracji PL/EN. Karta, panel CWU i konfiguracja zaawansowana są dostarczane z produktem.
+
+Minimum HA dobierzemy przed implementacją; wydanie podaje minimum i sprawdzone wersje. Podniesienie wymagań jest jawne. Domyślny katalog HACS dopiero po stabilizacji. Dokumentacyjny PR nie publikuje wersji i nie zamyka Issues implementacji.

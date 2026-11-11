@@ -19,7 +19,7 @@ Uzgodnienia z 11 listopada 2026. Zestaw konkretyzuje rundy 1–4 i doprecyzowani
 | ID | Powiązane historie | Warunki i zdarzenia | Oczekiwany wynik |
 | --- | --- | --- | --- |
 | A01 | [US01](user-stories.md#us01), [US09](user-stories.md#us09), [US15](user-stories.md#us15), [US16](user-stories.md#us16) | Jedna strefa Dom, termometr, outdoor i encja nastawy PC, zawory i demand wyłączone | Konfiguracja może zakończyć się w obserwacji. Strefa uczestniczy w regulacji pomiarowej. |
-| A02 | [US09](user-stories.md#us09), [US16](user-stories.md#us16) | Brak wskazanej encji nastawy PC przy konfiguracji obserwacji | Kreator wskazuje brak i wymaga wyboru encji. |
+| A02 | [US09](user-stories.md#us09), [US16](user-stories.md#us16) | Włączony moduł CO, brak wskazanej encji nastawy PC przy konfiguracji obserwacji | Kreator wskazuje brak i wymaga wyboru encji. |
 | A03 | [US09](user-stories.md#us09) | Sprawdzenie czterech kombinacji obsługi zaworów i demandu | Wymagane są tylko wyjścia włączonych funkcji. Bez demandu wynik zapotrzebowania jest diagnostyczny. |
 | A04 | [US10](user-stories.md#us10), [US15](user-stories.md#us15) | Dwie strefy NC/NO, kilka wyjść strefy, próba przypisania tego samego wyjścia kolejnej strefie | Typ strefy obejmuje jej wyjścia. Współdzielenie wyjścia zostaje odrzucone. |
 | A05 | [US01](user-stories.md#us01), [US15](user-stories.md#us15), [US18](user-stories.md#us18) | Pokoje zebrane w grupie Piętro | Cele i priorytety mają strefy. Grupa służy prezentacji i nie jest dodatkowo liczona w regulacji. |
@@ -110,7 +110,7 @@ Uzgodnienia z 11 listopada 2026. Zestaw konkretyzuje rundy 1–4 i doprecyzowani
 | ID | Powiązane historie | Warunki i zdarzenia | Oczekiwany wynik |
 | --- | --- | --- | --- |
 | A57 | [US20](user-stories.md#us20), [US21](user-stories.md#us21) | Wyłączony moduł korekty lub bieżąca wersja bez prognoz | Wkład modułu odpowiada jego aktywności, a wspólne limity i obserwacja obowiązują. Prognozy pozostają poza bieżącym programem. |
-| A58 | [US08](user-stories.md#us08) | Przejście z POC do aktywnego produktu | Instrukcja identyfikuje zapis CO1 i auto STOP prototypu. Aktywację poprzedza usunięcie konfliktu sterowania. |
+| A58 | [US08](user-stories.md#us08), [US19](user-stories.md#us19) | Uruchomienie produktu na HA bez POC | Instalacja nie wymaga POC ani importera. Ogólne ostrzeżenie o konflikcie regulatorów pozostaje. Runda 6 zastępuje wcześniejszy scenariusz migracji. |
 | A59 | [US04](user-stories.md#us04), [US12](user-stories.md#us12) | Dowolna decyzja, ograniczenie, awaria lub niedostępny opcjonalny licznik | Widać przyczynę, jakość danych i dostępny stan. Brak licznika nie jest prezentowany jako zerowy pobór. |
 
 ## Pokrycie i dalsza specyfikacja
@@ -120,3 +120,7 @@ Każdy US01–US21 ma co najmniej jeden odnośnik w tabeli. Obszar F01 skroplin 
 Odbiór powinien zapisywać wersję, ustawienia, wejścia, stany, czasy i wyniki scenariusza. Techniczne źródło dowodu potwierdzenia, odtworzenie historii i realizacja timerów należą do rundy architektury. Parametry różne od domyślnych muszą zachowywać reguły w dopuszczalnych zakresach.
 
 Dalsze decyzje obejmują minimalną wersję HA, domenę, kontrakty modułów i źródeł, trwałość pamięci, rozpoznawanie zmian zewnętrznych, kasowanie ostrzeżeń oraz zachowanie po usunięciu integracji. Wyłączenie integracji i dowody poprawności na urządzeniu zostaną ujęte przy migracji i wydaniach.
+
+## Aktualizacja po rundzie 6
+
+[Ustalenia architektury](round-06-architecture.md) zawężają wymagania A01/A02 do modułu CO i dodają konfigurację tylko CWU. A58 zastąpiono uruchomieniem bez POC. Dalsze decyzje o trwałości, cyklu życia, diagnostyce i wydaniach są w rundzie 6; minimum HA, domena i kontrakty techniczne pozostają do projektu. Kryteria B01–B13 rozszerzają tabelę bez zmiany identyfikatorów A.
