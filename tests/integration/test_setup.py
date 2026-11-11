@@ -64,11 +64,15 @@ async def test_supported_variants_start_ready_in_observation(
 
 
 @pytest.mark.parametrize(
-    ("data", "version"),
+    ("data", "version", "expected_state"),
     [
-        (entry_data(), 1),
-        (entry_data(co=True), 2),
-        ({**entry_data(co=True), "schema_version": 2}, 1),
+        (entry_data(), 1, ConfigEntryState.SETUP_ERROR),
+        (entry_data(co=True), 2, ConfigEntryState.MIGRATION_ERROR),
+        (
+            {**entry_data(co=True), "schema_version": 2},
+            1,
+            ConfigEntryState.SETUP_ERROR,
+        ),
         (
             {
                 **entry_data(co=True),
@@ -79,6 +83,7 @@ async def test_supported_variants_start_ready_in_observation(
                 },
             },
             1,
+            ConfigEntryState.SETUP_ERROR,
         ),
         (
             {
@@ -86,6 +91,7 @@ async def test_supported_variants_start_ready_in_observation(
                 "co": {**entry_data(co=True)["co"], "zones": []},
             },
             1,
+            ConfigEntryState.SETUP_ERROR,
         ),
     ],
     ids=(
@@ -102,6 +108,7 @@ async def test_invalid_structure_fails_without_mutation_or_services(
     source_service_calls: list,
     data: dict,
     version: int,
+    expected_state: ConfigEntryState,
 ) -> None:
     """A02/B10: persisted invalid data fails closed and remains untouched."""
     entry = make_entry(data=data, version=version)
@@ -111,7 +118,7 @@ async def test_invalid_structure_fails_without_mutation_or_services(
     assert not await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert entry.state is expected_state
     assert dict(entry.data) == original
     assert not hasattr(entry, "runtime_data")
     assert source_service_calls == []
