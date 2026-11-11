@@ -8,14 +8,16 @@
 | Job | Kontrola |
 | --- | --- |
 | quality | Ruff lint/format, testy bramek CI, lokalne cele linków Markdown i gotowość testów HA |
+| ha-tooling | Obowiązkowe dwa środowiska fixtures: HA 2026.10.4 i 2026.11.1, pip check i realne smoke testy |
 | ha-tests | Pytest z pluginem HA, automatycznie po pojawieniu się manifestu/kodu |
 | hassfest | Walidacja struktury HA, automatycznie po pojawieniu się integracji |
-| ci | Zbiorcza bramka: quality musi przejść; z integracją także oba zadania HA |
+| ci | Zbiorcza bramka: quality i oba wiersze ha-tooling muszą przejść; z integracją także oba zadania HA |
 
-Obecnie `ha-tests` i `hassfest` są jawnie pomijane: nie ma jeszcze integracji.
-Testy `tests/bootstrap` dotyczą narzędzi CI, nie regulacji pompy. Zielony wynik nie
-oznacza realizacji US ani wykonania A/B. Kontrola Markdown sprawdza lokalne pliki,
-nie kotwice, dostępność zewnętrznych stron ani semantyczną spójność wymagań.
+Po dodaniu integracji w I01 `ha-tests` i `hassfest` są obowiązkowe; oba wiersze
+macierzy wykonują rzeczywiste testy setup/unload. Testy `tests/bootstrap` nadal
+dotyczą narzędzi CI, nie regulacji pompy. Zielony wynik nie oznacza realizacji całych
+US ani niewymienionych części A/B/C. Kontrola Markdown sprawdza lokalne pliki, nie
+kotwice, dostępność zewnętrznych stron ani semantyczną spójność wymagań.
 
 ## Uruchomienie lokalne
 
@@ -33,6 +35,48 @@ git diff --check
 
 Linux: zamiast `.venv/Scripts/python` użyj `.venv/bin/python`.
 Kontrole wymagają tylko repo i danych syntetycznych, bez konfiguracji HA domu.
+
+## I00 — środowiska testów HA
+
+[Instrukcja odtworzenia i pochodzenie pakietów](../../tools/ha_test_tooling/README.md)
+podaje komplet komend obu izolowanych venv. Python HA: 3.14 >=3.14.2.
+Minimum używa publicznego pluginu 0.13.375; current buduje dwa razy niezmienione
+fixtures samodzielnego pakietu z Core d8a0dc6, zmieniając wyłącznie wersję i pin HA.
+Licencja Apache-2.0, metadane i pliki Python są weryfikowane przy buildzie.
+Nie uruchamiamy starego generatora wybierającego latest. Nie instalujemy pluginów
+razem ani nie nadpisujemy ich zależności. Nie ma zależności runtime produktu.
+
+Job ha-tooling działa także bez manifestu integracji i blokuje ci przy błędzie
+lub pominięciu dowolnego wiersza. Log zapisuje pełne zainstalowane wersje,
+pip check, testy oraz provenance/hash wheel current. Wyniki dla SHA są w PR I00;
+same komendy i testy bootstrap nie są dowodem rozwiązania T08. Testy produktu
+A/B/C i hassfest nie należały do wyniku I00; części wskazane w przekazaniu I01 są
+wykonywane przez późniejszą macierz testów integracji.
+
+Dowód wykonania I00: commit cce478e88a73dbca7578439acbad8083e2b279ab,
+[CI Linux](https://github.com/marcin-bugala/ha-HeatPumpSteering/actions/runs/43016249992)
+na Python 3.14.10: minimum i current — pip check PASS, po 3 testy PASS;
+quality i ci PASS. Build current dwa razy dał identyczne rozpakowane pliki,
+z zachowaniem fixtures i licencji Core. SHA-256 wheel z tego przebiegu:
+`1cdeddc3c48c0b13bc003131554a0108850bd52603644767e25d01e5e420ca8f`.
+Hash konkretnego ZIP może zmienić się przez timestampy; porównanie treści jest
+obowiązkowe. Current zgłosił 5 ostrzeżeń deprecacyjnych upstream (HA HTTP/backoff),
+bez filtrów wyciszających. ha-tests i hassfest skipped przy braku integracji.
+Samokontrola Developera; niezależne review i odtworzenie Testera pozostają do odbioru
+w [PR #38](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/38).
+
+## I01 — fundament integracji w obserwacji
+
+Na jawne polecenie właściciela I01 dodano do PR #38 po akceptacji I00 przez Testera,
+zamiast czekać na osobny PR po scaleniu I00. Kod I01 w commicie
+`9eff42fd634bb21b3ced096f153131a1a10b1edc` przeszedł
+[CI Linux](https://github.com/marcin-bugala/ha-HeatPumpSteering/actions/runs/43023308423)
+na Python 3.14.10: quality, hassfest, oba ha-tooling, oba ha-tests i zbiorczy ci —
+PASS. Minimum HA 2026.10.4/plugin 0.13.375: 13 testów PASS; current HA
+2026.11.1/samodzielne fixtures Core: 13 testów PASS. Oba `pip check` — PASS;
+pytest-socket blokuje sieć urządzeń. Current zgłasza 5 ostrzeżeń deprecacyjnych
+upstream HA/backoff. Jest to samokontrola Developera; Reviewer i Tester odbierają
+końcowy SHA PR osobno.
 
 ## Pierwszy PR implementacji — bramka HA
 

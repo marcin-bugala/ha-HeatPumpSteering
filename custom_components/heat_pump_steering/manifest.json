@@ -1,0 +1,10 @@
+{
+  "domain": "heat_pump_steering",
+  "name": "Heat Pump Steering",
+  "codeowners": ["@marcin-bugala"],
+  "documentation": "https://github.com/marcin-bugala/ha-HeatPumpSteering",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/marcin-bugala/ha-HeatPumpSteering/issues",
+  "requirements": [],
+  "version": "0.0.1"
+}
