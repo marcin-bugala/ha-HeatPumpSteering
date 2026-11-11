@@ -48,7 +48,7 @@ Dla demandu pokazuj stan żądany i raportowany. Awaria wyjścia nie przełącza
 
 ## Zapisy i ponowienia
 
-Rozróżniamy polecenie wysłane, potwierdzone niezależnym odczytem, brak potwierdzenia i brak możliwości potwierdzenia. Optymistyczna aktualizacja encji nie daje dowodu wykonania. Czas oczekiwania na potwierdzenie pozostaje do ustalenia. Wcześniejsza propozycja 2 min nie była przedmiotem oddzielnego potwierdzenia.
+Rozróżniamy polecenie wysłane, potwierdzone niezależnym odczytem, brak potwierdzenia i brak możliwości potwierdzenia. Optymistyczna aktualizacja encji nie daje dowodu wykonania. Runda 5 ustala domyślnie 2 minuty oczekiwania, konfigurowalne dla programu. Odstępy prób są liczone od wysłania. Poprawne spóźnione potwierdzenie nadal aktualnego polecenia kończy serię przed kolejną próbą.
 
 Wspólna polityka zapisów obejmuje CO1, zawory, demand i CWU:
 1. Pierwsza próba i maksymalnie dwie dalsze w odstępach 5 min.
@@ -96,6 +96,6 @@ Włączenie CWU wymaga wcześniejszego zapisu i potwierdzenia temperatury docelo
 - Brak gotowego trendu przy gotowym pomiarze zaworów używa progów niejasnego trendu, z informacją diagnostyczną.
 - W CWU wygaśnięcie nadpisania podczas przerwy stosuje bieżący przedział. Przy częściowym wykonaniu wysyłane jest tylko nadal potrzebne polecenie.
 
-Szczegóły kontraktów źródeł, czasu potwierdzania, czasu zamykania siłowników i zmiany czasu harmonogramu pozostają do dopracowania w scenariuszach odbioru i architekturze. Kolejna runda konkretyzuje wyniki testów.
+Runda 5 ustala potwierdzenie 2 min, wspólny czas pracy siłowników 3 min i zasady zmiany czasu harmonogramu. Kontrakty źródeł i pozostałe szczegóły techniczne należą do rundy architektury. [Tabela odbioru A01–A59](round-05-acceptance.md) konkretyzuje oczekiwane wyniki.
 
 Powiązania [US01](user-stories.md#us01), [US03](user-stories.md#us03), [US04](user-stories.md#us04), [US05](user-stories.md#us05), [US06](user-stories.md#us06), [US09](user-stories.md#us09), [US13](user-stories.md#us13), [US14](user-stories.md#us14), [US16](user-stories.md#us16), [US17](user-stories.md#us17), [US19](user-stories.md#us19).

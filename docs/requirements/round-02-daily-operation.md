@@ -14,6 +14,8 @@ Tryb CWU Wyłączone/Stałe/Harmonogram jest innym ustawieniem niż obserwacja/s
 
 Ręczna zmiana temperatury zadanej CO dotyczy konkretnej strefy i staje się jej nową trwałą nastawą, zachowaną po restarcie. Nie jest nadpisaniem czasowym. Nie ma harmonogramu CO — harmonogram dotyczy wyłącznie CWU. Cele stref są obsługiwane poza panelem wspólnego zapisu CWU.
 
+Doprecyzowania dostępności pól panelu, nadpisań spoza panelu i skutku Zapisz zawiera [runda 5](round-05-acceptance.md). Poniższe ustalenia rundy 2 stosujemy z tym doprecyzowaniem.
+
 ## Tryby CWU
 
 | Tryb | Zachowanie przy aktywnym sterowaniu CWU |
@@ -27,17 +29,17 @@ W harmonogramie każdy dzień ma 48 logicznych pól 30 min. Pole może oznaczać
 ## Ręczne nadpisanie CWU
 
 - W trybie Harmonogram użytkownik może ręcznie nadpisać stan lub temperaturę bez zmiany trybu na Stałe.
-- Nadpisanie zaczyna obowiązywać po zatwierdzeniu przyciskiem Zapisz i trwa do następnej rzeczywistej zmiany stanu/temperatury wynikającej z harmonogramu.
+- Zgodnie z rundą 5 nadpisania dotyczą zmian spoza panelu i trwają do następnej rzeczywistej zmiany planu lub zapisu panelu w Harmonogram.
 - Identyczne sąsiednie pola 30 min tworzą jeden ciągły okres i nie kasują nadpisania.
 - Można ręcznie włączyć CWU w okresie zaplanowanego wyłączenia. Podgrzewanie jest dozwolone od zatwierdzenia, nie dopiero od następnego zaplanowanego włączenia.
-- Przy ręcznym włączeniu panel podpowiada ostatnią temperaturę zadaną CWU. Można ją zmienić przed zapisem.
+- W rundzie 5 ustalono, że w Harmonogramie pole temperatury stałej jest niedostępne. Tymczasowe nadpisania powstają poza panelem.
 - Na następnej zaplanowanej zmianie harmonogram odzyskuje sterowanie i ustawia właściwy stan oraz temperaturę.
 
 Przykład: plan Wyłączone od 12:00 do 16:00, potem Włączone 45°C. Użytkownik zapisuje ręczne włączenie 48°C o 14:00. Do 16:00 obowiązuje zezwolenie i 48°C; granice 14:30, 15:00 i 15:30 nie usuwają nadpisania. O 16:00 harmonogram ustawia 45°C. Nie wymaga to przejścia do Stałe.
 
 ## Jeden panel CWU i jeden Zapisz
 
-Panel obejmuje wyłącznie ustawienia CWU: tryb, ręczny stan, temperatury i harmonogram. Cele stref CO oraz dwa przełączniki obserwacja/sterowanie są poza panelem.
+Panel obejmuje ustawienia CWU dostępne według trybu określonego w rundzie 5. Wyłączone blokuje temperaturę i plan, Stałe udostępnia temperaturę, a Harmonogram udostępnia plan. Cele stref CO oraz dwa przełączniki obserwacja/sterowanie są poza panelem.
 
 Zmiany podczas edycji są robocze. Dopiero jeden Zapisz zatwierdza całość, po sprawdzeniu poprawności wszystkich ustawień. Błąd nie może zapisać części edycji. Spójny zapis konfiguracji nie oznacza gwarancji atomowego wykonania kilku poleceń przez pompę — błędy urządzenia wymagają osobnej polityki.
 
@@ -55,7 +57,7 @@ Odtworzenie trybu i nadpisania CWU, reakcje na błąd zapisu i kolejność polec
 | Ręczne włączenie CWU podczas zaplanowanego OFF | Po Zapisz zezwolenie obowiązuje do kolejnej zmiany planu |
 | Kolejne identyczne pola półgodzinne | Nie kończą nadpisania |
 | Ręczna temperatura i następna zmiana planu | W terminie zmiany obowiązuje stan/temperatura harmonogramu |
-| Włączenie CWU w panelu | Podpowiedź ostatniej temperatury, edytowalna przed zapisem |
+| Wybór Stałe w panelu CWU | Pole temperatury staje się dostępne. Harmonogram jest niedostępny, zgodnie z rundą 5. |
 | Zmiana trybu, temperatury i harmonogramu bez zapisu | Brak zmian aktywnych ustawień i poleceń wynikających z edycji |
 | Niepoprawna część edycji | Walidacja zatrzymuje zapis całego zestawu |
 | Zamknięcie niezapisanej edycji | Pytanie o odrzucenie zmian |
@@ -67,8 +69,8 @@ Nie wykonano tych scenariuszy na integracji, ponieważ nie ma jeszcze implementa
 
 - Zakresy i krok temperatur oraz zmiana filtrów/potwierdzeń po zmianie celu.
 - Ręczne zmiany bezpośrednio na encjach pompy lub w aplikacji producenta; ręczny demand.
-- Restart, utrata komunikacji, zmiana czasu i granice tygodnia.
-- Brak przyszłej zmiany w całym harmonogramie oraz edycja harmonogramu podczas nadpisania.
+- Restart i utratę komunikacji opisuje runda 4, a zmianę czasu runda 5.
+- Runda 5 ustala zachowanie przy braku następnej zmiany i przy zapisie harmonogramu podczas nadpisania.
 - Pierwsza podpowiedź temperatury, gdy nie istnieje ostatnia nastawa.
 - Reakcja na częściowe wykonanie poleceń pompy, ochrona producenta i higiena CWU.
 - Relacja do F01, opcjonalność/termin wydania CWU oraz technologia panelu.

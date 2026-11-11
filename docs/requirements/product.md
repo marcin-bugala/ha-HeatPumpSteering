@@ -1,6 +1,6 @@
-# Specyfikacja produktu — projekt v0.5
+# Specyfikacja produktu — projekt v0.6
 
-Stan wymagań: 10 listopada 2026. Uzgodnienia i propozycje rozróżnia [rejestr decyzji](decisions.md). Statusy realizacji znajdują się w [Issues](README.md). Brak implementacji produktu.
+Stan wymagań: 11 listopada 2026. Uzgodnienia i propozycje rozróżnia [rejestr decyzji](decisions.md). Statusy realizacji znajdują się w [Issues](README.md). Brak implementacji produktu.
 
 ## Cel i użytkownicy
 
@@ -88,26 +88,28 @@ Nie ignorujemy całkowicie zakłóceń. Gotowanie/słońce może zamknąć stref
 
 Ostrzeżenie po upływie czasu zamykania i 120 min utrzymania zamknięcia, temperatury komfortowej ≥cel+0,5°C oraz rosnącego trendu: „Strefa nadal się nagrzewa mimo polecenia zamknięcia. Sprawdź zawory i inne źródła ciepła.” Czas i próg konfigurowalne dla strefy. To nie diagnoza uszkodzenia ani automatyczny STOP całej PC.
 
-Demand jest OR żądań otwarcia aktywnych stref, w tym wirtualnych dla stref bez zaworów. Przed ON otwieramy wyjścia; wystarczy przewidywane otwarcie jednej potrzebującej ciepła strefy. Czas otwierania 3 min, wspólny dla domu i konfigurowalny. Strefa już otwarta nie czeka od nowa; strefa bez wyjść nie wymaga tego opóźnienia. Brak wszystkich zapotrzebowań wyłącza demand bez dodatkowego opóźnienia. Przed ponownym ON minimum 15 min od OFF, konfigurowalne dla domu; zawory mogą otworzyć się wcześniej. Nie ma minimum ON opóźniającego wyłączenie. Nie sterujemy zasilaniem PC i wybiegiem producenta. Bez wyjścia demand jest tylko diagnostyczny.
+Demand jest OR żądań otwarcia aktywnych stref, w tym wirtualnych dla stref bez zaworów. Przed ON otwieramy wyjścia; wystarczy przewidywane otwarcie jednej potrzebującej ciepła strefy. Jeden „Czas pracy siłowników” ma domyślnie 3 min, jest wspólny dla domu i obejmuje otwieranie oraz zamykanie. Strefa już otwarta nie czeka od nowa; strefa bez wyjść nie wymaga tego opóźnienia. Brak wszystkich zapotrzebowań wyłącza demand bez dodatkowego opóźnienia. Przed ponownym ON minimum 15 min od OFF, konfigurowalne dla domu; zawory mogą otworzyć się wcześniej. Nie ma minimum ON opóźniającego wyłączenie. Nie sterujemy zasilaniem PC i wybiegiem producenta. Bez wyjścia demand jest tylko diagnostyczny.
 
 Pętle stale otwarte i częściowe odcięcie hydrauliczne nie są modelowane, nie ma dla nich ustawień ani wpływu na algorytm. Przy konfiguracji zaworów wyświetlamy ostrzeżenie z [rundy 3](round-03-regulation.md) o obowiązku zapewnienia drogi przepływu również przy zamkniętych strefach. To zastępuje wcześniejsze pole informacyjne o pętlach.
 
 ### F06 — CWU
 
-Uzgodnienia codziennej obsługi: [runda 2](round-02-daily-operation.md).
+Uzgodnione reguły panelu i harmonogramu oraz przykłady zawiera [runda 5](round-05-acceptance.md).
 
-- Trzy tryby: Wyłączone (bez podgrzewania CWU, bez wyłączania CO), Stałe (jedna nastawa) i Harmonogram.
-- Harmonogram dotyczy wyłącznie CWU; nie wprowadza harmonogramu ogrzewania pomieszczeń.
-- Każdy dzień tygodnia ma 48 logicznych przedziałów 30 min; przedział wyłączony albo włączony z własną temperaturą.
-- Włączenie oznacza zezwolenie na podgrzewanie; pompa zachowuje swój cykl pracy i zabezpieczenia.
-- Ręczne nadpisanie stanu lub temperatury w trybie Harmonogram działa po zatwierdzeniu do następnej zaplanowanej zmiany stanu/temperatury; identyczne półgodzinne pola nie kasują nadpisania. Tryb pozostaje Harmonogram.
-- Można ręcznie włączyć CWU w zaplanowanym okresie wyłączenia. Przy włączeniu panel podpowiada ostatnią temperaturę zadaną z możliwością edycji przed zapisem.
-- Jeden panel CWU obejmuje tryb, temperatury, ręczny stan i harmonogram. Zmiany są robocze do jednego „Zapisz”; walidacja dotyczy całości i nie dopuszcza częściowego zapisu ustawień. Nie oznacza to atomowego wykonania kilku poleceń przez pompę.
-- Zamknięcie panelu z niezapisanymi zmianami wymaga potwierdzenia ich odrzucenia. Nie wprowadzamy dodatkowego potwierdzenia samego wyboru Wyłączone.
-- Panel nie obejmuje celów CO ani przełączników obserwacja/sterowanie.
-- CO i CWU mają oddzielne przełączniki obserwacja/sterowanie. Zapis ustawień CWU w obserwacji nie zezwala na wykonanie poleceń urządzenia.
-- Po restarcie wraca ważne nadpisanie lub obowiązuje aktualny przedział. Włączenie CWU następuje po potwierdzeniu docelowej temperatury. Wyłączenie nie czeka na zapis temperatury. Przy częściowym wykonaniu ponawiamy brakujące aktualnie potrzebne działanie.
-- Zmiana czasu, opcjonalność i wydanie modułu, pierwsza nastawa bez historii i współpraca z funkcjami higienicznymi pozostają do dopracowania.
+| Tryb panelu | Pole temperatury stałej | Obszar harmonogramu |
+| --- | --- | --- |
+| Wyłączone | Niedostępne | Niedostępny |
+| Stałe | Dostępne | Niedostępny |
+| Harmonogram | Niedostępne | Edytowalny |
+
+- Tryb, dostępne temperatury i plan zatwierdzamy jednym Zapisz. Edycja jest robocza, walidujemy zestaw. Zamknięcie niezapisanej edycji wymaga potwierdzenia jej odrzucenia.
+- W Harmonogramie można ustalić osobno każdy dzień i każde z 48 pól półgodzinnych jako OFF albo ON z temperaturą. Harmonogram dotyczy wyłącznie CWU.
+- Zapis panelu w Harmonogram kończy wcześniejsze nadpisanie i natychmiast stosuje aktualny przedział, również przy identycznym planie.
+- Zewnętrzne ręczne zmiany, np. na encji CWU lub w aplikacji pompy, tworzą nadpisanie do następnej rzeczywistej zmiany planu albo do zapisu panelu w Harmonogram. Przy jednakowym planie tygodniowym nadpisanie trwa do ręcznej zmiany lub tego zapisu, z komunikatem o braku zaplanowanej zmiany.
+- Plan korzysta z lokalnej strefy HA. Przeskok zegara stosuje aktualny przedział, a cofnięcie ponawia te same lokalne pola. Zapis do urządzenia wynika z różnicy żądanego i aktualnego stanu. Timery mierzą rzeczywisty czas.
+- CO i CWU mają osobne przełączniki obserwacja/sterowanie poza panelem zbiorczego zapisu. W obserwacji zapis ustawień przygotowuje decyzję.
+- Po restarcie wraca ważne nadpisanie albo aktualny przedział. Włączenie wymaga potwierdzenia docelowej temperatury. Wyłączenie jest niezależne od zapisu temperatury. Częściowe wykonanie uruchamia wspólne ponowienia dla brakującego, nadal potrzebnego polecenia.
+- Opcjonalność i wydanie modułu, inicjalizacja bez wcześniejszej nastawy i współpraca z funkcjami higienicznymi pozostają do dopracowania.
 
 ### F07 — prognozy odłożone do przyszłej wersji
 
@@ -139,9 +141,10 @@ Propozycja łączenia timerów: wyłączenie nie wcześniej niż późniejszy z 
 - Wartości domyślne świeżości raportów to 120 min dla stref i 30 min dla outdoor. Gotowość wymaga 80% poprawnego pokrycia każdego okna oraz świeżego bieżącego pomiaru. Brak gotowego trendu zaworów pozwala użyć progów trendu niejasnego, gdy pomiar zaworów jest gotowy.
 - Strefa działa na pozostałych poprawnych termometrach. Po utracie wszystkich jej pomiarów korekta pokojowa jest pomijana, ostatnie żądania utrzymujemy przez 30 min, potem stosujemy awaryjne otwarcie bez dodatkowego demandu.
 - Utrata wszystkich pomiarów stref prowadzi po okresie przejściowym do krzywej z outdoor i wycofania demandu. Gdy wszystkie poprawnie mierzone strefy są zamknięte, utrzymujemy aktualną nastawę CO1. Brak outdoor, aktualnej nastawy lub wiarygodnego zakresu PC blokuje zapisy CO1.
+- Czas oczekiwania na potwierdzenie wynosi domyślnie 2 min, wspólnie konfigurowalny dla programu. Spóźnione poprawne potwierdzenie aktualnego polecenia kończy serię przed kolejną próbą.
 - Wspólne ponowienia zapisów obejmują trzy próby łącznie w odstępach 5 min, potem błąd i odstępy 10, 15, 25, 40, 65, 105, 120… min. Licznik osobno dla wyjścia. Kolejna próba wynika z aktualnego żądania. Ponowienie CO1 nie jest kolejnym krokiem zmiany o 1°C.
 - Przy uruchomieniu odbudowujemy pomiary i filtry z dostępnej historii, domyślnie 48 h, oraz odtwarzamy pamięć i tryby. Przed wznowieniem uzgadniamy bieżące dane i stany. Blokady mogą upływać podczas przerwy przy wiarygodnym odczycie. Potwierdzenia temperatury nie liczą czasu bez poprawnej obserwacji.
-- Szczegóły awarii zaworów, demandu, CO1 i CWU opisuje [runda 4](round-04-failures-restarts.md). Usunięcie integracji, ręczne zmiany poza panelem i techniczne kontrakty źródeł pozostają do dopracowania.
+- Szczegóły awarii zaworów, demandu, CO1 i CWU opisuje [runda 4](round-04-failures-restarts.md). Ręczna zmiana CO1 poza panelem pozostawia algorytm aktywny i stosuje jego limity. Usunięcie integracji oraz techniczne rozpoznawanie i kontrakty źródeł pozostają na rundę architektury.
 - Rozróżniamy zezwolenie na grzanie, raport HA, rzeczywistą pracę sprężarki i fizyczne wykonanie polecenia.
 - Dashboard: cele i pomiary, zawory, dostępny stan pompy, moc i energia, jakość danych, filtry/trendy, decyzje, nastawy proponowane/wysłane/potwierdzone, limity i timery.
 - Encje produktu mają umożliwiać także własny dashboard. Nie rozstrzygnięto wyboru climate/number ani konieczności własnej karty. Parametry strojenia i programów są w osobnym oknie konfiguracji zaawansowanej, nie na pierwszym planie dashboardu.
