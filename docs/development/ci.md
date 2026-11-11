@@ -51,6 +51,18 @@ pip check, testy oraz provenance/hash wheel current. Wyniki dla SHA są w PR I00
 same komendy i testy bootstrap nie są dowodem rozwiązania T08. Testy produktu
 A/B/C oraz hassfest nadal czekają na kod I01 i kolejne pakiety.
 
+Dowód wykonania I00: commit cce478e88a73dbca7578439acbad8083e2b279ab,
+[CI Linux](https://github.com/marcin-bugala/ha-HeatPumpSteering/actions/runs/43016249992)
+na Python 3.14.10: minimum i current — pip check PASS, po 3 testy PASS;
+quality i ci PASS. Build current dwa razy dał identyczne rozpakowane pliki,
+z zachowaniem fixtures i licencji Core. SHA-256 wheel z tego przebiegu:
+`1cdeddc3c48c0b13bc003131554a0108850bd52603644767e25d01e5e420ca8f`.
+Hash konkretnego ZIP może zmienić się przez timestampy; porównanie treści jest
+obowiązkowe. Current zgłosił 5 ostrzeżeń deprecacyjnych upstream (HA HTTP/backoff),
+bez filtrów wyciszających. ha-tests i hassfest skipped przy braku integracji.
+Samokontrola Developera; niezależne review i odtworzenie Testera pozostają do odbioru
+w [PR #38](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/38).
+
 ## Pierwszy PR implementacji — bramka HA
 
 Nie tworzymy pustego manifestu ani fikcyjnego testu produktu w dokumentacyjnym etapie.

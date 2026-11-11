@@ -149,3 +149,12 @@ SHA, licencji, niezmienionych plików .py i dwóch buildów, a także różne im
 helperów w obu środowiskach. Wyniki dla konkretnego SHA i link do CI są w PR I00.
 Sam udany build lub odczyt źródła nie rozwiązuje T08: wymagane są pip check
 i rzeczywiste testy hass w obu wierszach. I01 rusza po odbiorze i scaleniu I00.
+
+Weryfikacja I00 dla cce478e88a73dbca7578439acbad8083e2b279ab:
+[Linux/Python 3.14.10](https://github.com/marcin-bugala/ha-HeatPumpSteering/actions/runs/43016249992),
+HA 2026.10.4/plugin 0.13.375 oraz HA 2026.11.1/lokalny pakiet 0.0.0+ha2026.11.1:
+oba pip check PASS i po 3 testy prawdziwych fixtures PASS. Zgodność dwóch buildów,
+pliki .py, licencja i metadane current PASS. Szczegóły i hash są w
+[CI](../development/ci.md#i00--środowiska-testów-ha). To dowód narzędzi T08,
+nie testów produktu; niezależny odbiór oraz scalenie I00 przez właściciela
+pozostają warunkami przekazania I01.
