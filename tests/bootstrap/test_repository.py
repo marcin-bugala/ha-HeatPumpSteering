@@ -44,6 +44,25 @@ class RepositoryChecks(unittest.TestCase):
         self.write("tests/integration/test_setup.py")
         self.assertEqual(check_integration(self.root), (True, []))
 
+    def test_wildcard_ha_plugin_versions_are_rejected(self) -> None:
+        self.write("custom_components/example/manifest.json", "{}")
+        self.write("tests/integration/test_setup.py")
+        for version in ("1.*", "1.0.*"):
+            with self.subTest(version=version):
+                self.write(
+                    "requirements-ha-test.txt",
+                    f"pytest-homeassistant-custom-component=={version}\n",
+                )
+                active, errors = check_integration(self.root)
+                self.assertTrue(active)
+                self.assertEqual(
+                    errors,
+                    [
+                        "Pin pytest-homeassistant-custom-component "
+                        "in requirements-ha-test.txt."
+                    ],
+                )
+
     def test_unmanifested_second_component_is_rejected(self) -> None:
         self.write("custom_components/example/manifest.json", "{}")
         self.write("custom_components/other/sensor.py")

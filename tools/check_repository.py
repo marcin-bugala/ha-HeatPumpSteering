@@ -47,7 +47,7 @@ def check_integration(root: Path) -> tuple[bool, list[str]]:
             errors.append(f"Missing manifest for {source.relative_to(root)}")
     requirements = root / "requirements-ha-test.txt"
     pins = requirements.read_text(encoding="utf-8") if requirements.exists() else ""
-    if not re.search(r"(?m)^pytest-homeassistant-custom-component==[^\s#]+\s*$", pins):
+    if not re.search(r"(?m)^pytest-homeassistant-custom-component==[^\s#*]+\s*$", pins):
         errors.append(
             "Pin pytest-homeassistant-custom-component in requirements-ha-test.txt."
         )
