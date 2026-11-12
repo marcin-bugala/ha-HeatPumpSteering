@@ -8,8 +8,10 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
 
+from .bindings import entry_conflicts, migrate_v2_data, reconcile_registry_locations
 from .config_flow import migrate_v1_data
 from .const import CONFIG_ENTRY_VERSION
 from .models import (
@@ -26,7 +28,7 @@ type HeatPumpSteeringConfigEntry = ConfigEntry[HeatPumpSteeringRuntime]
 async def async_migrate_entry(
     hass: HomeAssistant, entry: HeatPumpSteeringConfigEntry
 ) -> bool:
-    """Migrate a complete I01 payload without changing device state."""
+    """Migrate v1/v2 atomically to canonical schema v3 without device services."""
     if entry.version > CONFIG_ENTRY_VERSION:
         return False
     if entry.version == CONFIG_ENTRY_VERSION:
@@ -35,10 +37,15 @@ async def async_migrate_entry(
         except ConfigurationError:
             return False
         return True
-    if entry.version != 1:
+    if entry.version not in (1, 2):
         return False
     try:
-        migrated = migrate_v1_data(dict(entry.data), entry.title)
+        v2 = (
+            migrate_v1_data(dict(entry.data), entry.title)
+            if entry.version == 1
+            else dict(entry.data)
+        )
+        migrated = migrate_v2_data(hass, v2)
     except (ConfigurationError, KeyError, TypeError):
         return False
     hass.config_entries.async_update_entry(
@@ -57,14 +64,18 @@ async def async_setup_entry(
     if entry.version != CONFIG_ENTRY_VERSION:
         raise ConfigEntryError(f"unsupported ConfigEntry version: {entry.version}")
     try:
-        config = parse_config(entry.data)
+        reconciled, changed = reconcile_registry_locations(hass, entry.data)
+        config = parse_config(reconciled)
     except ConfigurationError as err:
         raise ConfigEntryError(str(err)) from err
+    if changed:
+        hass.config_entries.async_update_entry(entry, data=reconciled)
 
     runtime = HeatPumpSteeringRuntime(
         config=config,
         co=ModuleRuntime(config.co.enabled) if config.co else None,
         dhw=ModuleRuntime(config.dhw.enabled) if config.dhw else None,
+        ownership_conflicts=entry_conflicts(hass, entry),
     )
     refresh_readiness(hass, runtime)
 
@@ -74,6 +85,21 @@ async def async_setup_entry(
 
     unsubscribe = async_track_state_change_event(hass, config.entity_ids, async_refresh)
     runtime.unsubscribers.append(unsubscribe)
+
+    @callback
+    def async_registry_updated(_: Event[Any]) -> None:
+        """Follow the same registry identity after rename; never adopt replacement."""
+        updated, registry_changed = reconcile_registry_locations(hass, entry.data)
+        refresh_readiness(hass, runtime)
+        if not registry_changed or runtime.stopped:
+            return
+        runtime.generation += 1
+        hass.config_entries.async_update_entry(entry, data=updated)
+        hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+
+    runtime.unsubscribers.append(
+        hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, async_registry_updated)
+    )
     entry.runtime_data = runtime
     return True
 

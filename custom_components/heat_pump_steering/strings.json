@@ -13,9 +13,15 @@
       "invalid_switch_entity": "Select a valid switch entity.",
       "invalid_zone": "The zone is not valid. Check its name, sensors, target and group.",
       "module_required": "Select space heating, domestic hot water, or both.",
+      "confirmation_required": "Confirm explicitly or cancel without saving.",
+      "detachment_changed": "The outputs or their reported states changed. Review the warning again.",
+      "invalid_polarity": "Select normal or inverted polarity.",
       "output_conflict": "An output entity is already assigned to another function or installation.",
+      "own_output": "An entity provided by Heat Pump Steering cannot be selected as an output.",
+      "polarity_count_mismatch": "Provide one polarity for each valve output.",
       "primary_not_in_sources": "The primary sensor must be included in the zone sensor list.",
-      "sensor_required": "Configure at least one temperature sensor."
+      "sensor_required": "Configure at least one temperature sensor.",
+      "valves_not_enabled": "Enable valve configuration before assigning valve outputs."
     },
     "step": {
       "user": {
@@ -38,11 +44,16 @@
       },
       "co": {
         "title": "Space heating sources",
-        "description": "Choose the single heating circuit setpoint and outdoor sensor.",
+        "description": "Choose circuit sources and optional outputs. With valves, ensure a hydraulic flow path even when all zones are closed.",
         "data": {
           "setpoint_entity_id": "Heat pump setpoint number",
           "outdoor_entity_id": "Outdoor temperature sensor",
-          "aggregation": "Multi-sensor aggregation"
+          "aggregation": "Multi-sensor aggregation",
+          "configure_valves": "Configure zone valves",
+          "configure_demand": "Configure heating demand",
+          "disconnect_demand": "Explicitly detach the saved demand output",
+          "demand_entity_id": "Demand switch",
+          "demand_polarity": "Demand switch polarity"
         }
       },
       "co_menu": {
@@ -52,7 +63,7 @@
       },
       "zone": {
         "title": "Zone",
-        "description": "Separate multiple sensor entity IDs with commas.",
+        "description": "Separate multiple entity IDs with commas. NC energizes to open; NO energizes to close; polarity maps energized to the HA switch state.",
         "data": {
           "name": "Zone name",
           "enabled": "Enabled",
@@ -60,7 +71,10 @@
           "temperature_entity_ids": "Temperature sensors",
           "source_mode": "Source mode",
           "primary_temperature_entity_id": "Primary temperature sensor",
-          "target_temperature": "Initial target temperature"
+          "target_temperature": "Initial target temperature",
+          "valve_entity_ids": "Valve switches (comma separated)",
+          "valve_polarities": "Valve polarities (comma separated)",
+          "actuator_type": "Zone actuator type"
         }
       },
       "group": {
@@ -81,13 +95,19 @@
         "description": "This step only assigns sources; it does not create a temperature or schedule.",
         "data": {
           "setpoint_entity_id": "DHW setpoint number",
-          "enable_entity_id": "DHW enable switch"
+          "enable_entity_id": "DHW enable switch",
+          "enable_polarity": "DHW enable polarity"
         }
       },
       "confirm": {
         "title": "Confirm installation",
         "description": "Save {name} with {zones} heating zones. Saving does not send device commands.",
         "data": {"confirm": "Save configuration"}
+      },
+      "detach_warning": {
+        "title": "Outputs will be detached",
+        "description": "Current HA reports: {outputs}. The last device state remains unchanged and is not physical valve feedback. Change it manually if needed, then confirm.",
+        "data": {"confirm": "I understand; detach these outputs"}
       }
     }
   },
@@ -111,6 +131,12 @@
     },
     "zone_label": {
       "options": {"unnamed": "Unnamed zone"}
+    },
+    "polarity": {
+      "options": {"normal": "Normal", "inverted": "Inverted"}
+    },
+    "actuator_type": {
+      "options": {"nc": "Normally closed (NC)", "no": "Normally open (NO)"}
     }
   }
 }

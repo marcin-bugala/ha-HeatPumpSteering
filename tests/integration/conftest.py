@@ -22,6 +22,11 @@ INSTALLATION_ID = "11111111-1111-4111-8111-111111111111"
 CIRCUIT_ID = "22222222-2222-4222-8222-222222222222"
 ZONE_ID = "33333333-3333-4333-8333-333333333333"
 DHW_ID = "44444444-4444-4444-8444-444444444444"
+CO_SETPOINT_OUTPUT_ID = "55555555-5555-4555-8555-555555555555"
+OUTDOOR_SOURCE_ID = "66666666-6666-4666-8666-666666666666"
+ZONE_SOURCE_ID = "77777777-7777-4777-8777-777777777777"
+DHW_SETPOINT_OUTPUT_ID = "88888888-8888-4888-8888-888888888888"
+DHW_ENABLE_OUTPUT_ID = "99999999-9999-4999-8999-999999999999"
 
 
 @pytest.fixture(autouse=True)
@@ -34,8 +39,8 @@ def co_data() -> dict[str, Any]:
     return {
         "enabled": True,
         "circuit_id": CIRCUIT_ID,
-        "setpoint_entity_id": "number.co_setpoint",
-        "outdoor_entity_id": "sensor.outdoor_temperature",
+        "setpoint_output_id": CO_SETPOINT_OUTPUT_ID,
+        "outdoor_source_id": OUTDOOR_SOURCE_ID,
         "aggregation": "mean",
         "groups": [],
         "zones": [
@@ -43,13 +48,18 @@ def co_data() -> dict[str, Any]:
                 "zone_id": ZONE_ID,
                 "name": "Living room",
                 "group_id": None,
-                "temperature_entity_ids": ["sensor.living_temperature"],
+                "temperature_source_ids": [ZONE_SOURCE_ID],
                 "source_mode": "primary",
-                "primary_temperature_entity_id": "sensor.living_temperature",
+                "primary_temperature_source_id": ZONE_SOURCE_ID,
                 "target_temperature": 21.0,
                 "enabled": True,
+                "valve_output_ids": [],
+                "actuator_type": None,
             }
         ],
+        "configure_valves": False,
+        "configure_demand": False,
+        "demand_output_id": None,
     }
 
 
@@ -58,40 +68,108 @@ def dhw_data() -> dict[str, Any]:
     return {
         "enabled": True,
         "dhw_id": DHW_ID,
-        "setpoint_entity_id": "number.dhw_setpoint",
-        "enable_entity_id": "switch.dhw_enable",
+        "setpoint_output_id": DHW_SETPOINT_OUTPUT_ID,
+        "enable_output_id": DHW_ENABLE_OUTPUT_ID,
     }
 
 
 def entry_data(*, co: bool = False, dhw: bool = False) -> dict[str, Any]:
     """Build one of the three supported ConfigEntry variants."""
     data: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
+        "configuration_revision": 1,
         "installation_id": INSTALLATION_ID,
         "name": "Synthetic heat pump",
+        "source_bindings": [],
+        "output_bindings": [],
     }
     if co:
         data["co"] = co_data()
+        data["source_bindings"].extend(
+            [
+                {
+                    "source_id": OUTDOOR_SOURCE_ID,
+                    "entity_registry_id": None,
+                    "entity_id": "sensor.outdoor_temperature",
+                    "role": "outdoor",
+                },
+                {
+                    "source_id": ZONE_SOURCE_ID,
+                    "entity_registry_id": None,
+                    "entity_id": "sensor.living_temperature",
+                    "role": "zone_temperature",
+                },
+            ]
+        )
+        data["output_bindings"].append(
+            {
+                "output_id": CO_SETPOINT_OUTPUT_ID,
+                "entity_registry_id": None,
+                "entity_id": "number.co_setpoint",
+                "function": "co_setpoint",
+                "scope_id": CIRCUIT_ID,
+                "adapter": "number",
+                "polarity": None,
+                "binding_revision": 1,
+            }
+        )
     if dhw:
         data["dhw"] = dhw_data()
+        data["output_bindings"].extend(
+            [
+                {
+                    "output_id": DHW_SETPOINT_OUTPUT_ID,
+                    "entity_registry_id": None,
+                    "entity_id": "number.dhw_setpoint",
+                    "function": "dhw_setpoint",
+                    "scope_id": DHW_ID,
+                    "adapter": "number",
+                    "polarity": None,
+                    "binding_revision": 1,
+                },
+                {
+                    "output_id": DHW_ENABLE_OUTPUT_ID,
+                    "entity_registry_id": None,
+                    "entity_id": "switch.dhw_enable",
+                    "function": "dhw_enable",
+                    "scope_id": DHW_ID,
+                    "adapter": "switch",
+                    "polarity": "normal",
+                    "binding_revision": 1,
+                },
+            ]
+        )
     return data
 
 
 def legacy_entry_data(*, co: bool = False, dhw: bool = False) -> dict[str, Any]:
     """Build the persisted I01 shape used only as migration input."""
-    data = entry_data(co=co, dhw=dhw)
-    data["schema_version"] = 1
-    data.pop("name")
+    data: dict[str, Any] = {
+        "schema_version": 1,
+        "installation_id": INSTALLATION_ID,
+    }
     if co:
-        data["co"].pop("aggregation")
-        data["co"].pop("groups")
-        for zone in data["co"]["zones"]:
-            sensor = zone.pop("temperature_entity_ids")[0]
-            zone["temperature_entity_id"] = sensor
-            zone.pop("name")
-            zone.pop("group_id")
-            zone.pop("source_mode")
-            zone.pop("primary_temperature_entity_id")
+        data["co"] = {
+            "enabled": True,
+            "circuit_id": CIRCUIT_ID,
+            "setpoint_entity_id": "number.co_setpoint",
+            "outdoor_entity_id": "sensor.outdoor_temperature",
+            "zones": [
+                {
+                    "zone_id": ZONE_ID,
+                    "temperature_entity_id": "sensor.living_temperature",
+                    "target_temperature": 21.0,
+                    "enabled": True,
+                }
+            ],
+        }
+    if dhw:
+        data["dhw"] = {
+            "enabled": True,
+            "dhw_id": DHW_ID,
+            "setpoint_entity_id": "number.dhw_setpoint",
+            "enable_entity_id": "switch.dhw_enable",
+        }
     return data
 
 
@@ -104,7 +182,7 @@ def make_entry() -> Callable[..., MockConfigEntry]:
         co: bool = False,
         dhw: bool = False,
         data: dict[str, Any] | None = None,
-        version: int = 2,
+        version: int = 3,
     ) -> MockConfigEntry:
         return MockConfigEntry(
             domain=DOMAIN,

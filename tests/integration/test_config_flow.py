@@ -55,6 +55,11 @@ async def _configure_co(hass: HomeAssistant, result: dict) -> dict:
             "setpoint_entity_id": "number.co_setpoint",
             "outdoor_entity_id": "sensor.outdoor_temperature",
             "aggregation": "median",
+            "configure_valves": False,
+            "configure_demand": False,
+            "disconnect_demand": False,
+            "demand_entity_id": "",
+            "demand_polarity": "normal",
         },
     )
     result = await _submit(hass, result, {"action": "add_group"})
@@ -88,6 +93,7 @@ async def _configure_dhw(hass: HomeAssistant, result: dict) -> dict:
         {
             "setpoint_entity_id": "number.dhw_setpoint",
             "enable_entity_id": "switch.dhw_enable",
+            "enable_polarity": "normal",
         },
     )
 
@@ -114,7 +120,9 @@ async def test_user_flow_creates_three_supported_variants_atomically(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     data = result["data"]
-    assert data["schema_version"] == 2
+    assert data["schema_version"] == 3
+    assert data["configuration_revision"] == 1
+    assert data["output_bindings"]
     assert ("co" in data) is co
     assert ("dhw" in data) is dhw
     assert UUID(data["installation_id"])
@@ -407,7 +415,7 @@ async def test_reconfigure_primary_to_aggregate_clears_stale_primary(
 
     assert result["type"] is FlowResultType.ABORT
     assert entry.data["co"]["zones"][0]["source_mode"] == "aggregate"
-    assert entry.data["co"]["zones"][0]["primary_temperature_entity_id"] is None
+    assert entry.data["co"]["zones"][0]["primary_temperature_source_id"] is None
 
 
 async def _reconfigure_co_to_confirm(
@@ -561,7 +569,14 @@ def test_selector_options_are_complete_in_english_and_polish() -> None:
     english = json.loads((root / "translations/en.json").read_text(encoding="utf-8"))
     polish = json.loads((root / "translations/pl.json").read_text(encoding="utf-8"))
 
-    for key in ("aggregation", "source_mode", "co_menu_action", "zone_label"):
+    for key in (
+        "aggregation",
+        "source_mode",
+        "co_menu_action",
+        "zone_label",
+        "polarity",
+        "actuator_type",
+    ):
         assert (
             english["selector"][key]["options"].keys()
             == polish["selector"][key]["options"].keys()
@@ -617,3 +632,121 @@ async def test_migrated_unnamed_zone_uses_localized_label(
             "label": "Strefa bez nazwy 33333333",
         }
     ]
+
+
+async def test_confirm_false_never_saves_entry(
+    hass: HomeAssistant, source_service_calls: list
+) -> None:
+    """D86/B10: a present but false checkbox is not consent."""
+    result = await _start_user(hass, co=False, dhw=True)
+    result = await _configure_dhw(hass, result)
+
+    result = await _submit(hass, result, {"confirm": False})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "confirm"
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert source_service_calls == []
+
+
+async def test_optional_valves_and_demand_are_canonical_and_observation_only(
+    hass: HomeAssistant, source_service_calls: list
+) -> None:
+    """A01-A04/C05: valves and demand store identities without execution."""
+    result = await _start_user(hass, co=True, dhw=False)
+    result = await _submit(
+        hass,
+        result,
+        {
+            "setpoint_entity_id": "number.co_setpoint",
+            "outdoor_entity_id": "sensor.outdoor_temperature",
+            "aggregation": "mean",
+            "configure_valves": True,
+            "configure_demand": True,
+            "demand_entity_id": "switch.co_demand",
+            "demand_polarity": "inverted",
+        },
+    )
+    result = await _submit(hass, result, {"action": "add_zone"})
+    result = await _submit(
+        hass,
+        result,
+        {
+            "name": "Floor",
+            "enabled": True,
+            "temperature_entity_ids": "sensor.living_temperature",
+            "source_mode": "primary",
+            "primary_temperature_entity_id": "sensor.living_temperature",
+            "target_temperature": 21.0,
+            "valve_entity_ids": "switch.valve_one, switch.valve_two",
+            "valve_polarities": "normal, inverted",
+            "actuator_type": "nc",
+        },
+    )
+    result = await _submit(hass, result, {"action": "continue"})
+    result = await _submit(hass, result, {"confirm": True})
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    data = result["data"]
+    assert data["co"]["configure_valves"] is True
+    assert data["co"]["configure_demand"] is True
+    assert len(data["co"]["zones"][0]["valve_output_ids"]) == 2
+    outputs = {item["function"]: item for item in data["output_bindings"]}
+    assert outputs["co_demand"]["polarity"] == "inverted"
+    valves = [
+        item for item in data["output_bindings"] if item["function"] == "zone_valve"
+    ]
+    assert {item["polarity"] for item in valves} == {"normal", "inverted"}
+    assert source_service_calls == []
+
+
+async def test_output_replacement_requires_d86_true_and_increments_revision(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    source_service_calls: list,
+) -> None:
+    """B04/B06/D86: replacement warns before commit and never sends OFF."""
+    entry = make_entry(co=True)
+    original = copy.deepcopy(dict(entry.data))
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await _submit(
+        hass,
+        result,
+        {"name": entry.title, "enable_co": True, "enable_dhw": False},
+    )
+    result = await _submit(
+        hass,
+        result,
+        {
+            "setpoint_entity_id": "number.replacement_setpoint",
+            "outdoor_entity_id": "sensor.outdoor_temperature",
+            "aggregation": "mean",
+        },
+    )
+    result = await _submit(hass, result, {"action": "continue"})
+    result = await _submit(hass, result, {"confirm": True})
+
+    assert result["step_id"] == "detach_warning"
+    result = await _submit(hass, result, {"confirm": False})
+    assert result["step_id"] == "detach_warning"
+    assert dict(entry.data) == original
+
+    result = await _submit(hass, result, {"confirm": True})
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+    assert entry.data["configuration_revision"] == 2
+    binding = next(
+        item
+        for item in entry.data["output_bindings"]
+        if item["function"] == "co_setpoint"
+    )
+    assert binding["entity_id"] == "number.replacement_setpoint"
+    assert binding["binding_revision"] == 2
+    assert source_service_calls == []
