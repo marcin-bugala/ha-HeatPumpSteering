@@ -13,7 +13,7 @@ import pytest
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 
 from custom_components.heat_pump_steering.const import DOMAIN
 
@@ -209,12 +209,12 @@ async def test_zone_validation_rejects_primary_outside_sources(
 
 
 @pytest.mark.parametrize(
-    ("module", "field", "value", "error"),
+    ("module", "field", "value"),
     [
-        ("co", "setpoint_entity_id", "sensor.wrong", "invalid_number_entity"),
-        ("co", "outdoor_entity_id", "", "invalid_sensor_entity"),
-        ("dhw", "setpoint_entity_id", "", "invalid_number_entity"),
-        ("dhw", "enable_entity_id", "number.wrong", "invalid_switch_entity"),
+        ("co", "setpoint_entity_id", "sensor.wrong"),
+        ("co", "outdoor_entity_id", ""),
+        ("dhw", "setpoint_entity_id", ""),
+        ("dhw", "enable_entity_id", "number.wrong"),
     ],
 )
 async def test_binding_errors_are_reported_on_the_owning_field(
@@ -222,9 +222,8 @@ async def test_binding_errors_are_reported_on_the_owning_field(
     module: str,
     field: str,
     value: str,
-    error: str,
 ) -> None:
-    """A02: missing or wrong-domain bindings fail in the CO/DHW step."""
+    """A02: typed selectors reject invalid bindings at the owning field."""
     result = await _start_user(hass, co=module == "co", dhw=module == "dhw")
     data = (
         {
@@ -239,10 +238,8 @@ async def test_binding_errors_are_reported_on_the_owning_field(
         }
     )
     data[field] = value
-    result = await _submit(hass, result, data)
-
-    assert result["step_id"] == module
-    assert result["errors"] == {field: error}
+    with pytest.raises(InvalidData, match=field):
+        await _submit(hass, result, data)
 
 
 async def test_new_zone_form_has_no_default_target(hass: HomeAssistant) -> None:

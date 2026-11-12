@@ -703,7 +703,7 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ): _entity_selector("switch", multiple=True),
                     vol.Optional(
                         "valve_polarities", default=", ".join(existing_polarities)
-                    ): _entity_selector("number"),
+                    ): str,
                     vol.Required(
                         "actuator_type", default=existing.get("actuator_type") or "nc"
                     ): _translated_select(_ACTUATOR_TYPES, "actuator_type"),
@@ -813,13 +813,13 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         default=self._entity(
                             "output_bindings", dhw.get("setpoint_output_id")
                         ),
-                    ): _entity_selector("switch"),
+                    ): _entity_selector("number"),
                     vol.Required(
                         "enable_entity_id",
                         default=self._entity(
                             "output_bindings", dhw.get("enable_output_id")
                         ),
-                    ): str,
+                    ): _entity_selector("switch"),
                     vol.Required(
                         "enable_polarity",
                         default=(
