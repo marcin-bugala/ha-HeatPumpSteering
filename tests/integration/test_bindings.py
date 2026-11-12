@@ -137,6 +137,7 @@ async def test_setup_reports_existing_conflict_without_setup_order_winner(
         domain="heat_pump_steering",
         title="Second heat pump",
         data=second_data,
+        entry_id="01M776R0KCT7S53S95NT3PB42Y",
         version=3,
         unique_id=second_data["installation_id"],
     )
