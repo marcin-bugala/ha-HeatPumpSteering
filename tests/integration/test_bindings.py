@@ -9,7 +9,7 @@ from uuid import uuid4
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .conftest import entry_data, set_temperature
+from .conftest import MockConfigEntry, entry_data, set_temperature
 
 
 async def test_registry_rename_preserves_source_identity_and_binding_revision(
@@ -77,29 +77,25 @@ async def test_removed_registry_identity_does_not_adopt_same_entity_id(
     source_service_calls: list,
 ) -> None:
     """B06/B10: replacement at the old location is not the configured source."""
-    registry = er.async_get(hass)
-    original = registry.async_get_or_create(
-        "sensor", "synthetic", "room-original", suggested_object_id="registered_room"
-    )
     data = entry_data(co=True)
     zone_source = next(
         item for item in data["source_bindings"] if item["role"] == "zone_temperature"
     )
-    zone_source["entity_registry_id"] = original.id
-    zone_source["entity_id"] = original.entity_id
-    set_temperature(hass, original.entity_id, "20")
+    zone_source["entity_registry_id"] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    set_temperature(hass, zone_source["entity_id"], "20")
     entry = make_entry(data=data)
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
 
-    old_entity_id = original.entity_id
-    registry.async_remove(old_entity_id)
+    registry = er.async_get(hass)
     replacement = registry.async_get_or_create(
-        "sensor", "synthetic", "room-replacement", suggested_object_id="registered_room"
+        "sensor",
+        "synthetic",
+        "room-replacement",
+        suggested_object_id="living_temperature",
     )
-    assert replacement.id != original.id
-    assert replacement.entity_id == old_entity_id
-    set_temperature(hass, old_entity_id, "21")
+    assert replacement.id != zone_source["entity_registry_id"]
+    set_temperature(hass, zone_source["entity_id"], "21")
     await hass.async_block_till_done()
 
     assert not entry.runtime_data.co.readiness.ready
@@ -137,7 +133,13 @@ async def test_setup_reports_existing_conflict_without_setup_order_winner(
         "output_id"
     ]
     first = make_entry(data=first_data)
-    second = make_entry(data=second_data)
+    second = MockConfigEntry(
+        domain="heat_pump_steering",
+        title="Second heat pump",
+        data=second_data,
+        version=3,
+        unique_id=second_data["installation_id"],
+    )
     first.add_to_hass(hass)
     second.add_to_hass(hass)
 

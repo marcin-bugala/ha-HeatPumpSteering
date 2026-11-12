@@ -405,7 +405,11 @@ def _dhw(value: object) -> DhwConfig:
 def parse_config(data: Mapping[str, Any]) -> InstallationConfig:
     """Parse canonical schema v3 without changing the entry."""
     schema_version = data.get("schema_version")
-    if isinstance(schema_version, bool) or schema_version != CONFIG_SCHEMA_VERSION:
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version != CONFIG_SCHEMA_VERSION
+    ):
         raise ConfigurationError(f"unsupported schema_version: {schema_version}")
     revision = data.get("configuration_revision")
     if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:

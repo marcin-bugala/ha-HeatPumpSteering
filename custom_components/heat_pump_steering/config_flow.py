@@ -199,7 +199,10 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 source_ids.update(zone["temperature_source_ids"])
                 output_ids.update(zone.get("valve_output_ids", []))
         if dhw := self._draft.get("dhw"):
-            output_ids.update((dhw["setpoint_output_id"], dhw["enable_output_id"]))
+            if "setpoint_output_id" in dhw:
+                output_ids.add(dhw["setpoint_output_id"])
+            if "enable_output_id" in dhw:
+                output_ids.add(dhw["enable_output_id"])
         self._draft["source_bindings"] = [
             item
             for item in self._draft["source_bindings"]
