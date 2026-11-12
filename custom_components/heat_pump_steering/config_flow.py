@@ -415,11 +415,15 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "configure_demand", default=co.get("configure_demand", False)
                     ): bool,
                     vol.Required("disconnect_demand", default=False): bool,
-                    vol.Optional(
-                        "demand_entity_id",
-                        default=self._entity(
-                            "output_bindings", co.get("demand_output_id")
-                        ),
+                    (
+                        vol.Optional(
+                            "demand_entity_id",
+                            default=self._entity(
+                                "output_bindings", co.get("demand_output_id")
+                            ),
+                        )
+                        if co.get("demand_output_id")
+                        else vol.Optional("demand_entity_id")
                     ): _entity_selector("switch"),
                     vol.Required(
                         "demand_polarity",
@@ -678,9 +682,13 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(
                         "source_mode", default=existing.get("source_mode", "aggregate")
                     ): _translated_select(_SOURCE_MODES, "source_mode"),
-                    vol.Optional(
-                        "primary_temperature_entity_id",
-                        default=existing_primary,
+                    (
+                        vol.Optional(
+                            "primary_temperature_entity_id",
+                            default=existing_primary,
+                        )
+                        if existing_primary
+                        else vol.Optional("primary_temperature_entity_id")
                     ): _entity_selector("sensor", device_class="temperature"),
                     (
                         vol.Required(
