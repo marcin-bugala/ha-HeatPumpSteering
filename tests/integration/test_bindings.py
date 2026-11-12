@@ -6,6 +6,7 @@ import copy
 from collections.abc import Callable
 from uuid import uuid4
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
@@ -152,7 +153,8 @@ async def test_setup_reports_existing_conflict_without_setup_order_winner(
     second.add_to_hass(hass)
 
     assert await hass.config_entries.async_setup(first.entry_id)
-    assert await hass.config_entries.async_setup(second.entry_id)
+    if second.state is ConfigEntryState.NOT_LOADED:
+        assert await hass.config_entries.async_setup(second.entry_id)
 
     assert first.runtime_data.ownership_conflicts
     assert second.runtime_data.ownership_conflicts
