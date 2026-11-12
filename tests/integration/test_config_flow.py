@@ -98,6 +98,42 @@ async def _configure_dhw(hass: HomeAssistant, result: dict) -> dict:
     )
 
 
+async def test_binding_fields_use_typed_entity_selectors(
+    hass: HomeAssistant,
+) -> None:
+    """I03 UI: binding roles use domain-constrained HA entity pickers."""
+    result = await _start_user(hass, co=True, dhw=False)
+    _, setpoint = _schema_field(result, "setpoint_entity_id")
+    _, outdoor = _schema_field(result, "outdoor_entity_id")
+    _, demand = _schema_field(result, "demand_entity_id")
+
+    assert setpoint.serialize()["selector"]["entity"]["domain"] == "number"
+    outdoor_config = outdoor.serialize()["selector"]["entity"]
+    assert outdoor_config["domain"] == "sensor"
+    assert outdoor_config["device_class"] == "temperature"
+    assert demand.serialize()["selector"]["entity"]["domain"] == "switch"
+
+    result = await _submit(
+        hass,
+        result,
+        {
+            "setpoint_entity_id": "number.co_setpoint",
+            "outdoor_entity_id": "sensor.outdoor_temperature",
+            "aggregation": "mean",
+            "configure_valves": True,
+            "configure_demand": False,
+            "disconnect_demand": False,
+            "demand_entity_id": "",
+            "demand_polarity": "normal",
+        },
+    )
+    result = await _submit(hass, result, {"action": "add_zone"})
+    _, temperatures = _schema_field(result, "temperature_entity_ids")
+    _, valves = _schema_field(result, "valve_entity_ids")
+    assert temperatures.serialize()["selector"]["entity"]["multiple"] is True
+    assert valves.serialize()["selector"]["entity"]["multiple"] is True
+
+
 @pytest.mark.parametrize(
     ("co", "dhw"),
     [(True, False), (False, True), (True, True)],

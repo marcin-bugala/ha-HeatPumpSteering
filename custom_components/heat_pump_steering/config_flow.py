@@ -50,6 +50,10 @@ def migrate_v1_data(data: dict[str, Any], title: str) -> dict[str, Any]:
 
 
 def _csv_entities(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [
+            item.strip() for item in value if isinstance(item, str) and item.strip()
+        ]
     if not isinstance(value, str):
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
@@ -70,6 +74,19 @@ def _translated_select(
         selector.SelectSelectorConfig(
             options=options,
             translation_key=translation_key,
+        )
+    )
+
+
+def _entity_selector(
+    domain: str, *, multiple: bool = False, device_class: str | None = None
+) -> selector.EntitySelector:
+    """Build a typed HA entity picker for one binding role."""
+    return selector.EntitySelector(
+        selector.EntitySelectorConfig(
+            domain=domain,
+            device_class=device_class,
+            multiple=multiple,
         )
     )
 
@@ -381,13 +398,13 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         default=self._entity(
                             "output_bindings", co.get("setpoint_output_id")
                         ),
-                    ): str,
+                    ): _entity_selector("number"),
                     vol.Required(
                         "outdoor_entity_id",
                         default=self._entity(
                             "source_bindings", co.get("outdoor_source_id")
                         ),
-                    ): str,
+                    ): _entity_selector("sensor", device_class="temperature"),
                     vol.Required(
                         "aggregation", default=co.get("aggregation", "mean")
                     ): _translated_select(_AGGREGATIONS, "aggregation"),
@@ -403,7 +420,7 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         default=self._entity(
                             "output_bindings", co.get("demand_output_id")
                         ),
-                    ): str,
+                    ): _entity_selector("switch"),
                     vol.Required(
                         "demand_polarity",
                         default=(
@@ -654,15 +671,17 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Required(
                         "temperature_entity_ids",
-                        default=", ".join(existing_sensor_ids),
-                    ): str,
+                        default=existing_sensor_ids,
+                    ): _entity_selector(
+                        "sensor", multiple=True, device_class="temperature"
+                    ),
                     vol.Required(
                         "source_mode", default=existing.get("source_mode", "aggregate")
                     ): _translated_select(_SOURCE_MODES, "source_mode"),
                     vol.Optional(
                         "primary_temperature_entity_id",
                         default=existing_primary,
-                    ): str,
+                    ): _entity_selector("sensor", device_class="temperature"),
                     (
                         vol.Required(
                             "target_temperature",
@@ -672,11 +691,11 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         else vol.Required("target_temperature")
                     ): vol.Coerce(float),
                     vol.Optional(
-                        "valve_entity_ids", default=", ".join(existing_valves)
-                    ): str,
+                        "valve_entity_ids", default=existing_valves
+                    ): _entity_selector("switch", multiple=True),
                     vol.Optional(
                         "valve_polarities", default=", ".join(existing_polarities)
-                    ): str,
+                    ): _entity_selector("number"),
                     vol.Required(
                         "actuator_type", default=existing.get("actuator_type") or "nc"
                     ): _translated_select(_ACTUATOR_TYPES, "actuator_type"),
@@ -786,7 +805,7 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         default=self._entity(
                             "output_bindings", dhw.get("setpoint_output_id")
                         ),
-                    ): str,
+                    ): _entity_selector("switch"),
                     vol.Required(
                         "enable_entity_id",
                         default=self._entity(
