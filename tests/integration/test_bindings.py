@@ -132,7 +132,14 @@ async def test_setup_reports_existing_conflict_without_setup_order_winner(
     second_data["co"]["setpoint_output_id"] = second_data["output_bindings"][0][
         "output_id"
     ]
-    first = make_entry(data=first_data)
+    first = MockConfigEntry(
+        domain="heat_pump_steering",
+        title="First heat pump",
+        data=first_data,
+        entry_id="01M776R0KCT7S53S95NT3PB42X",
+        version=3,
+        unique_id=first_data["installation_id"],
+    )
     second = MockConfigEntry(
         domain="heat_pump_steering",
         title="Second heat pump",
