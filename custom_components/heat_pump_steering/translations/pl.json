@@ -13,27 +13,36 @@
       "invalid_switch_entity": "Wybierz poprawną encję switch.",
       "invalid_zone": "Strefa jest niepoprawna. Sprawdź nazwę, czujniki, cel i grupę.",
       "module_required": "Wybierz CO, CWU albo oba moduły.",
+      "confirmation_required": "Potwierdź jawnie albo anuluj bez zapisu.",
+      "detachment_changed": "Lista wyjść lub ich raportowany stan zmieniły się. Sprawdź ostrzeżenie ponownie.",
+      "invalid_polarity": "Wybierz polaryzację normalną albo odwróconą.",
       "output_conflict": "Encja wyjściowa jest już przypisana do innej funkcji lub instalacji.",
+      "own_output": "Nie można wybrać jako wyjścia encji udostępnianej przez Heat Pump Steering.",
+      "polarity_count_mismatch": "Podaj jedną polaryzację dla każdego wyjścia zaworu.",
       "primary_not_in_sources": "Czujnik główny musi należeć do listy czujników strefy.",
-      "sensor_required": "Skonfiguruj co najmniej jeden czujnik temperatury."
+      "sensor_required": "Skonfiguruj co najmniej jeden czujnik temperatury.",
+      "valves_not_enabled": "Włącz konfigurację zaworów przed przypisaniem ich wyjść."
     },
     "step": {
       "user": {"title": "Instalacja pompy ciepła", "description": "Nazwij instalację i wybierz jej moduły.", "data": {"name": "Nazwa instalacji", "enable_co": "Skonfiguruj CO", "enable_dhw": "Skonfiguruj CWU"}},
       "reconfigure": {"title": "Edycja instalacji pompy ciepła", "description": "Wyłączone moduły zachowują ustawienia, a po ponownym włączeniu zaczynają w obserwacji.", "data": {"name": "Nazwa instalacji", "enable_co": "Włącz CO", "enable_dhw": "Włącz CWU"}},
-      "co": {"title": "Źródła CO", "description": "Wybierz nastawę jednego obiegu CO i czujnik zewnętrzny.", "data": {"setpoint_entity_id": "Encja number nastawy pompy", "outdoor_entity_id": "Czujnik temperatury zewnętrznej", "aggregation": "Agregacja wielu czujników"}},
+      "co": {"title": "Źródła CO", "description": "Wybierz źródła i opcjonalne wyjścia. Przy zaworach zapewnij przepływ hydrauliczny także po zamknięciu wszystkich stref.", "data": {"setpoint_entity_id": "Encja number nastawy pompy", "outdoor_entity_id": "Czujnik temperatury zewnętrznej", "aggregation": "Agregacja wielu czujników", "configure_valves": "Skonfiguruj zawory stref", "configure_demand": "Skonfiguruj demand CO", "disconnect_demand": "Jawnie odłącz zapisane wyjście demandu", "demand_entity_id": "Encja switch demandu", "demand_polarity": "Polaryzacja demandu"}},
       "co_menu": {"title": "Strefy i grupy", "description": "Skonfigurowane strefy: {zones}; grupy porządkowe: {groups}.", "data": {"action": "Działanie"}},
-      "zone": {"title": "Strefa", "description": "Wiele identyfikatorów encji czujników rozdziel przecinkami.", "data": {"name": "Nazwa strefy", "enabled": "Włączona", "group_id": "Grupa porządkowa", "temperature_entity_ids": "Czujniki temperatury", "source_mode": "Tryb źródeł", "primary_temperature_entity_id": "Główny czujnik temperatury", "target_temperature": "Początkowa temperatura celu"}},
+      "zone": {"title": "Strefa", "description": "Wiele encji rozdziel przecinkami. NC otwiera po zasileniu, NO zamyka; polaryzacja mapuje zasilenie na stan encji HA.", "data": {"name": "Nazwa strefy", "enabled": "Włączona", "group_id": "Grupa porządkowa", "temperature_entity_ids": "Czujniki temperatury", "source_mode": "Tryb źródeł", "primary_temperature_entity_id": "Główny czujnik temperatury", "target_temperature": "Początkowa temperatura celu", "valve_entity_ids": "Encje switch zaworów", "valve_polarities": "Polaryzacje zaworów", "actuator_type": "Typ siłownika strefy"}},
       "group": {"title": "Grupa porządkowa", "description": "Grupa nie ma celu, źródeł, wyjść ani dodatkowego udziału w regulacji.", "data": {"name": "Nazwa grupy"}},
       "select_zone": {"title": "Wybierz strefę", "data": {"zone_id": "Strefa"}},
       "select_group": {"title": "Wybierz grupę", "data": {"group_id": "Grupa"}},
-      "dhw": {"title": "Źródła CWU", "description": "Ten krok tylko przypisuje źródła; nie tworzy temperatury ani harmonogramu.", "data": {"setpoint_entity_id": "Encja number nastawy CWU", "enable_entity_id": "Encja switch zezwolenia CWU"}},
-      "confirm": {"title": "Zatwierdź instalację", "description": "Zapisz {name} z liczbą stref CO: {zones}. Zapis nie wysyła poleceń urządzeń.", "data": {"confirm": "Zapisz konfigurację"}}
+      "dhw": {"title": "Źródła CWU", "description": "Ten krok tylko przypisuje źródła; nie tworzy temperatury ani harmonogramu.", "data": {"setpoint_entity_id": "Encja number nastawy CWU", "enable_entity_id": "Encja switch zezwolenia CWU", "enable_polarity": "Polaryzacja zezwolenia CWU"}},
+      "confirm": {"title": "Zatwierdź instalację", "description": "Zapisz {name} z liczbą stref CO: {zones}. Zapis nie wysyła poleceń urządzeń.", "data": {"confirm": "Zapisz konfigurację"}},
+      "detach_warning": {"title": "Wyjścia zostaną odłączone", "description": "Bieżący raport HA: {outputs}. Ostatni stan urządzenia pozostanie bez zmian i nie jest fizycznym położeniem zaworu. W razie potrzeby zmień go ręcznie, potem potwierdź.", "data": {"confirm": "Rozumiem; odłącz te wyjścia"}}
     }
   },
   "selector": {
     "aggregation": {"options": {"mean": "Średnia", "median": "Mediana"}},
     "source_mode": {"options": {"aggregate": "Agregacja", "primary": "Czujnik główny"}},
     "co_menu_action": {"options": {"add_zone": "Dodaj strefę", "add_group": "Dodaj grupę", "edit_zone": "Edytuj strefę", "remove_zone": "Usuń strefę", "edit_group": "Edytuj grupę", "remove_group": "Usuń grupę", "continue": "Kontynuuj"}},
-    "zone_label": {"options": {"unnamed": "Strefa bez nazwy"}}
+    "zone_label": {"options": {"unnamed": "Strefa bez nazwy"}},
+    "polarity": {"options": {"normal": "Normalna", "inverted": "Odwrócona"}},
+    "actuator_type": {"options": {"nc": "Normalnie zamknięty (NC)", "no": "Normalnie otwarty (NO)"}}
   }
 }

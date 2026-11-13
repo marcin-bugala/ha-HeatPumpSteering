@@ -66,11 +66,11 @@ async def test_supported_variants_start_ready_in_observation(
 @pytest.mark.parametrize(
     ("data", "version", "expected_state"),
     [
-        (entry_data(), 2, ConfigEntryState.SETUP_ERROR),
-        (entry_data(co=True), 3, ConfigEntryState.MIGRATION_ERROR),
+        (entry_data(), 3, ConfigEntryState.SETUP_ERROR),
+        (entry_data(co=True), 4, ConfigEntryState.MIGRATION_ERROR),
         (
-            {**entry_data(co=True), "schema_version": 3},
-            2,
+            {**entry_data(co=True), "schema_version": 4},
+            3,
             ConfigEntryState.SETUP_ERROR,
         ),
         (
@@ -79,10 +79,10 @@ async def test_supported_variants_start_ready_in_observation(
                 "co": {
                     key: value
                     for key, value in entry_data(co=True)["co"].items()
-                    if key != "setpoint_entity_id"
+                    if key != "setpoint_output_id"
                 },
             },
-            2,
+            3,
             ConfigEntryState.SETUP_ERROR,
         ),
         (
@@ -90,7 +90,7 @@ async def test_supported_variants_start_ready_in_observation(
                 **entry_data(co=True),
                 "co": {**entry_data(co=True)["co"], "zones": []},
             },
-            2,
+            3,
             ConfigEntryState.SETUP_ERROR,
         ),
     ],

@@ -2,33 +2,39 @@
 
 from __future__ import annotations
 
-import asyncio
 import copy
 from typing import Any
 from uuid import uuid4
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import valid_entity_id
+from homeassistant.core import callback, valid_entity_id
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 from homeassistant.helpers.translation import async_get_translations
 
+from .bindings import (
+    own_platform_output,
+    ownership_service,
+    reconcile_registry_locations,
+    registry_id_for_entity,
+)
 from .const import CONFIG_ENTRY_VERSION, CONFIG_SCHEMA_VERSION, DOMAIN
 from .models import ConfigurationError, parse_config
 
-_FINALIZE_LOCK = asyncio.Lock()
 _AGGREGATIONS = ["mean", "median"]
 _SOURCE_MODES = ["aggregate", "primary"]
+_POLARITIES = ["normal", "inverted"]
+_ACTUATOR_TYPES = ["nc", "no"]
 
 
 def migrate_v1_data(data: dict[str, Any], title: str) -> dict[str, Any]:
-    """Build and validate a canonical v2 copy from an I01 payload."""
+    """Build the schema-v2 intermediate used by the v1→v2→v3 path."""
     migrated = copy.deepcopy(data)
     schema_version = migrated.get("schema_version")
     if isinstance(schema_version, bool) or schema_version != 1:
         raise ConfigurationError("unsupported v1 schema_version")
-    migrated["schema_version"] = CONFIG_SCHEMA_VERSION
+    migrated["schema_version"] = 2
     migrated["name"] = title.strip() or "Heat Pump"
     if co := migrated.get("co"):
         co["aggregation"] = "mean"
@@ -41,27 +47,17 @@ def migrate_v1_data(data: dict[str, Any], title: str) -> dict[str, Any]:
             zone["temperature_entity_ids"] = [sensor]
             zone["source_mode"] = "primary"
             zone["primary_temperature_entity_id"] = sensor
-    parse_config(migrated)
     return migrated
 
 
 def _csv_entities(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [
+            item.strip() for item in value if isinstance(item, str) and item.strip()
+        ]
     if not isinstance(value, str):
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
-
-
-def _outputs(data: dict[str, Any]) -> list[str]:
-    outputs: list[str] = []
-    if co := data.get("co"):
-        if entity_id := co.get("setpoint_entity_id"):
-            outputs.append(entity_id)
-    if dhw := data.get("dhw"):
-        if entity_id := dhw.get("setpoint_entity_id"):
-            outputs.append(entity_id)
-        if entity_id := dhw.get("enable_entity_id"):
-            outputs.append(entity_id)
-    return outputs
 
 
 def _valid_binding(value: object, domain: str) -> bool:
@@ -83,6 +79,19 @@ def _translated_select(
     )
 
 
+def _entity_selector(
+    domain: str, *, multiple: bool = False, device_class: str | None = None
+) -> selector.EntitySelector:
+    """Build a typed HA entity picker for one binding role."""
+    return selector.EntitySelector(
+        selector.EntitySelectorConfig(
+            domain=domain,
+            device_class=device_class,
+            multiple=multiple,
+        )
+    )
+
+
 class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Create or atomically replace one installation configuration."""
 
@@ -97,6 +106,136 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._editing_zone_id: str | None = None
         self._editing_group_id: str | None = None
         self._pending_operation: str | None = None
+        self._approved_detach_signature: tuple[str, ...] | None = None
+        self._shown_detach_signature: tuple[str, ...] | None = None
+        self._reservation_token = str(uuid4())
+
+    @callback
+    def async_remove(self) -> None:
+        """Release a finalization reservation after HA finishes or aborts the flow."""
+        ownership_service(self.hass).release(self._reservation_token)
+
+    def _binding(
+        self, collection: str, binding_id: str | None
+    ) -> dict[str, Any] | None:
+        if binding_id is None:
+            return None
+        key = "source_id" if collection == "source_bindings" else "output_id"
+        return next(
+            (
+                item
+                for item in self._draft.get(collection, [])
+                if item[key] == binding_id
+            ),
+            None,
+        )
+
+    def _entity(self, collection: str, binding_id: str | None) -> str:
+        binding = self._binding(collection, binding_id)
+        return binding["entity_id"] if binding else ""
+
+    def _upsert_source(
+        self, *, source_id: str | None, entity_id: str, role: str
+    ) -> str:
+        binding = self._binding("source_bindings", source_id)
+        registry_id = registry_id_for_entity(self.hass, entity_id)
+        if binding is None:
+            binding = {
+                "source_id": str(uuid4()),
+                "entity_registry_id": registry_id,
+                "entity_id": entity_id,
+                "role": role,
+            }
+            self._draft["source_bindings"].append(binding)
+        elif binding.get("entity_registry_id") != registry_id or (
+            registry_id is None
+            and binding.get("entity_registry_id") is None
+            and binding["entity_id"] != entity_id
+        ):
+            binding.update(
+                {
+                    "source_id": str(uuid4()),
+                    "entity_registry_id": registry_id,
+                    "entity_id": entity_id,
+                    "role": role,
+                }
+            )
+        return binding["source_id"]
+
+    def _upsert_output(
+        self,
+        *,
+        output_id: str | None,
+        entity_id: str,
+        function: str,
+        scope_id: str,
+        adapter: str,
+        polarity: str | None,
+    ) -> str:
+        binding = self._binding("output_bindings", output_id)
+        registry_id = registry_id_for_entity(self.hass, entity_id)
+        if binding is None:
+            binding = {
+                "output_id": str(uuid4()),
+                "entity_registry_id": registry_id,
+                "entity_id": entity_id,
+                "function": function,
+                "scope_id": scope_id,
+                "adapter": adapter,
+                "polarity": polarity,
+                "binding_revision": 1,
+            }
+            self._draft["output_bindings"].append(binding)
+        else:
+            changed = (
+                binding.get("entity_registry_id") != registry_id
+                or (
+                    registry_id is None
+                    and binding.get("entity_registry_id") is None
+                    and binding["entity_id"] != entity_id
+                )
+                or binding.get("polarity") != polarity
+            )
+            binding.update(
+                {
+                    "entity_registry_id": registry_id,
+                    "entity_id": entity_id,
+                    "function": function,
+                    "scope_id": scope_id,
+                    "adapter": adapter,
+                    "polarity": polarity,
+                }
+            )
+            if changed:
+                binding["binding_revision"] += 1
+        return binding["output_id"]
+
+    def _prune_bindings(self) -> None:
+        source_ids: set[str] = set()
+        output_ids: set[str] = set()
+        if co := self._draft.get("co"):
+            source_ids.add(co["outdoor_source_id"])
+            output_ids.add(co["setpoint_output_id"])
+            if co.get("demand_output_id"):
+                output_ids.add(co["demand_output_id"])
+            for zone in co["zones"]:
+                source_ids.update(zone["temperature_source_ids"])
+                output_ids.update(zone.get("valve_output_ids", []))
+        if dhw := self._draft.get("dhw"):
+            if "setpoint_output_id" in dhw:
+                output_ids.add(dhw["setpoint_output_id"])
+            if "enable_output_id" in dhw:
+                output_ids.add(dhw["enable_output_id"])
+        self._draft["source_bindings"] = [
+            item
+            for item in self._draft["source_bindings"]
+            if item["source_id"] in source_ids
+        ]
+        self._draft["output_bindings"] = [
+            item
+            for item in self._draft["output_bindings"]
+            if item["output_id"] in output_ids
+        ]
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -109,8 +248,11 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 self._draft = {
                     "schema_version": CONFIG_SCHEMA_VERSION,
+                    "configuration_revision": 1,
                     "installation_id": str(uuid4()),
                     "name": user_input["name"].strip(),
+                    "source_bindings": [],
+                    "output_bindings": [],
                 }
                 if user_input["enable_co"]:
                     self._draft["co"] = {
@@ -119,6 +261,9 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "groups": [],
                         "zones": [],
                         "aggregation": "mean",
+                        "configure_valves": False,
+                        "configure_demand": False,
+                        "demand_output_id": None,
                     }
                 if user_input["enable_dhw"]:
                     self._draft["dhw"] = {
@@ -144,8 +289,15 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Edit the same canonical draft while preserving stable identities."""
         if self._entry is None:
             self._entry = self._get_reconfigure_entry()
-            self._draft = copy.deepcopy(dict(self._entry.data))
-            self._original_data = copy.deepcopy(dict(self._entry.data))
+            reconciled, changed = reconcile_registry_locations(
+                self.hass, self._entry.data
+            )
+            if changed:
+                self.hass.config_entries.async_update_entry(
+                    self._entry, data=reconciled
+                )
+            self._draft = copy.deepcopy(reconciled)
+            self._original_data = copy.deepcopy(reconciled)
         errors: dict[str, str] = {}
         if user_input is not None:
             had_co = "co" in self._draft
@@ -160,6 +312,9 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "groups": [],
                     "zones": [],
                     "aggregation": "mean",
+                    "configure_valves": False,
+                    "configure_demand": False,
+                    "demand_output_id": None,
                 }
             if had_dhw:
                 self._draft["dhw"]["enabled"] = user_input["enable_dhw"]
@@ -205,8 +360,47 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["setpoint_entity_id"] = "invalid_number_entity"
             if not _valid_binding(user_input["outdoor_entity_id"], "sensor"):
                 errors["outdoor_entity_id"] = "invalid_sensor_entity"
+            configure_demand = user_input.get(
+                "configure_demand", co.get("configure_demand", False)
+            )
+            disconnect_demand = user_input.get("disconnect_demand", False)
+            if disconnect_demand:
+                configure_demand = False
+            configure_valves = user_input.get(
+                "configure_valves", co.get("configure_valves", False)
+            )
+            if configure_demand and not _valid_binding(
+                user_input.get("demand_entity_id"), "switch"
+            ):
+                errors["demand_entity_id"] = "invalid_switch_entity"
             if not errors:
-                co.update(user_input)
+                co["setpoint_output_id"] = self._upsert_output(
+                    output_id=co.get("setpoint_output_id"),
+                    entity_id=user_input["setpoint_entity_id"],
+                    function="co_setpoint",
+                    scope_id=co["circuit_id"],
+                    adapter="number",
+                    polarity=None,
+                )
+                co["outdoor_source_id"] = self._upsert_source(
+                    source_id=co.get("outdoor_source_id"),
+                    entity_id=user_input["outdoor_entity_id"],
+                    role="outdoor",
+                )
+                co["aggregation"] = user_input["aggregation"]
+                co["configure_valves"] = configure_valves
+                co["configure_demand"] = configure_demand
+                if disconnect_demand:
+                    co["demand_output_id"] = None
+                elif configure_demand:
+                    co["demand_output_id"] = self._upsert_output(
+                        output_id=co.get("demand_output_id"),
+                        entity_id=user_input["demand_entity_id"],
+                        function="co_demand",
+                        scope_id=co["circuit_id"],
+                        adapter="switch",
+                        polarity=user_input.get("demand_polarity", "normal"),
+                    )
                 return await self.async_step_co_menu()
         return self.async_show_form(
             step_id="co",
@@ -214,15 +408,43 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(
                         "setpoint_entity_id",
-                        default=co.get("setpoint_entity_id", ""),
-                    ): str,
+                        default=self._entity(
+                            "output_bindings", co.get("setpoint_output_id")
+                        ),
+                    ): _entity_selector("number"),
                     vol.Required(
                         "outdoor_entity_id",
-                        default=co.get("outdoor_entity_id", ""),
-                    ): str,
+                        default=self._entity(
+                            "source_bindings", co.get("outdoor_source_id")
+                        ),
+                    ): _entity_selector("sensor", device_class="temperature"),
                     vol.Required(
                         "aggregation", default=co.get("aggregation", "mean")
                     ): _translated_select(_AGGREGATIONS, "aggregation"),
+                    vol.Required(
+                        "configure_valves", default=co.get("configure_valves", False)
+                    ): bool,
+                    vol.Required(
+                        "configure_demand", default=co.get("configure_demand", False)
+                    ): bool,
+                    vol.Required("disconnect_demand", default=False): bool,
+                    (
+                        vol.Optional(
+                            "demand_entity_id",
+                            default=self._entity(
+                                "output_bindings", co.get("demand_output_id")
+                            ),
+                        )
+                        if co.get("demand_output_id")
+                        else vol.Optional("demand_entity_id")
+                    ): _entity_selector("switch"),
+                    vol.Required(
+                        "demand_polarity",
+                        default=(
+                            self._binding("output_bindings", co.get("demand_output_id"))
+                            or {"polarity": "normal"}
+                        )["polarity"],
+                    ): _translated_select(_POLARITIES, "polarity"),
                 }
             ),
             errors=errors,
@@ -330,42 +552,113 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {"value": group["group_id"], "label": group["name"]}
             for group in self._draft["co"]["groups"]
         ]
+        existing_sensor_ids = [
+            self._entity("source_bindings", source_id)
+            for source_id in existing.get("temperature_source_ids", [])
+        ]
+        existing_primary = self._entity(
+            "source_bindings", existing.get("primary_temperature_source_id")
+        )
+        existing_valves = [
+            self._entity("output_bindings", output_id)
+            for output_id in existing.get("valve_output_ids", [])
+        ]
+        existing_polarities = [
+            self._binding("output_bindings", output_id)["polarity"]
+            for output_id in existing.get("valve_output_ids", [])
+        ]
         errors: dict[str, str] = {}
         if user_input is not None:
             sensors = _csv_entities(user_input["temperature_entity_ids"])
             primary = user_input.get("primary_temperature_entity_id") or None
+            valves = _csv_entities(
+                user_input.get("valve_entity_ids", ", ".join(existing_valves))
+            )
+            polarities = _csv_entities(
+                user_input.get("valve_polarities", ", ".join(existing_polarities))
+            )
             if not sensors:
                 errors["temperature_entity_ids"] = "sensor_required"
+            elif any(not _valid_binding(item, "sensor") for item in sensors):
+                errors["temperature_entity_ids"] = "invalid_sensor_entity"
             elif primary is not None and primary not in sensors:
                 errors["primary_temperature_entity_id"] = "primary_not_in_sources"
+            elif valves and not self._draft["co"]["configure_valves"]:
+                errors["valve_entity_ids"] = "valves_not_enabled"
+            elif any(not _valid_binding(item, "switch") for item in valves):
+                errors["valve_entity_ids"] = "invalid_switch_entity"
+            elif valves and len(polarities) != len(valves):
+                errors["valve_polarities"] = "polarity_count_mismatch"
+            elif any(item not in _POLARITIES for item in polarities):
+                errors["valve_polarities"] = "invalid_polarity"
             else:
                 if user_input["source_mode"] == "aggregate":
                     primary = None
+                zone_id = existing.get("zone_id", str(uuid4()))
+                source_ids: list[str] = []
+                for index, entity_id in enumerate(sensors):
+                    previous_id = (
+                        existing.get("temperature_source_ids", [])[index]
+                        if index < len(existing.get("temperature_source_ids", []))
+                        else None
+                    )
+                    source_ids.append(
+                        self._upsert_source(
+                            source_id=previous_id,
+                            entity_id=entity_id,
+                            role="zone_temperature",
+                        )
+                    )
+                primary_id = (
+                    source_ids[sensors.index(primary)] if primary is not None else None
+                )
+                valve_ids: list[str] = []
+                for index, entity_id in enumerate(valves):
+                    previous_id = (
+                        existing.get("valve_output_ids", [])[index]
+                        if index < len(existing.get("valve_output_ids", []))
+                        else None
+                    )
+                    valve_ids.append(
+                        self._upsert_output(
+                            output_id=previous_id,
+                            entity_id=entity_id,
+                            function="zone_valve",
+                            scope_id=zone_id,
+                            adapter="switch",
+                            polarity=polarities[index],
+                        )
+                    )
                 zone = {
-                    "zone_id": existing.get("zone_id", str(uuid4())),
+                    "zone_id": zone_id,
                     "name": user_input["name"].strip(),
                     "enabled": user_input["enabled"],
                     "group_id": user_input.get("group_id") or None,
-                    "temperature_entity_ids": sensors,
+                    "temperature_source_ids": source_ids,
                     "source_mode": user_input["source_mode"],
-                    "primary_temperature_entity_id": primary,
+                    "primary_temperature_source_id": primary_id,
                     "target_temperature": user_input["target_temperature"],
+                    "valve_output_ids": valve_ids,
+                    "actuator_type": (
+                        user_input.get(
+                            "actuator_type", existing.get("actuator_type") or "nc"
+                        )
+                        if valves
+                        else None
+                    ),
                 }
-                candidate = copy.deepcopy(self._draft)
-                candidate["co"]["zones"] = [
+                self._draft["co"]["zones"] = [
                     zone if item["zone_id"] == zone["zone_id"] else item
                     for item in zones
                 ]
                 if not existing:
-                    candidate["co"]["zones"].append(zone)
+                    self._draft["co"]["zones"].append(zone)
+                self._prune_bindings()
                 try:
-                    validation_candidate = copy.deepcopy(candidate)
+                    validation_candidate = copy.deepcopy(self._draft)
                     if (
                         "dhw" in validation_candidate
-                        and not {
-                            "setpoint_entity_id",
-                            "enable_entity_id",
-                        }
+                        and not {"setpoint_output_id", "enable_output_id"}
                         <= validation_candidate["dhw"].keys()
                     ):
                         validation_candidate.pop("dhw")
@@ -373,7 +666,6 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 except ConfigurationError:
                     errors["base"] = "invalid_zone"
                 else:
-                    self._draft = candidate
                     self._editing_zone_id = None
                     return await self.async_step_co_menu()
         return self.async_show_form(
@@ -396,15 +688,21 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Required(
                         "temperature_entity_ids",
-                        default=", ".join(existing.get("temperature_entity_ids", [])),
-                    ): str,
+                        default=existing_sensor_ids,
+                    ): _entity_selector(
+                        "sensor", multiple=True, device_class="temperature"
+                    ),
                     vol.Required(
                         "source_mode", default=existing.get("source_mode", "aggregate")
                     ): _translated_select(_SOURCE_MODES, "source_mode"),
-                    vol.Optional(
-                        "primary_temperature_entity_id",
-                        default=existing.get("primary_temperature_entity_id") or "",
-                    ): str,
+                    (
+                        vol.Optional(
+                            "primary_temperature_entity_id",
+                            default=existing_primary,
+                        )
+                        if existing_primary
+                        else vol.Optional("primary_temperature_entity_id")
+                    ): _entity_selector("sensor", device_class="temperature"),
                     (
                         vol.Required(
                             "target_temperature",
@@ -413,6 +711,15 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         if "target_temperature" in existing
                         else vol.Required("target_temperature")
                     ): vol.Coerce(float),
+                    vol.Optional(
+                        "valve_entity_ids", default=existing_valves
+                    ): _entity_selector("switch", multiple=True),
+                    vol.Optional(
+                        "valve_polarities", default=", ".join(existing_polarities)
+                    ): str,
+                    vol.Required(
+                        "actuator_type", default=existing.get("actuator_type") or "nc"
+                    ): _translated_select(_ACTUATOR_TYPES, "actuator_type"),
                 }
             ),
             errors=errors,
@@ -484,7 +791,7 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_dhw(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Collect only the I02 DHW source bindings."""
+        """Collect DHW output bindings without sending device commands."""
         dhw = self._draft["dhw"]
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -493,7 +800,22 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not _valid_binding(user_input["enable_entity_id"], "switch"):
                 errors["enable_entity_id"] = "invalid_switch_entity"
             if not errors:
-                dhw.update(user_input)
+                dhw["setpoint_output_id"] = self._upsert_output(
+                    output_id=dhw.get("setpoint_output_id"),
+                    entity_id=user_input["setpoint_entity_id"],
+                    function="dhw_setpoint",
+                    scope_id=dhw["dhw_id"],
+                    adapter="number",
+                    polarity=None,
+                )
+                dhw["enable_output_id"] = self._upsert_output(
+                    output_id=dhw.get("enable_output_id"),
+                    entity_id=user_input["enable_entity_id"],
+                    function="dhw_enable",
+                    scope_id=dhw["dhw_id"],
+                    adapter="switch",
+                    polarity=user_input.get("enable_polarity", "normal"),
+                )
                 return await self.async_step_confirm()
         return self.async_show_form(
             step_id="dhw",
@@ -501,11 +823,25 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(
                         "setpoint_entity_id",
-                        default=dhw.get("setpoint_entity_id", ""),
-                    ): str,
+                        default=self._entity(
+                            "output_bindings", dhw.get("setpoint_output_id")
+                        ),
+                    ): _entity_selector("number"),
                     vol.Required(
-                        "enable_entity_id", default=dhw.get("enable_entity_id", "")
-                    ): str,
+                        "enable_entity_id",
+                        default=self._entity(
+                            "output_bindings", dhw.get("enable_output_id")
+                        ),
+                    ): _entity_selector("switch"),
+                    vol.Required(
+                        "enable_polarity",
+                        default=(
+                            self._binding(
+                                "output_bindings", dhw.get("enable_output_id")
+                            )
+                            or {"polarity": "normal"}
+                        )["polarity"],
+                    ): _translated_select(_POLARITIES, "polarity"),
                 }
             ),
             errors=errors,
@@ -516,32 +852,55 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Validate the whole draft and commit it once under a shared lock."""
         errors: dict[str, str] = {}
-        if user_input is not None:
+        if user_input is not None and user_input.get("confirm") is True:
+            self._prune_bindings()
+            detach_signature = self._detach_signature()
+            if detach_signature and detach_signature != self._approved_detach_signature:
+                return await self.async_step_detach_warning()
+            candidate = copy.deepcopy(self._draft)
+            if self._entry is not None:
+                candidate["configuration_revision"] = (
+                    self._original_data["configuration_revision"] + 1
+                )
             try:
-                parse_config(self._draft)
+                parse_config(candidate)
             except ConfigurationError:
                 errors["base"] = "invalid_configuration"
             else:
-                async with _FINALIZE_LOCK:
+                service = ownership_service(self.hass)
+                async with service.lock:
                     if (
                         self._entry is not None
                         and dict(self._entry.data) != self._original_data
                     ):
                         errors["base"] = "configuration_changed"
-                    elif self._has_output_conflict():
+                    elif service.conflicts(
+                        self.hass,
+                        candidate,
+                        own_entry_id=self._entry.entry_id if self._entry else None,
+                        token=self._reservation_token,
+                    ):
                         errors["base"] = "output_conflict"
+                    elif any(
+                        own_platform_output(self.hass, item)
+                        for item in candidate["output_bindings"]
+                    ):
+                        errors["base"] = "own_output"
                     elif self._entry is not None:
+                        self._draft = candidate
                         return self.async_update_reload_and_abort(
                             self._entry,
-                            data=self._draft,
-                            title=self._draft["name"],
+                            data=candidate,
+                            title=candidate["name"],
                         )
                     else:
-                        await self.async_set_unique_id(self._draft["installation_id"])
+                        await self.async_set_unique_id(candidate["installation_id"])
                         self._abort_if_unique_id_configured()
-                        return self.async_create_entry(
-                            title=self._draft["name"], data=self._draft
+                        service.reserve(self._reservation_token, candidate)
+                        result = self.async_create_entry(
+                            title=candidate["name"], data=candidate
                         )
+                        return result
         return self.async_show_form(
             step_id="confirm",
             data_schema=vol.Schema({vol.Required("confirm", default=False): bool}),
@@ -552,15 +911,58 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
-    def _has_output_conflict(self) -> bool:
-        """Reject duplicated executable entity IDs, including disabled modules."""
-        own_outputs = _outputs(self._draft)
-        if len(own_outputs) != len(set(own_outputs)):
-            return True
-        output_set = set(own_outputs)
-        for entry in self.hass.config_entries.async_entries(DOMAIN):
-            if self._entry is not None and entry.entry_id == self._entry.entry_id:
-                continue
-            if output_set & set(_outputs(dict(entry.data))):
-                return True
-        return False
+    def _detach_signature(self) -> tuple[str, ...]:
+        """Return changed/removed persisted output IDs requiring D86 consent."""
+        if self._original_data is None:
+            return ()
+        old = {
+            item["output_id"]: item
+            for item in self._original_data.get("output_bindings", [])
+        }
+        new = {item["output_id"]: item for item in self._draft["output_bindings"]}
+        detached = []
+        for output_id, previous in old.items():
+            current = new.get(output_id)
+            identity_changed = current is None
+            if current is not None:
+                old_registry = previous.get("entity_registry_id")
+                new_registry = current.get("entity_registry_id")
+                identity_changed = (
+                    old_registry != new_registry
+                    or (
+                        old_registry is None
+                        and new_registry is None
+                        and current["entity_id"] != previous["entity_id"]
+                    )
+                    or current.get("polarity") != previous.get("polarity")
+                )
+            if identity_changed:
+                state = self.hass.states.get(previous["entity_id"])
+                reported = state.state if state is not None else "unknown"
+                detached.append(f"{previous['entity_id']}={reported}")
+        return tuple(sorted(detached))
+
+    async def async_step_detach_warning(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Require exact consent before changing or releasing an output."""
+        signature = self._detach_signature()
+        errors: dict[str, str] = {}
+        if self._shown_detach_signature is None:
+            self._shown_detach_signature = signature
+        if user_input is not None:
+            if user_input.get("confirm") is True:
+                if signature != self._shown_detach_signature:
+                    errors["base"] = "detachment_changed"
+                    self._shown_detach_signature = signature
+                else:
+                    self._approved_detach_signature = signature
+                    return await self.async_step_confirm({"confirm": True})
+            else:
+                errors["base"] = "confirmation_required"
+        return self.async_show_form(
+            step_id="detach_warning",
+            data_schema=vol.Schema({vol.Required("confirm", default=False): bool}),
+            errors=errors,
+            description_placeholders={"outputs": ", ".join(signature)},
+        )

@@ -15,6 +15,8 @@ from custom_components.heat_pump_steering.models import (
 
 from .conftest import entry_data, set_temperature
 
+BACKUP_SOURCE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
 
 @pytest.mark.parametrize("target", [5, 5.5, 21, 34.5, 35])
 def test_target_accepts_documented_grid(target: float) -> None:
@@ -43,9 +45,17 @@ async def test_aggregate_zone_remains_ready_with_one_available_sensor(
     """D46/A30: partial source loss does not become total zone loss."""
     data = entry_data(co=True)
     zone = data["co"]["zones"][0]
-    zone["temperature_entity_ids"].append("sensor.backup_temperature")
+    data["source_bindings"].append(
+        {
+            "source_id": BACKUP_SOURCE_ID,
+            "entity_registry_id": None,
+            "entity_id": "sensor.backup_temperature",
+            "role": "zone_temperature",
+        }
+    )
+    zone["temperature_source_ids"].append(BACKUP_SOURCE_ID)
     zone["source_mode"] = "aggregate"
-    zone["primary_temperature_entity_id"] = None
+    zone["primary_temperature_source_id"] = None
     entry = make_entry(data=data)
     entry.add_to_hass(hass)
 
@@ -80,14 +90,14 @@ def test_aggregate_mode_rejects_foreign_primary_sensor() -> None:
     data = entry_data(co=True)
     zone = data["co"]["zones"][0]
     zone["source_mode"] = "aggregate"
-    zone["primary_temperature_entity_id"] = "sensor.foreign"
+    zone["primary_temperature_source_id"] = BACKUP_SOURCE_ID
     with pytest.raises(ConfigurationError):
         parse_config(data)
 
 
-@pytest.mark.parametrize("schema_version", [True, 2.0, "2", None])
+@pytest.mark.parametrize("schema_version", [True, 3.0, "3", None])
 def test_schema_version_requires_a_real_integer(schema_version: object) -> None:
-    """Persisted booleans and equivalent-looking values are not version 2."""
+    """Persisted booleans and equivalent-looking values are not version 3."""
     data = entry_data(co=True)
     data["schema_version"] = schema_version
     with pytest.raises(ConfigurationError):

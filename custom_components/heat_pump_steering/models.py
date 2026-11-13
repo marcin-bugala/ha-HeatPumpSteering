@@ -1,4 +1,4 @@
-"""Typed installation configuration and read-only runtime records."""
+"""Typed schema-v3 installation configuration and observation runtime."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from homeassistant.const import (
     STATE_UNKNOWN,
 )
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers import entity_registry as er
 
 from .const import CONFIG_SCHEMA_VERSION
 
@@ -26,118 +27,141 @@ _TEMPERATURE_UNITS = {"°C", "°F"}
 
 
 class ConfigurationError(ValueError):
-    """Raised when a persisted ConfigEntry has an unsupported structure."""
+    """Raised when persisted configuration is unsupported or inconsistent."""
 
 
 class ModuleMode(StrEnum):
-    """I01 exposes observation only; control belongs to later packages."""
-
     OBSERVATION = "observation"
 
 
 class AggregationMode(StrEnum):
-    """Supported program-wide aggregation for multi-sensor zones."""
-
     MEAN = "mean"
     MEDIAN = "median"
 
 
 class ZoneSourceMode(StrEnum):
-    """How a zone selects a value from its configured sensors."""
-
     PRIMARY = "primary"
     AGGREGATE = "aggregate"
 
 
+class OutputAdapter(StrEnum):
+    NUMBER = "number"
+    SWITCH = "switch"
+
+
+class SwitchPolarity(StrEnum):
+    NORMAL = "normal"
+    INVERTED = "inverted"
+
+
+class ActuatorType(StrEnum):
+    NC = "nc"
+    NO = "no"
+
+
+@dataclass(frozen=True, slots=True)
+class SourceBinding:
+    source_id: UUID
+    entity_registry_id: str | None
+    entity_id: str
+    role: str
+
+
+@dataclass(frozen=True, slots=True)
+class OutputBinding:
+    output_id: UUID
+    entity_registry_id: str | None
+    entity_id: str
+    function: str
+    scope_id: UUID | None
+    adapter: OutputAdapter
+    polarity: SwitchPolarity | None
+    binding_revision: int
+
+
 @dataclass(frozen=True, slots=True)
 class GroupConfig:
-    """Presentation-only zone group."""
-
     group_id: UUID
     name: str
 
 
 @dataclass(frozen=True, slots=True)
 class ZoneConfig:
-    """Small structural subset needed to identify an active CO zone."""
-
     zone_id: UUID
     name: str | None
     group_id: UUID | None
-    temperature_entity_ids: tuple[str, ...]
+    temperature_source_ids: tuple[UUID, ...]
     source_mode: ZoneSourceMode
-    primary_temperature_entity_id: str | None
+    primary_temperature_source_id: UUID | None
     target_temperature: Decimal
     enabled: bool
+    valve_output_ids: tuple[UUID, ...]
+    actuator_type: ActuatorType | None
 
     @property
-    def observed_entity_ids(self) -> tuple[str, ...]:
-        """Return sources relevant to the selected zone mode."""
+    def observed_source_ids(self) -> tuple[UUID, ...]:
         if self.source_mode is ZoneSourceMode.PRIMARY:
-            assert self.primary_temperature_entity_id is not None
-            return (self.primary_temperature_entity_id,)
-        return self.temperature_entity_ids
+            assert self.primary_temperature_source_id is not None
+            return (self.primary_temperature_source_id,)
+        return self.temperature_source_ids
 
 
 @dataclass(frozen=True, slots=True)
 class CircuitConfig:
-    """The only supported CO circuit in v1."""
-
     circuit_id: UUID
-    setpoint_entity_id: str
-    outdoor_entity_id: str
+    setpoint_output_id: UUID
+    outdoor_source_id: UUID
     aggregation: AggregationMode
     groups: tuple[GroupConfig, ...]
     zones: tuple[ZoneConfig, ...]
     enabled: bool
+    configure_valves: bool
+    configure_demand: bool
+    demand_output_id: UUID | None
 
 
 @dataclass(frozen=True, slots=True)
 class DhwConfig:
-    """DHW bindings without a fabricated initial temperature or schedule."""
-
     dhw_id: UUID
-    setpoint_entity_id: str
-    enable_entity_id: str
+    setpoint_output_id: UUID
+    enable_output_id: UUID
     enabled: bool
 
 
 @dataclass(frozen=True, slots=True)
 class InstallationConfig:
-    """Validated immutable snapshot read from ConfigEntry.data."""
-
     installation_id: UUID
     name: str
     schema_version: int
+    configuration_revision: int
+    source_bindings: tuple[SourceBinding, ...]
+    output_bindings: tuple[OutputBinding, ...]
     co: CircuitConfig | None
     dhw: DhwConfig | None
 
     @property
+    def sources_by_id(self) -> dict[UUID, SourceBinding]:
+        return {item.source_id: item for item in self.source_bindings}
+
+    @property
+    def outputs_by_id(self) -> dict[UUID, OutputBinding]:
+        return {item.output_id: item for item in self.output_bindings}
+
+    @property
     def entity_ids(self) -> tuple[str, ...]:
-        """Return every configured source once, preserving a stable order."""
-        ids: list[str] = []
-        if self.co:
-            ids.extend((self.co.setpoint_entity_id, self.co.outdoor_entity_id))
-            for zone in self.co.zones:
-                if zone.enabled:
-                    ids.extend(zone.temperature_entity_ids)
-        if self.dhw:
-            ids.extend((self.dhw.setpoint_entity_id, self.dhw.enable_entity_id))
+        ids = [item.entity_id for item in self.source_bindings]
+        ids.extend(item.entity_id for item in self.output_bindings)
         return tuple(dict.fromkeys(ids))
 
 
 @dataclass(frozen=True, slots=True)
 class Readiness:
-    """Current module readiness; missing data remains an explicit reason."""
-
     ready: bool
     reasons: tuple[str, ...]
 
 
 @dataclass(slots=True)
 class ModuleRuntime:
-    """Independent enabled/mode/readiness state for one configured module."""
-
     enabled: bool
     mode: ModuleMode = ModuleMode.OBSERVATION
     readiness: Readiness = field(
@@ -147,13 +171,12 @@ class ModuleRuntime:
 
 @dataclass(slots=True)
 class HeatPumpSteeringRuntime:
-    """All resources owned by one ConfigEntry."""
-
     config: InstallationConfig
     co: ModuleRuntime | None
     dhw: ModuleRuntime | None
     generation: int = 0
     stopped: bool = False
+    ownership_conflicts: tuple[str, ...] = ()
     unsubscribers: list[Callable[[], None]] = field(default_factory=list)
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)
 
@@ -173,6 +196,10 @@ def _uuid(value: object, name: str) -> UUID:
         raise ConfigurationError(f"{name} must be a valid UUID") from err
 
 
+def _optional_uuid(value: object, name: str) -> UUID | None:
+    return None if value is None else _uuid(value, name)
+
+
 def _bool(value: object, name: str) -> bool:
     if not isinstance(value, bool):
         raise ConfigurationError(f"{name} must be a boolean")
@@ -186,15 +213,7 @@ def _name(value: object, name: str) -> str:
 
 
 def _optional_name(value: object, name: str) -> str | None:
-    if value is None:
-        return None
-    return _name(value, name)
-
-
-def _optional_uuid(value: object, name: str) -> UUID | None:
-    if value is None:
-        return None
-    return _uuid(value, name)
+    return None if value is None else _name(value, name)
 
 
 def _enum(value: object, enum: type[StrEnum], name: str) -> StrEnum:
@@ -230,112 +249,161 @@ def _target(value: object, name: str) -> Decimal:
     return target
 
 
+def _source(value: object, index: int) -> SourceBinding:
+    data = _mapping(value, f"source_bindings[{index}]")
+    registry_id = data.get("entity_registry_id")
+    if registry_id is not None and (
+        not isinstance(registry_id, str) or not registry_id
+    ):
+        raise ConfigurationError("entity_registry_id must be null or a string")
+    return SourceBinding(
+        source_id=_uuid(data.get("source_id"), "source_id"),
+        entity_registry_id=registry_id,
+        entity_id=_entity(data.get("entity_id"), "sensor", "source.entity_id"),
+        role=_name(data.get("role"), "source.role"),
+    )
+
+
+def _output(value: object, index: int) -> OutputBinding:
+    data = _mapping(value, f"output_bindings[{index}]")
+    adapter = _enum(data.get("adapter"), OutputAdapter, "output.adapter")
+    assert isinstance(adapter, OutputAdapter)
+    registry_id = data.get("entity_registry_id")
+    if registry_id is not None and (
+        not isinstance(registry_id, str) or not registry_id
+    ):
+        raise ConfigurationError("entity_registry_id must be null or a string")
+    raw_polarity = data.get("polarity")
+    polarity = (
+        None
+        if raw_polarity is None
+        else _enum(raw_polarity, SwitchPolarity, "output.polarity")
+    )
+    if adapter is OutputAdapter.SWITCH and polarity is None:
+        raise ConfigurationError("switch output requires polarity")
+    if adapter is OutputAdapter.NUMBER and polarity is not None:
+        raise ConfigurationError("number output cannot have polarity")
+    revision = data.get("binding_revision")
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+        raise ConfigurationError("binding_revision must be a positive integer")
+    return OutputBinding(
+        output_id=_uuid(data.get("output_id"), "output_id"),
+        entity_registry_id=registry_id,
+        entity_id=_entity(data.get("entity_id"), adapter.value, "output.entity_id"),
+        function=_name(data.get("function"), "output.function"),
+        scope_id=_optional_uuid(data.get("scope_id"), "output.scope_id"),
+        adapter=adapter,
+        polarity=polarity if isinstance(polarity, SwitchPolarity) else None,
+        binding_revision=revision,
+    )
+
+
 def _zone(value: object, index: int) -> ZoneConfig:
     data = _mapping(value, f"co.zones[{index}]")
-    sensors_value = data.get("temperature_entity_ids")
-    if not isinstance(sensors_value, list) or not sensors_value:
-        raise ConfigurationError(
-            f"co.zones[{index}].temperature_entity_ids must be a non-empty list"
-        )
-    sensors = tuple(
-        _entity(sensor, "sensor", f"co.zones[{index}].temperature_entity_ids")
-        for sensor in sensors_value
+    raw_sources = data.get("temperature_source_ids")
+    if not isinstance(raw_sources, list) or not raw_sources:
+        raise ConfigurationError("zone temperature_source_ids must be a non-empty list")
+    source_ids = tuple(_uuid(item, "temperature_source_ids") for item in raw_sources)
+    if len(source_ids) != len(set(source_ids)):
+        raise ConfigurationError("temperature_source_ids must be unique")
+    mode = _enum(data.get("source_mode"), ZoneSourceMode, "source_mode")
+    assert isinstance(mode, ZoneSourceMode)
+    primary = _optional_uuid(
+        data.get("primary_temperature_source_id"), "primary_temperature_source_id"
     )
-    if len(sensors) != len(set(sensors)):
-        raise ConfigurationError(
-            f"co.zones[{index}].temperature_entity_ids must be unique"
-        )
-    source_mode = _enum(
-        data.get("source_mode"), ZoneSourceMode, f"co.zones[{index}].source_mode"
+    if mode is ZoneSourceMode.PRIMARY and primary not in source_ids:
+        raise ConfigurationError("primary source must belong to the zone")
+    if mode is ZoneSourceMode.AGGREGATE and primary is not None:
+        raise ConfigurationError("aggregate mode cannot keep a primary source")
+    raw_valves = data.get("valve_output_ids", [])
+    if not isinstance(raw_valves, list):
+        raise ConfigurationError("valve_output_ids must be a list")
+    valve_ids = tuple(_uuid(item, "valve_output_ids") for item in raw_valves)
+    if len(valve_ids) != len(set(valve_ids)):
+        raise ConfigurationError("valve_output_ids must be unique")
+    raw_actuator = data.get("actuator_type")
+    actuator = (
+        None
+        if raw_actuator is None
+        else _enum(raw_actuator, ActuatorType, "actuator_type")
     )
-    assert isinstance(source_mode, ZoneSourceMode)
-    primary = data.get("primary_temperature_entity_id")
-    if primary is not None:
-        primary = _entity(
-            primary, "sensor", f"co.zones[{index}].primary_temperature_entity_id"
-        )
-    if primary is not None and primary not in sensors:
-        raise ConfigurationError(
-            f"co.zones[{index}].primary_temperature_entity_id must belong to the zone"
-        )
+    if bool(valve_ids) != (actuator is not None):
+        raise ConfigurationError("valves and actuator_type must be configured together")
     return ZoneConfig(
-        zone_id=_uuid(data.get("zone_id"), f"co.zones[{index}].zone_id"),
-        name=_optional_name(data.get("name"), f"co.zones[{index}].name"),
-        group_id=_optional_uuid(data.get("group_id"), f"co.zones[{index}].group_id"),
-        temperature_entity_ids=sensors,
-        source_mode=source_mode,
-        primary_temperature_entity_id=primary,
+        zone_id=_uuid(data.get("zone_id"), "zone_id"),
+        name=_optional_name(data.get("name"), "zone.name"),
+        group_id=_optional_uuid(data.get("group_id"), "zone.group_id"),
+        temperature_source_ids=source_ids,
+        source_mode=mode,
+        primary_temperature_source_id=primary,
         target_temperature=_target(
-            data.get("target_temperature"),
-            f"co.zones[{index}].target_temperature",
+            data.get("target_temperature"), "target_temperature"
         ),
-        enabled=_bool(data.get("enabled", True), f"co.zones[{index}].enabled"),
+        enabled=_bool(data.get("enabled", True), "zone.enabled"),
+        valve_output_ids=valve_ids,
+        actuator_type=actuator if isinstance(actuator, ActuatorType) else None,
     )
 
 
 def _co(value: object) -> CircuitConfig:
     data = _mapping(value, "co")
-    zones_value = data.get("zones")
-    if not isinstance(zones_value, list):
+    raw_zones = data.get("zones")
+    if not isinstance(raw_zones, list):
         raise ConfigurationError("co.zones must be a list")
-    zones = tuple(_zone(zone, index) for index, zone in enumerate(zones_value))
+    zones = tuple(_zone(item, index) for index, item in enumerate(raw_zones))
     enabled = _bool(data.get("enabled", True), "co.enabled")
     if enabled and not any(zone.enabled for zone in zones):
         raise ConfigurationError("co requires at least one active zone")
-    ids = [zone.zone_id for zone in zones]
-    if len(ids) != len(set(ids)):
-        raise ConfigurationError("co zone_id values must be unique")
-    groups_value = data.get("groups", [])
-    if not isinstance(groups_value, list):
+    if len({zone.zone_id for zone in zones}) != len(zones):
+        raise ConfigurationError("zone_id values must be unique")
+    raw_groups = data.get("groups", [])
+    if not isinstance(raw_groups, list):
         raise ConfigurationError("co.groups must be a list")
     groups = tuple(
         GroupConfig(
-            group_id=_uuid(group.get("group_id"), f"co.groups[{index}].group_id"),
-            name=_name(group.get("name"), f"co.groups[{index}].name"),
+            _uuid(item.get("group_id"), "group_id"),
+            _name(item.get("name"), "group.name"),
         )
-        for index, raw_group in enumerate(groups_value)
-        for group in (_mapping(raw_group, f"co.groups[{index}]"),)
+        for raw in raw_groups
+        for item in (_mapping(raw, "group"),)
     )
-    group_ids = [group.group_id for group in groups]
-    if len(group_ids) != len(set(group_ids)):
-        raise ConfigurationError("co group_id values must be unique")
-    if any(zone.group_id not in set(group_ids) for zone in zones if zone.group_id):
+    if len({group.group_id for group in groups}) != len(groups):
+        raise ConfigurationError("group_id values must be unique")
+    group_ids = {group.group_id for group in groups}
+    if any(zone.group_id not in group_ids for zone in zones if zone.group_id):
         raise ConfigurationError("zone references an unknown group_id")
-    aggregation = _enum(
-        data.get("aggregation", "mean"), AggregationMode, "co.aggregation"
-    )
+    aggregation = _enum(data.get("aggregation", "mean"), AggregationMode, "aggregation")
     assert isinstance(aggregation, AggregationMode)
+    demand = _optional_uuid(data.get("demand_output_id"), "demand_output_id")
+    configure_demand = _bool(data.get("configure_demand", False), "configure_demand")
+    if configure_demand and demand is None:
+        raise ConfigurationError("enabled demand configuration requires one output")
     return CircuitConfig(
-        circuit_id=_uuid(data.get("circuit_id"), "co.circuit_id"),
-        setpoint_entity_id=_entity(
-            data.get("setpoint_entity_id"), "number", "co.setpoint_entity_id"
-        ),
-        outdoor_entity_id=_entity(
-            data.get("outdoor_entity_id"), "sensor", "co.outdoor_entity_id"
-        ),
+        circuit_id=_uuid(data.get("circuit_id"), "circuit_id"),
+        setpoint_output_id=_uuid(data.get("setpoint_output_id"), "setpoint_output_id"),
+        outdoor_source_id=_uuid(data.get("outdoor_source_id"), "outdoor_source_id"),
         aggregation=aggregation,
         groups=groups,
         zones=zones,
         enabled=enabled,
+        configure_valves=_bool(data.get("configure_valves", False), "configure_valves"),
+        configure_demand=configure_demand,
+        demand_output_id=demand,
     )
 
 
 def _dhw(value: object) -> DhwConfig:
     data = _mapping(value, "dhw")
     return DhwConfig(
-        dhw_id=_uuid(data.get("dhw_id"), "dhw.dhw_id"),
-        setpoint_entity_id=_entity(
-            data.get("setpoint_entity_id"), "number", "dhw.setpoint_entity_id"
-        ),
-        enable_entity_id=_entity(
-            data.get("enable_entity_id"), "switch", "dhw.enable_entity_id"
-        ),
+        dhw_id=_uuid(data.get("dhw_id"), "dhw_id"),
+        setpoint_output_id=_uuid(data.get("setpoint_output_id"), "setpoint_output_id"),
+        enable_output_id=_uuid(data.get("enable_output_id"), "enable_output_id"),
         enabled=_bool(data.get("enabled", True), "dhw.enabled"),
     )
 
 
 def parse_config(data: Mapping[str, Any]) -> InstallationConfig:
-    """Parse ConfigEntry JSON into a typed snapshot without changing the entry."""
+    """Parse canonical schema v3 without changing the entry."""
     schema_version = data.get("schema_version")
     if (
         isinstance(schema_version, bool)
@@ -343,14 +411,80 @@ def parse_config(data: Mapping[str, Any]) -> InstallationConfig:
         or schema_version != CONFIG_SCHEMA_VERSION
     ):
         raise ConfigurationError(f"unsupported schema_version: {schema_version}")
+    revision = data.get("configuration_revision")
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+        raise ConfigurationError("configuration_revision must be a positive integer")
+    raw_sources, raw_outputs = data.get("source_bindings"), data.get("output_bindings")
+    if not isinstance(raw_sources, list) or not isinstance(raw_outputs, list):
+        raise ConfigurationError("binding collections must be lists")
+    sources = tuple(_source(item, index) for index, item in enumerate(raw_sources))
+    outputs = tuple(_output(item, index) for index, item in enumerate(raw_outputs))
+    if len({item.source_id for item in sources}) != len(sources):
+        raise ConfigurationError("source_id values must be unique")
+    if len({item.output_id for item in outputs}) != len(outputs):
+        raise ConfigurationError("output_id values must be unique")
+    seen_output_keys: set[str] = set()
+    for item in outputs:
+        keys = {f"entity:{item.entity_id}"}
+        if item.entity_registry_id:
+            keys.add(f"registry:{item.entity_registry_id}")
+        if seen_output_keys & keys:
+            raise ConfigurationError("an output cannot be assigned twice")
+        seen_output_keys.update(keys)
     co = _co(data["co"]) if "co" in data else None
     dhw = _dhw(data["dhw"]) if "dhw" in data else None
     if co is None and dhw is None:
-        raise ConfigurationError("at least one of co or dhw must be configured")
+        raise ConfigurationError("at least one module is required")
+    source_ids = {item.source_id for item in sources}
+    output_ids = {item.output_id for item in outputs}
+    referenced_sources: set[UUID] = set()
+    referenced_outputs: set[UUID] = set()
+    if co:
+        referenced_sources.add(co.outdoor_source_id)
+        referenced_outputs.add(co.setpoint_output_id)
+        if co.demand_output_id:
+            referenced_outputs.add(co.demand_output_id)
+        for zone in co.zones:
+            referenced_sources.update(zone.temperature_source_ids)
+            referenced_outputs.update(zone.valve_output_ids)
+    if dhw:
+        referenced_outputs.update((dhw.setpoint_output_id, dhw.enable_output_id))
+    if referenced_sources != source_ids or referenced_outputs != output_ids:
+        raise ConfigurationError("bindings and references must match exactly")
+    output_map = {item.output_id: item for item in outputs}
+    if co:
+        if output_map[co.setpoint_output_id].function != "co_setpoint":
+            raise ConfigurationError("invalid CO setpoint function")
+        if (
+            co.demand_output_id
+            and output_map[co.demand_output_id].function != "co_demand"
+        ):
+            raise ConfigurationError("invalid demand function")
+        for zone in co.zones:
+            if co.configure_valves and not any(
+                item.valve_output_ids for item in co.zones
+            ):
+                raise ConfigurationError(
+                    "enabled valve configuration requires an output"
+                )
+            if any(
+                output_map[item].function != "zone_valve"
+                or output_map[item].scope_id != zone.zone_id
+                for item in zone.valve_output_ids
+            ):
+                raise ConfigurationError("valve output scope does not match zone")
+    if dhw and (
+        output_map[dhw.setpoint_output_id].function != "dhw_setpoint"
+        or output_map[dhw.enable_output_id].function != "dhw_enable"
+    ):
+        raise ConfigurationError("invalid DHW output functions")
     return InstallationConfig(
         installation_id=_uuid(data.get("installation_id"), "installation_id"),
         name=_name(data.get("name"), "name"),
         schema_version=schema_version,
+        configuration_revision=revision,
+        source_bindings=sources,
+        output_bindings=outputs,
         co=co,
         dhw=dhw,
     )
@@ -384,14 +518,16 @@ def _number_reason(state: State | None, entity_id: str) -> str | None:
         return reason
     assert state is not None
     try:
-        minimum = float(state.attributes["min"])
-        maximum = float(state.attributes["max"])
-        step = float(state.attributes["step"])
+        minimum, maximum, step = (
+            float(state.attributes[key]) for key in ("min", "max", "step")
+        )
     except (KeyError, TypeError, ValueError):
         return f"invalid_range:{entity_id}"
-    if not all(math.isfinite(value) for value in (minimum, maximum, step)):
-        return f"invalid_range:{entity_id}"
-    if minimum > maximum or step <= 0:
+    if (
+        not all(math.isfinite(item) for item in (minimum, maximum, step))
+        or minimum > maximum
+        or step <= 0
+    ):
         return f"invalid_range:{entity_id}"
     return None
 
@@ -400,49 +536,75 @@ def _switch_reason(state: State | None, entity_id: str) -> str | None:
     if reason := _state_reason(state, entity_id):
         return reason
     assert state is not None
-    if state.state not in ("on", "off"):
-        return f"invalid_value:{entity_id}"
-    return None
+    return None if state.state in ("on", "off") else f"invalid_value:{entity_id}"
 
 
 def _readiness(reasons: list[str | None], enabled: bool) -> Readiness:
     actual = tuple(reason for reason in reasons if reason is not None)
-    if not enabled:
-        return Readiness(False, ("module_disabled",))
-    return Readiness(not actual, actual)
+    return (
+        Readiness(False, ("module_disabled",))
+        if not enabled
+        else Readiness(not actual, actual)
+    )
+
+
+def _bound_state(
+    hass: HomeAssistant, binding: SourceBinding | OutputBinding
+) -> State | None:
+    """Never fall through to a replacement entity at a removed registry identity."""
+    if binding.entity_registry_id:
+        registry_entry = er.async_get(hass).async_get(binding.entity_registry_id)
+        if registry_entry is None or registry_entry.entity_id != binding.entity_id:
+            return None
+    return hass.states.get(binding.entity_id)
 
 
 def refresh_readiness(hass: HomeAssistant, runtime: HeatPumpSteeringRuntime) -> None:
-    """Refresh only snapshots; observation never calls source services."""
+    """Refresh snapshots only; observation never calls source services."""
     if runtime.stopped:
         return
-    if (co := runtime.config.co) and runtime.co:
+    config, sources, outputs = (
+        runtime.config,
+        runtime.config.sources_by_id,
+        runtime.config.outputs_by_id,
+    )
+    if (co := config.co) and runtime.co:
+        setpoint, outdoor = (
+            outputs[co.setpoint_output_id].entity_id,
+            sources[co.outdoor_source_id].entity_id,
+        )
         reasons: list[str | None] = [
             _number_reason(
-                hass.states.get(co.setpoint_entity_id), co.setpoint_entity_id
+                _bound_state(hass, outputs[co.setpoint_output_id]), setpoint
             ),
             _temperature_reason(
-                hass.states.get(co.outdoor_entity_id), co.outdoor_entity_id
+                _bound_state(hass, sources[co.outdoor_source_id]), outdoor
             ),
         ]
         for zone in co.zones:
             if not zone.enabled:
                 continue
-            source_reasons = [
-                _temperature_reason(hass.states.get(entity_id), entity_id)
-                for entity_id in zone.observed_entity_ids
+            zone_reasons = [
+                _temperature_reason(
+                    _bound_state(hass, sources[item]), sources[item].entity_id
+                )
+                for item in zone.observed_source_ids
             ]
-            if all(source_reasons):
-                reasons.extend(source_reasons)
+            if all(zone_reasons):
+                reasons.extend(zone_reasons)
         runtime.co.readiness = _readiness(reasons, co.enabled)
-    if (dhw := runtime.config.dhw) and runtime.dhw:
+    if (dhw := config.dhw) and runtime.dhw:
+        setpoint, enable = (
+            outputs[dhw.setpoint_output_id].entity_id,
+            outputs[dhw.enable_output_id].entity_id,
+        )
         runtime.dhw.readiness = _readiness(
             [
                 _number_reason(
-                    hass.states.get(dhw.setpoint_entity_id), dhw.setpoint_entity_id
+                    _bound_state(hass, outputs[dhw.setpoint_output_id]), setpoint
                 ),
                 _switch_reason(
-                    hass.states.get(dhw.enable_entity_id), dhw.enable_entity_id
+                    _bound_state(hass, outputs[dhw.enable_output_id]), enable
                 ),
             ],
             dhw.enabled,
