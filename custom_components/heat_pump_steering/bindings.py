@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import copy
-from collections.abc import Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
@@ -57,6 +58,13 @@ class OwnershipService:
 
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     pending: dict[str, frozenset[str]] = field(default_factory=dict)
+    _finalizing: ContextVar[tuple[str, str] | None] = field(
+        default_factory=lambda: ContextVar(
+            "heat_pump_steering_finalizing", default=None
+        )
+    )
+    _add_guard: Callable[[ConfigEntry], Awaitable[None]] | None = None
+    _downstream_add: Callable[[ConfigEntry], Awaitable[None]] | None = None
 
     def conflicts(
         self,
@@ -81,6 +89,33 @@ class OwnershipService:
 
     def release(self, token: str) -> None:
         self.pending.pop(token, None)
+
+    def guard_create_finalization(
+        self, hass: HomeAssistant, token: str, installation_id: str
+    ) -> None:
+        """Keep a reservation through async_add and release it if that write fails."""
+        if self._add_guard is None:
+
+            async def guarded_add(entry: ConfigEntry) -> None:
+                finalizing = self._finalizing.get()
+                try:
+                    assert self._downstream_add is not None
+                    await self._downstream_add(entry)
+                except BaseException:
+                    if finalizing is not None and entry.unique_id == finalizing[1]:
+                        self.release(finalizing[0])
+                    raise
+                finally:
+                    if finalizing is not None and entry.unique_id == finalizing[1]:
+                        self._finalizing.set(None)
+
+            self._add_guard = guarded_add
+
+        current_add = hass.config_entries.async_add
+        if current_add is not self._add_guard:
+            self._downstream_add = current_add
+            hass.config_entries.async_add = self._add_guard
+        self._finalizing.set((token, installation_id))
 
 
 _SERVICES: WeakKeyDictionary[HomeAssistant, OwnershipService] = WeakKeyDictionary()

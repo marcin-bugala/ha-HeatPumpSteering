@@ -863,7 +863,6 @@ async def test_failed_create_finalization_releases_pending_reservation(
     monkeypatch.setattr(hass.config_entries, "async_add", failed_add)
     with pytest.raises(RuntimeError, match="synthetic config-entry write failure"):
         await _submit(hass, result, {"confirm": True})
-    hass.config_entries.flow.async_abort(result["flow_id"])
 
     assert hass.config_entries.async_entries(DOMAIN) == []
     assert ownership_service(hass).pending == {}
