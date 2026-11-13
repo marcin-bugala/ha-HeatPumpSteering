@@ -822,7 +822,7 @@ async def test_cancelled_create_releases_pending_reservation(
     monkeypatch: pytest.MonkeyPatch,
     source_service_calls: list,
 ) -> None:
-    """B09/B10: abort after cancelled finalization rolls back the reservation."""
+    """B09/B10: cancellation itself rolls back before idempotent flow cleanup."""
     result = await _dhw_flow_at_confirm(hass, "Cancelled")
     entered_add = asyncio.Event()
     never_release = asyncio.Event()
@@ -841,10 +841,16 @@ async def test_cancelled_create_releases_pending_reservation(
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
-    hass.config_entries.flow.async_abort(result["flow_id"])
 
     assert ownership_service(hass).pending == {}
     assert hass.config_entries.async_entries(DOMAIN) == []
+
+    hass.config_entries.flow.async_abort(result["flow_id"])
+    assert ownership_service(hass).pending == {}
+    monkeypatch.setattr(hass.config_entries, "async_add", original_add)
+    retry = await _dhw_flow_at_confirm(hass, "Retry after cancellation")
+    created = await _submit(hass, retry, {"confirm": True})
+    assert created["type"] is FlowResultType.CREATE_ENTRY
     assert source_service_calls == []
 
 
