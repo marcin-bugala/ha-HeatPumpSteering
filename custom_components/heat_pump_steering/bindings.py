@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import copy
-from collections.abc import Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
-from weakref import WeakKeyDictionary
+from weakref import ReferenceType, WeakKeyDictionary, WeakMethod, ref
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -52,11 +53,29 @@ def output_keys(data: Mapping[str, Any]) -> frozenset[str]:
 
 
 @dataclass(slots=True)
+class _FinalizationContext:
+    token: str
+    installation_id: str
+    reset_token: Token | None = None
+
+
+@dataclass(slots=True)
 class OwnershipService:
     """Serialize ownership checks and bridge CREATE_ENTRY registration."""
 
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     pending: dict[str, frozenset[str]] = field(default_factory=dict)
+    _finalizing: ContextVar[_FinalizationContext | None] = field(
+        default_factory=lambda: ContextVar(
+            "heat_pump_steering_finalizing", default=None
+        )
+    )
+    _add_guard: Callable[[ConfigEntry], Awaitable[None]] | None = None
+    _downstream_add: ReferenceType | WeakMethod | None = None
+    _strong_downstream_add: Callable[[ConfigEntry], Awaitable[None]] | None = None
+    _config_entries: ReferenceType | None = None
+    _active_finalizations: set[str] = field(default_factory=set)
+    _restore_instance_override: bool = False
 
     def conflicts(
         self,
@@ -81,6 +100,79 @@ class OwnershipService:
 
     def release(self, token: str) -> None:
         self.pending.pop(token, None)
+
+    def guard_create_finalization(
+        self, hass: HomeAssistant, token: str, installation_id: str
+    ) -> None:
+        """Keep a reservation through async_add and release it if that write fails."""
+        if self._add_guard is None:
+
+            async def guarded_add(entry: ConfigEntry) -> None:
+                finalizing = self._finalizing.get()
+                downstream_ref = self._downstream_add
+                downstream = self._strong_downstream_add or (
+                    downstream_ref() if downstream_ref is not None else None
+                )
+                try:
+                    if downstream is None:
+                        raise RuntimeError(
+                            "ConfigEntries.async_add guard lost downstream"
+                        )
+                    await downstream(entry)
+                except BaseException:
+                    if (
+                        finalizing is not None
+                        and entry.unique_id == finalizing.installation_id
+                    ):
+                        self.release(finalizing.token)
+                    raise
+                finally:
+                    if (
+                        finalizing is not None
+                        and entry.unique_id == finalizing.installation_id
+                    ):
+                        assert finalizing.reset_token is not None
+                        self._finalizing.reset(finalizing.reset_token)
+                        self._finish_create_finalization(finalizing.token)
+
+            self._add_guard = guarded_add
+
+        current_add = hass.config_entries.async_add
+        if current_add is not self._add_guard:
+            if getattr(current_add, "__self__", None) is not None:
+                self._downstream_add = WeakMethod(current_add)
+                self._strong_downstream_add = None
+            else:
+                self._downstream_add = ref(current_add)
+                self._strong_downstream_add = current_add
+            self._config_entries = ref(hass.config_entries)
+            self._restore_instance_override = "async_add" in vars(hass.config_entries)
+            hass.config_entries.async_add = self._add_guard
+        self._active_finalizations.add(token)
+        finalizing = _FinalizationContext(token, installation_id)
+        finalizing.reset_token = self._finalizing.set(finalizing)
+
+    def _finish_create_finalization(self, token: str) -> None:
+        """Detach the temporary async_add guard after the last active write."""
+        self._active_finalizations.discard(token)
+        if self._active_finalizations:
+            return
+        config_entries = self._config_entries() if self._config_entries else None
+        downstream = self._strong_downstream_add or (
+            self._downstream_add() if self._downstream_add else None
+        )
+        if (
+            config_entries is not None
+            and config_entries.async_add is self._add_guard
+            and downstream is not None
+        ):
+            if self._restore_instance_override:
+                config_entries.async_add = downstream
+            else:
+                del config_entries.async_add
+        self._config_entries = None
+        self._downstream_add = None
+        self._strong_downstream_add = None
 
 
 _SERVICES: WeakKeyDictionary[HomeAssistant, OwnershipService] = WeakKeyDictionary()

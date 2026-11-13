@@ -2,16 +2,218 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
+import gc
+import weakref
 from collections.abc import Callable
+from contextvars import Context
+from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
+from custom_components.heat_pump_steering.bindings import ownership_service
+
 from .conftest import MockConfigEntry, entry_data, set_temperature
+
+
+class _SyntheticHass:
+    pass
+
+
+class _SyntheticConfigEntries:
+    def __init__(self, hass: _SyntheticHass) -> None:
+        self.hass = hass
+        self.added: list[str] = []
+
+    async def async_add(self, entry) -> None:
+        self.added.append(entry.unique_id)
+
+
+def _synthetic_hass() -> tuple[_SyntheticHass, _SyntheticConfigEntries]:
+    hass = _SyntheticHass()
+    entries = _SyntheticConfigEntries(hass)
+    hass.config_entries = entries
+    return hass, entries
+
+
+async def test_create_guard_detaches_and_handles_all_finalization_outcomes() -> None:
+    """B09/B10: temporary async_add guard is isolated and reusable."""
+    hass, entries = _synthetic_hass()
+    service = ownership_service(hass)
+    data = entry_data(dhw=True)
+    installation_id = data["installation_id"]
+    target = SimpleNamespace(unique_id=installation_id)
+    unrelated = SimpleNamespace(unique_id="unrelated-integration")
+
+    service.reserve("success", data)
+    service.guard_create_finalization(hass, "success", installation_id)
+    guarded_add = entries.async_add
+    await asyncio.create_task(entries.async_add(unrelated), context=Context())
+    assert set(service.pending) == {"success"}
+    assert entries.async_add is guarded_add
+    await entries.async_add(target)
+    assert "async_add" not in vars(entries)
+    assert entries.added == ["unrelated-integration", installation_id]
+    service.release("success")
+
+    async def failed_add(entry) -> None:
+        raise RuntimeError("synthetic add failure")
+
+    entries.async_add = failed_add
+    service.reserve("failure", data)
+    service.guard_create_finalization(hass, "failure", installation_id)
+    with pytest.raises(RuntimeError, match="synthetic add failure"):
+        await entries.async_add(target)
+    assert service.pending == {}
+    assert entries.async_add is failed_add
+    del entries.async_add
+
+    service.reserve("reinstall", data)
+    service.guard_create_finalization(hass, "reinstall", installation_id)
+    await entries.async_add(target)
+    assert "async_add" not in vars(entries)
+    service.release("reinstall")
+
+    entered = asyncio.Event()
+    blocked = asyncio.Event()
+
+    async def blocked_add(entry) -> None:
+        entered.set()
+        await blocked.wait()
+
+    entries.async_add = blocked_add
+
+    async def cancel_finalization() -> None:
+        service.reserve("cancel", data)
+        service.guard_create_finalization(hass, "cancel", installation_id)
+        await entries.async_add(target)
+
+    task = asyncio.create_task(cancel_finalization())
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert service.pending == {}
+    assert entries.async_add is blocked_add
+
+
+async def test_create_guard_keeps_inline_override_only_until_detach() -> None:
+    """B09/B10: an inline override survives GC only for active finalization."""
+    hass, entries = _synthetic_hass()
+    service = ownership_service(hass)
+    data = entry_data(dhw=True)
+    installation_id = data["installation_id"]
+    target = SimpleNamespace(unique_id=installation_id)
+
+    def install_success_override() -> weakref.ReferenceType:
+        async def inline_success(entry) -> None:
+            entries.added.append(entry.unique_id)
+
+        entries.async_add = inline_success
+        return weakref.ref(inline_success)
+
+    success_ref = install_success_override()
+    service.reserve("inline-success", data)
+    service.guard_create_finalization(hass, "inline-success", installation_id)
+    gc.collect()
+    assert success_ref() is not None
+    await entries.async_add(target)
+    assert entries.async_add is success_ref()
+    service.release("inline-success")
+    del entries.async_add
+    gc.collect()
+    assert success_ref() is None
+
+    def install_failure_override() -> weakref.ReferenceType:
+        async def inline_failure(entry) -> None:
+            raise RuntimeError("inline add failure")
+
+        entries.async_add = inline_failure
+        return weakref.ref(inline_failure)
+
+    failure_ref = install_failure_override()
+    service.reserve("inline-failure", data)
+    service.guard_create_finalization(hass, "inline-failure", installation_id)
+    gc.collect()
+    assert failure_ref() is not None
+    with pytest.raises(RuntimeError, match="inline add failure"):
+        await entries.async_add(target)
+    assert service.pending == {}
+    assert entries.async_add is failure_ref()
+    del entries.async_add
+    gc.collect()
+    assert failure_ref() is None
+
+    entered = asyncio.Event()
+    blocked = asyncio.Event()
+
+    def install_cancel_override() -> weakref.ReferenceType:
+        async def inline_cancel(entry) -> None:
+            entered.set()
+            await blocked.wait()
+
+        entries.async_add = inline_cancel
+        return weakref.ref(inline_cancel)
+
+    cancel_ref = install_cancel_override()
+
+    async def cancel_inline_finalization() -> None:
+        service.reserve("inline-cancel", data)
+        service.guard_create_finalization(hass, "inline-cancel", installation_id)
+        gc.collect()
+        assert cancel_ref() is not None
+        await entries.async_add(target)
+
+    task = asyncio.create_task(cancel_inline_finalization())
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert service.pending == {}
+    assert entries.async_add is cancel_ref()
+    del entries.async_add
+    del task
+    await asyncio.sleep(0)
+    gc.collect()
+    assert cancel_ref() is None
+
+
+async def test_create_guard_is_cross_hass_isolated_and_does_not_prevent_gc() -> None:
+    """B09/B10: ownership values retain neither HA nor another HA's guard."""
+    first_hass, first_entries = _synthetic_hass()
+    second_hass, second_entries = _synthetic_hass()
+    first_service = ownership_service(first_hass)
+    second_service = ownership_service(second_hass)
+    first_data = entry_data(dhw=True)
+    second_data = entry_data(dhw=True)
+
+    async def finalize(hass, entries, service, token, data) -> None:
+        service.reserve(token, data)
+        service.guard_create_finalization(hass, token, data["installation_id"])
+        await entries.async_add(SimpleNamespace(unique_id=data["installation_id"]))
+        service.release(token)
+
+    await asyncio.gather(
+        finalize(first_hass, first_entries, first_service, "first", first_data),
+        finalize(second_hass, second_entries, second_service, "second", second_data),
+    )
+    assert first_entries.added == [first_data["installation_id"]]
+    assert second_entries.added == [second_data["installation_id"]]
+    assert "async_add" not in vars(first_entries)
+    assert "async_add" not in vars(second_entries)
+
+    first_ref = weakref.ref(first_hass)
+    second_ref = weakref.ref(second_hass)
+    del first_entries, second_entries, first_hass, second_hass
+    gc.collect()
+    assert first_ref() is None
+    assert second_ref() is None
 
 
 async def test_registry_rename_preserves_source_identity_and_binding_revision(
@@ -260,3 +462,109 @@ async def test_unloaded_reconfigure_reconciles_all_registry_bound_roles(
     assert await hass.config_entries.async_setup(entry.entry_id)
     assert set(renamed.values()) <= set(entry.runtime_data.config.entity_ids)
     assert source_service_calls == []
+
+
+async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    source_service_calls: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """B04/B10/C13: exactly one live registry subscription survives reloads."""
+    bus_type = type(hass.bus)
+    original_listen = bus_type.async_listen
+    live_registry_subscriptions: set[object] = set()
+
+    def tracked_listen(bus, event_type: str, listener: Callable, *args, **kwargs):
+        unsubscribe = original_listen(bus, event_type, listener, *args, **kwargs)
+        if event_type != er.EVENT_ENTITY_REGISTRY_UPDATED:
+            return unsubscribe
+        token = object()
+        live_registry_subscriptions.add(token)
+
+        def tracked_unsubscribe() -> None:
+            live_registry_subscriptions.discard(token)
+            unsubscribe()
+
+        return tracked_unsubscribe
+
+    monkeypatch.setattr(bus_type, "async_listen", tracked_listen)
+    registry = er.async_get(hass)
+    old_output = registry.async_get_or_create(
+        "number", "synthetic", "old-output", suggested_object_id="co_setpoint"
+    )
+    new_output = registry.async_get_or_create(
+        "number", "synthetic", "new-output", suggested_object_id="new_setpoint"
+    )
+    data = entry_data(co=True)
+    setpoint = next(
+        item for item in data["output_bindings"] if item["function"] == "co_setpoint"
+    )
+    setpoint["entity_registry_id"] = old_output.id
+    setpoint["entity_id"] = old_output.entity_id
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    assert len(live_registry_subscriptions) == 1
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    assert len(live_registry_subscriptions) == 1
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    assert len(live_registry_subscriptions) == 1
+
+    original_reload = hass.config_entries.async_reload
+    reload_calls: list[str] = []
+
+    async def counted_reload(entry_id: str) -> bool:
+        reload_calls.append(entry_id)
+        return await original_reload(entry_id)
+
+    monkeypatch.setattr(hass.config_entries, "async_reload", counted_reload)
+    registry.async_update_entity(
+        old_output.entity_id, new_entity_id="number.renamed_old_setpoint"
+    )
+    await hass.async_block_till_done()
+    assert reload_calls == [entry.entry_id]
+    assert (
+        next(
+            item
+            for item in entry.data["output_bindings"]
+            if item["function"] == "co_setpoint"
+        )["binding_revision"]
+        == 1
+    )
+
+    replacement = copy.deepcopy(dict(entry.data))
+    replacement_binding = next(
+        item
+        for item in replacement["output_bindings"]
+        if item["function"] == "co_setpoint"
+    )
+    replacement_binding.update(
+        {
+            "entity_registry_id": new_output.id,
+            "entity_id": new_output.entity_id,
+            "binding_revision": 2,
+        }
+    )
+    replacement["configuration_revision"] += 1
+    hass.config_entries.async_update_entry(entry, data=replacement)
+    assert await original_reload(entry.entry_id)
+    reload_calls.clear()
+
+    registry.async_update_entity(
+        "number.renamed_old_setpoint", new_entity_id="number.stale_old_setpoint"
+    )
+    await hass.async_block_till_done()
+    current = next(
+        item
+        for item in entry.data["output_bindings"]
+        if item["function"] == "co_setpoint"
+    )
+    assert current["entity_registry_id"] == new_output.id
+    assert current["entity_id"] == new_output.entity_id
+    assert current["binding_revision"] == 2
+    assert reload_calls == []
+    assert source_service_calls == []
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert live_registry_subscriptions == set()

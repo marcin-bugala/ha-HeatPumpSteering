@@ -897,6 +897,11 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         await self.async_set_unique_id(candidate["installation_id"])
                         self._abort_if_unique_id_configured()
                         service.reserve(self._reservation_token, candidate)
+                        service.guard_create_finalization(
+                            self.hass,
+                            self._reservation_token,
+                            candidate["installation_id"],
+                        )
                         result = self.async_create_entry(
                             title=candidate["name"], data=candidate
                         )
