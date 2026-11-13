@@ -1398,6 +1398,96 @@ async def test_d86_demand_detach_refreshes_report_before_consent(
     assert source_service_calls == []
 
 
+async def test_disabling_configured_functions_preserves_bindings_without_d86(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    source_service_calls: list,
+) -> None:
+    """D86/B04: disable keeps settings/ownership; only explicit detach warns."""
+    data = _co_entry_with_optional_outputs()
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    original_bindings = copy.deepcopy(entry.data["output_bindings"])
+    demand_output_id = entry.data["co"]["demand_output_id"]
+    valve_output_ids = list(entry.data["co"]["zones"][0]["valve_output_ids"])
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await _submit(
+        hass,
+        result,
+        {"name": entry.title, "enable_co": True, "enable_dhw": False},
+    )
+    result = await _submit(
+        hass,
+        result,
+        {
+            "setpoint_entity_id": "number.co_setpoint",
+            "outdoor_entity_id": "sensor.outdoor_temperature",
+            "aggregation": "mean",
+            "configure_valves": False,
+            "configure_demand": False,
+            "disconnect_demand": False,
+            "demand_polarity": "normal",
+        },
+    )
+    result = await _submit(hass, result, {"action": "continue"})
+    result = await _submit(hass, result, {"confirm": True})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert entry.data["co"]["configure_valves"] is False
+    assert entry.data["co"]["configure_demand"] is False
+    assert entry.data["co"]["demand_output_id"] == demand_output_id
+    assert entry.data["co"]["zones"][0]["valve_output_ids"] == valve_output_ids
+    assert entry.data["output_bindings"] == original_bindings
+
+    candidate = await _dhw_flow_at_confirm(
+        hass,
+        "Still owned",
+        setpoint="number.other_setpoint",
+        enable="switch.co_demand",
+    )
+    rejected = await _submit(hass, candidate, {"confirm": True})
+    assert rejected["errors"] == {"base": "output_conflict"}
+
+    explicit = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    explicit = await _submit(
+        hass,
+        explicit,
+        {"name": entry.title, "enable_co": True, "enable_dhw": False},
+    )
+    explicit = await _submit(
+        hass,
+        explicit,
+        {
+            "setpoint_entity_id": "number.co_setpoint",
+            "outdoor_entity_id": "sensor.outdoor_temperature",
+            "aggregation": "mean",
+            "configure_valves": False,
+            "configure_demand": False,
+            "disconnect_demand": True,
+            "demand_polarity": "normal",
+        },
+    )
+    explicit = await _submit(hass, explicit, {"action": "continue"})
+    explicit = await _submit(hass, explicit, {"confirm": True})
+
+    assert explicit["step_id"] == "detach_warning"
+    assert source_service_calls == []
+
+
 async def test_d86_zone_removal_unknown_state_can_be_cancelled_without_release(
     hass: HomeAssistant,
     make_entry: Callable,
