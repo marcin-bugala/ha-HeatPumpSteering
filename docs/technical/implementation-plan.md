@@ -2,10 +2,10 @@
 
 Po scaleniu PR #36 i jawnej dyspozycji właściciela przejścia do kroku 3
 konkretne zlecenia określa [indeks przekazań](../development/handoffs/README.md).
-I00/I01 scalono w PR #38, I02 w PR #40; aktualny handoff to
-[I03](../development/handoffs/i03-output-ownership.md) na main 3068903.
-[Raport I02](../development/handoffs/i02-verification.md) wiąże zaakceptowany
-raport Reviewer/Tester i CI z końcowym SHA. Dalsze pakiety wymagają osobnego handoffu.
+I00/I01 scalono w PR #38, I02 w PR #40, I03 w PR #42/#43; aktualny handoff to
+[I04](../development/handoffs/i04-versioned-store.md) na main 74f326b.
+[Raport I03](../development/handoffs/i03-verification.md) wiąże zaakceptowane
+review, testy i CI z końcowym SHA. Dalsze pakiety wymagają osobnego handoffu.
 Baza analizy main: 6891b473a646c3d9e0783edf6cd437eb27a9b758.
 Gałęzie każdego pakietu od aktualnego origin/main po scaleniu zależności.
 Każdy PR do main, bez auto-merge, deploy i automatycznego zamykania US.
@@ -20,8 +20,8 @@ w indeksie przekazań. Nie utożsamiamy samego merge z wynikiem testu produktu.
 Podstawa przejścia do wykonania i brak niezależnego review są zapisane
 w indeksie przekazań; decyzję właściciela wiążemy z konkretną bazą SHA.
 T08 ma dowód rozwiązania w I00; I01 ma pełny CI w PR #38 i na main.
-Dla I03 obowiązuje baza 3068903, raport odbioru I02 i warunki nowego handoffu.
-I00–I02 nie należy wykonywać ponownie.
+Dla I04 obowiązuje baza 74f326b, raport odbioru I03 i warunki nowego handoffu.
+I00–I03 nie należy wykonywać ponownie.
 Tech Lead wpisuje zatwierdzony SHA oraz link odpowiedzi właściciela w handoff.
 Treść wymagań i powiązanych Issues zsynchronizowana; bez nowych statusów w docs.
 Developer odświeża main, czyta Issue z komentarzami, sprawdza instrukcje i
@@ -36,7 +36,7 @@ Nie wystarcza samo zielone CI dokumentacji.
 | I01 feat/10-ha-foundation | Rzeczywisty manifest, ConfigEntry/runtime, minimum i macierz CI; setup/unload i observation na poprawnych wpisach, użytkowy config_flow w I02 | US03/08/16/20; #10 #15 #23 #29; D09,D68–D71,D80; A02,A08; B01,B02,B04 | Przyjęty projekt/P12, scalone I00 z dowodami T08 | Prawdziwe testy HA na obu wersjach; mock dowodzi braku usług w observation; hassfest. Reviewer → Tester |
 | I02 feat/8-installation-model | [Konkretny handoff](../development/handoffs/i02-installation-model.md): user/reconfigure, nazwy/grupy/listy sensorów, trwałe UUID i migracja wpisów I01, bez wykonawcy | US01/09/15; #8 #16 #22; D07,D17–D21,D69–D70,D85; A01,A03–A05; B01,B02,B06 | I01; P07/P12 | UI konfiguruje samo CO/samo CWU/oba; brak pustych modułów i nowych ID przy rename; Reviewer |
 | I03 feat/16-output-ownership | [Konkretny handoff](../development/handoffs/i03-output-ownership.md): atomowe rezerwacje, registry binding/rename, migracja v3 i ostrzeżenia; konfiguracja zaworów/demandu bez wykonania | US01/09/10/15/16; #8 #16 #17 #22 #23; D84–D87,D93,D101; A01–A04; B04,B06,B09,B10; C05,C13 części | I02; P04/P12 | Dwa równoczesne flow nie współdzielą wyjścia; odłączenie niczego nie przełącza; Reviewer → Tester |
-| I04 feat/15-versioned-store | Store v1, cele/tryby, walidacja payload, protokół rewizji ConfigEntry/Store i odmowa niezgodności | US02/08/19; #9 #15 #26; D25,D54,D71–D72,D89; A07,A43; B05–B07 | I02; P07 | Restart zachowuje UUID i ustawienia; błąd zapisu i crash granicy nie resetują; Reviewer |
+| I04 feat/15-versioned-store | [Konkretny handoff](../development/handoffs/i04-versioned-store.md): Store v1, cele/tryby, walidacja payload, schema v4, bootstrap marker i protokół rewizji ConfigEntry/Store | US02/08/19; #9 #15 #26; D24–D25,D54,D71–D72,D74,D89,D96,D101; A07,A43; B05–B07; C08 części | I03; P07/P12 | Restart zachowuje UUID i ustawienia; błąd zapisu i crash granicy nie resetują; Reviewer → Tester |
 | I05 feat/23-source-quality | Adaptery wartości, jednostek, świeżości, raportów changed/reported; bez historii i usług | US01/16; #8 #23; D46–D47,D50,D68; A30,A32,A35 | I02; P08 | Jednakowy raport odświeża tylko HA freshness; NaN/unknown/unavailable nigdy 0; Tester |
 | I06 feat/26-history-windows | Recorder adapter, 48h rebuild + live watermark, średnie/mediany ważone czasem, pokrycie | US01/06/19; #8 #13 #26; D32–D34,D47,D53,D71; A09,A30,A41,A42; B08 | I04,I05; P08 | Brak duplikatów, fikcyjnego heartbeat i mieszania czujników; test start-state/retencji, limit pamięci; Reviewer → Tester |
 | I07 feat/12-zone-decisions | Czyste żądania stref, progi, spadek, równoległe blokady i grace; tylko decyzje | US05/06/18; #12 #13 #25; D35–D39,D46,D48,D55,D57–D59; A10–A16,A21,A31,A42 | I04,I06; P07/P11 | Deterministyczny zegar; nowe cele, brak danych i source-set nie tworzą fałszywego spadku; Tester |
@@ -86,8 +86,11 @@ Scalenie dokumentacji lub części kodu nie zamyka US pełnego zakresu.
   oba pakiety scalono w PR #38, commit main 552ea427086786e3b3411d95ed0305dc35ba80c0.
 - [I02](../development/handoffs/i02-installation-model.md) wykonano w PR #40;
   [odbiór](../development/handoffs/i02-verification.md) dotyczy SHA 060c0f0 / main 3068903.
-- [I03](../development/handoffs/i03-output-ownership.md): aktualne przekazanie Developera,
-  pełna własność, trwałe bindingi i ostrzeżenia, nadal bez usług.
+- [I03](../development/handoffs/i03-output-ownership.md): kontrakt wykonany
+  w PR #42/#43; [odbiór](../development/handoffs/i03-verification.md)
+  dotyczy SHA 1b452bd / main 74f326b.
+- [I04](../development/handoffs/i04-versioned-store.md): aktualne przekazanie
+  Developera, Store v1 i protokół ConfigEntry/Store, nadal bez usług.
 - [Pierwotny I00](../development/handoffs/i00-ha-test-tooling.md) i
   [I01](../development/handoffs/i01-ha-foundation.md) pozostają historią kontraktu;
   nie uruchamiać ich ponownie. Zmianę drogi current i wspólny PR opisuje raport.

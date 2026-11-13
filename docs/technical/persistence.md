@@ -5,9 +5,11 @@ T07: jeden wersjonowany Store na ConfigEntry, bez pełnego archiwum.
 
 ## Wersje i zapis
 
-ConfigEntry VERSION=1 / MINOR_VERSION=1; instalacja i powiązania w data,
-bez równoległej kopii tych samych pól w options. Options/config flow wywołują
-jeden walidator i aktualizują data przez HA. Store key
+Wersja ConfigEntry rośnie wraz ze zmianą semantyki danych: I03 dostarczyło schema v3,
+a przekazanie I04 wprowadza schema v4 z markerem inicjalizacji Store. Instalacja
+i powiązania pozostają w data, bez równoległej kopii tych samych pól w options.
+Bootstrapowy cel schema v3 nie jest bieżącym źródłem po inicjalizacji Store.
+Options/config flow wywołują jeden walidator i aktualizują data przez HA. Store key
 `heat_pump_steering.{entry_id}`, wersja główna/minor oraz payload_version,
 installation_id i configuration_revision w payload.
 
