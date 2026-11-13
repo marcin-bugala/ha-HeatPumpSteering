@@ -35,7 +35,7 @@ def ownership_keys(binding: Mapping[str, Any]) -> frozenset[str]:
 
 def output_keys(data: Mapping[str, Any]) -> frozenset[str]:
     """Extract output ownership keys from canonical or legacy persisted data."""
-    if data.get("schema_version") == 3:
+    if data.get("schema_version") in (3, 4):
         return frozenset(
             key
             for binding in data.get("output_bindings", [])

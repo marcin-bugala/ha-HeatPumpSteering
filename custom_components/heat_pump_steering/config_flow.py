@@ -896,10 +896,10 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             errors["base"] = "state_store_error"
                         else:
                             self._draft = candidate
-                            await self.hass.config_entries.async_reload(
-                                self._entry.entry_id
+                            return self.async_update_reload_and_abort(
+                                self._entry,
+                                reload_even_if_entry_is_unchanged=True,
                             )
-                            return self.async_abort(reason="reconfigure_successful")
                     else:
                         await self.async_set_unique_id(candidate["installation_id"])
                         self._abort_if_unique_id_configured()
