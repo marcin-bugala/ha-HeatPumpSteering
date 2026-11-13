@@ -391,6 +391,51 @@ async def test_one_draft_rejects_same_switch_for_demand_and_valve(
     assert source_service_calls == []
 
 
+async def test_one_draft_rejects_same_valve_output_for_two_zones(
+    hass: HomeAssistant, source_service_calls: list
+) -> None:
+    """A04/D87/B09: one physical valve cannot be assigned to two zones."""
+    result = await _start_user(hass, co=True, dhw=False)
+    result = await _submit(
+        hass,
+        result,
+        {
+            "setpoint_entity_id": "number.co_setpoint",
+            "outdoor_entity_id": "sensor.outdoor_temperature",
+            "aggregation": "mean",
+            "configure_valves": True,
+            "configure_demand": False,
+            "disconnect_demand": False,
+            "demand_polarity": "normal",
+        },
+    )
+    for zone_name, sensor in (
+        ("Living room", "sensor.living_temperature"),
+        ("Bedroom", "sensor.bedroom_temperature"),
+    ):
+        result = await _submit(hass, result, {"action": "add_zone"})
+        result = await _submit(
+            hass,
+            result,
+            {
+                "name": zone_name,
+                "enabled": True,
+                "temperature_entity_ids": [sensor],
+                "source_mode": "primary",
+                "primary_temperature_entity_id": sensor,
+                "target_temperature": 21.0,
+                "valve_entity_ids": ["switch.shared_zone_valve"],
+                "valve_polarities": "normal",
+                "actuator_type": "nc",
+            },
+        )
+
+    assert result["step_id"] == "zone"
+    assert result["errors"] == {"base": "invalid_zone"}
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert source_service_calls == []
+
+
 async def test_disabled_config_entry_keeps_output_ownership(
     hass: HomeAssistant,
     make_entry: Callable,
