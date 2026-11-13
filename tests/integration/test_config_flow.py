@@ -848,6 +848,32 @@ async def test_cancelled_create_releases_pending_reservation(
     assert source_service_calls == []
 
 
+async def test_failed_create_finalization_releases_pending_reservation(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+) -> None:
+    """B09/B10: a failed config-entry write leaves no owner or pending claim."""
+    result = await _dhw_flow_at_confirm(hass, "Failed write")
+    original_add = hass.config_entries.async_add
+
+    async def failed_add(entry) -> None:
+        raise RuntimeError("synthetic config-entry write failure")
+
+    monkeypatch.setattr(hass.config_entries, "async_add", failed_add)
+    with pytest.raises(RuntimeError, match="synthetic config-entry write failure"):
+        await _submit(hass, result, {"confirm": True})
+
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert ownership_service(hass).pending == {}
+
+    monkeypatch.setattr(hass.config_entries, "async_add", original_add)
+    retry = await _dhw_flow_at_confirm(hass, "Retry after failed write")
+    created = await _submit(hass, retry, {"confirm": True})
+    assert created["type"] is FlowResultType.CREATE_ENTRY
+    assert source_service_calls == []
+
+
 async def test_cancelled_reconfigure_keeps_old_output_and_leaves_new_output_free(
     hass: HomeAssistant,
     make_entry: Callable,
@@ -882,6 +908,54 @@ async def test_cancelled_reconfigure_keeps_old_output_and_leaves_new_output_free
     )
     new_result = await _submit(hass, new_candidate, {"confirm": True})
     assert new_result["type"] is FlowResultType.CREATE_ENTRY
+    assert source_service_calls == []
+
+
+async def test_failed_reconfigure_write_rolls_back_ownership_and_data(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+) -> None:
+    """B09/B10: a failed reconfigure write is atomic for data and ownership."""
+    entry = make_entry(dhw=True)
+    original = copy.deepcopy(dict(entry.data))
+    entry.add_to_hass(hass)
+    result = await _dhw_reconfigure_at_confirm(
+        hass,
+        entry,
+        name="Failed replacement",
+        setpoint="number.failed_replacement",
+    )
+    result = await _submit(hass, result, {"confirm": True})
+    assert result["step_id"] == "detach_warning"
+    original_update = hass.config_entries.async_update_entry
+
+    def failed_update(*args, **kwargs) -> None:
+        raise RuntimeError("synthetic config-entry update failure")
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", failed_update)
+    with pytest.raises(RuntimeError, match="synthetic config-entry update failure"):
+        await _submit(hass, result, {"confirm": True})
+
+    assert dict(entry.data) == original
+    assert ownership_service(hass).pending == {}
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", original_update)
+
+    old_candidate = await _dhw_flow_at_confirm(hass, "Old output still owned")
+    old_result = await _submit(hass, old_candidate, {"confirm": True})
+    assert old_result["errors"] == {"base": "output_conflict"}
+    hass.config_entries.flow.async_abort(old_result["flow_id"])
+
+    new_candidate = await _dhw_flow_at_confirm(
+        hass,
+        "Failed replacement is free",
+        setpoint="number.failed_replacement",
+        enable="switch.other_enable",
+    )
+    new_result = await _submit(hass, new_candidate, {"confirm": True})
+    assert new_result["type"] is FlowResultType.CREATE_ENTRY
+    assert ownership_service(hass).pending == {}
     assert source_service_calls == []
 
 
