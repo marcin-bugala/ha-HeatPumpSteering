@@ -270,7 +270,24 @@ async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
     source_service_calls: list,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """B04/B10/C13: reloads do not duplicate listeners or revive old bindings."""
+    """B04/B10/C13: exactly one live registry subscription survives reloads."""
+    original_listen = hass.bus.async_listen
+    live_registry_subscriptions: set[object] = set()
+
+    def tracked_listen(event_type: str, listener: Callable, *args, **kwargs):
+        unsubscribe = original_listen(event_type, listener, *args, **kwargs)
+        if event_type != er.EVENT_ENTITY_REGISTRY_UPDATED:
+            return unsubscribe
+        token = object()
+        live_registry_subscriptions.add(token)
+
+        def tracked_unsubscribe() -> None:
+            live_registry_subscriptions.discard(token)
+            unsubscribe()
+
+        return tracked_unsubscribe
+
+    monkeypatch.setattr(hass.bus, "async_listen", tracked_listen)
     registry = er.async_get(hass)
     old_output = registry.async_get_or_create(
         "number", "synthetic", "old-output", suggested_object_id="co_setpoint"
@@ -287,8 +304,11 @@ async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
     entry = make_entry(data=data)
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
+    assert len(live_registry_subscriptions) == 1
     assert await hass.config_entries.async_reload(entry.entry_id)
+    assert len(live_registry_subscriptions) == 1
     assert await hass.config_entries.async_reload(entry.entry_id)
+    assert len(live_registry_subscriptions) == 1
 
     original_reload = hass.config_entries.async_reload
     reload_calls: list[str] = []
@@ -344,3 +364,5 @@ async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
     assert current["binding_revision"] == 2
     assert reload_calls == []
     assert source_service_calls == []
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert live_registry_subscriptions == set()
