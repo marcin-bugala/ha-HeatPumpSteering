@@ -72,6 +72,7 @@ class OwnershipService:
     )
     _add_guard: Callable[[ConfigEntry], Awaitable[None]] | None = None
     _downstream_add: ReferenceType | WeakMethod | None = None
+    _strong_downstream_add: Callable[[ConfigEntry], Awaitable[None]] | None = None
     _config_entries: ReferenceType | None = None
     _active_finalizations: set[str] = field(default_factory=set)
     _restore_instance_override: bool = False
@@ -109,7 +110,9 @@ class OwnershipService:
             async def guarded_add(entry: ConfigEntry) -> None:
                 finalizing = self._finalizing.get()
                 downstream_ref = self._downstream_add
-                downstream = downstream_ref() if downstream_ref is not None else None
+                downstream = self._strong_downstream_add or (
+                    downstream_ref() if downstream_ref is not None else None
+                )
                 try:
                     if downstream is None:
                         raise RuntimeError(
@@ -136,11 +139,12 @@ class OwnershipService:
 
         current_add = hass.config_entries.async_add
         if current_add is not self._add_guard:
-            self._downstream_add = (
-                WeakMethod(current_add)
-                if getattr(current_add, "__self__", None) is not None
-                else ref(current_add)
-            )
+            if getattr(current_add, "__self__", None) is not None:
+                self._downstream_add = WeakMethod(current_add)
+                self._strong_downstream_add = None
+            else:
+                self._downstream_add = ref(current_add)
+                self._strong_downstream_add = current_add
             self._config_entries = ref(hass.config_entries)
             self._restore_instance_override = "async_add" in vars(hass.config_entries)
             hass.config_entries.async_add = self._add_guard
@@ -154,7 +158,9 @@ class OwnershipService:
         if self._active_finalizations:
             return
         config_entries = self._config_entries() if self._config_entries else None
-        downstream = self._downstream_add() if self._downstream_add else None
+        downstream = self._strong_downstream_add or (
+            self._downstream_add() if self._downstream_add else None
+        )
         if (
             config_entries is not None
             and config_entries.async_add is self._add_guard
@@ -166,6 +172,7 @@ class OwnershipService:
                 del config_entries.async_add
         self._config_entries = None
         self._downstream_add = None
+        self._strong_downstream_add = None
 
 
 _SERVICES: WeakKeyDictionary[HomeAssistant, OwnershipService] = WeakKeyDictionary()

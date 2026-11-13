@@ -103,6 +103,85 @@ async def test_create_guard_detaches_and_handles_all_finalization_outcomes() -> 
     assert entries.async_add is blocked_add
 
 
+async def test_create_guard_keeps_inline_override_only_until_detach() -> None:
+    """B09/B10: an inline override survives GC only for active finalization."""
+    hass, entries = _synthetic_hass()
+    service = ownership_service(hass)
+    data = entry_data(dhw=True)
+    installation_id = data["installation_id"]
+    target = SimpleNamespace(unique_id=installation_id)
+
+    def install_success_override() -> weakref.ReferenceType:
+        async def inline_success(entry) -> None:
+            entries.added.append(entry.unique_id)
+
+        entries.async_add = inline_success
+        return weakref.ref(inline_success)
+
+    success_ref = install_success_override()
+    service.reserve("inline-success", data)
+    service.guard_create_finalization(hass, "inline-success", installation_id)
+    gc.collect()
+    assert success_ref() is not None
+    await entries.async_add(target)
+    assert entries.async_add is success_ref()
+    service.release("inline-success")
+    del entries.async_add
+    gc.collect()
+    assert success_ref() is None
+
+    def install_failure_override() -> weakref.ReferenceType:
+        async def inline_failure(entry) -> None:
+            raise RuntimeError("inline add failure")
+
+        entries.async_add = inline_failure
+        return weakref.ref(inline_failure)
+
+    failure_ref = install_failure_override()
+    service.reserve("inline-failure", data)
+    service.guard_create_finalization(hass, "inline-failure", installation_id)
+    gc.collect()
+    assert failure_ref() is not None
+    with pytest.raises(RuntimeError, match="inline add failure"):
+        await entries.async_add(target)
+    assert service.pending == {}
+    assert entries.async_add is failure_ref()
+    del entries.async_add
+    gc.collect()
+    assert failure_ref() is None
+
+    entered = asyncio.Event()
+    blocked = asyncio.Event()
+
+    def install_cancel_override() -> weakref.ReferenceType:
+        async def inline_cancel(entry) -> None:
+            entered.set()
+            await blocked.wait()
+
+        entries.async_add = inline_cancel
+        return weakref.ref(inline_cancel)
+
+    cancel_ref = install_cancel_override()
+
+    async def cancel_inline_finalization() -> None:
+        service.reserve("inline-cancel", data)
+        service.guard_create_finalization(hass, "inline-cancel", installation_id)
+        gc.collect()
+        assert cancel_ref() is not None
+        await entries.async_add(target)
+
+    task = asyncio.create_task(cancel_inline_finalization())
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert service.pending == {}
+    assert entries.async_add is cancel_ref()
+    del entries.async_add
+    gc.collect()
+    assert cancel_ref() is None
+
+
 async def test_create_guard_is_cross_hass_isolated_and_does_not_prevent_gc() -> None:
     """B09/B10: ownership values retain neither HA nor another HA's guard."""
     first_hass, first_entries = _synthetic_hass()
