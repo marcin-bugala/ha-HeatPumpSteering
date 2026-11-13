@@ -106,7 +106,7 @@ async def test_disabled_v2_migrates_without_registry_or_entity_states(
     original = copy.deepcopy(v2)
     entry = make_entry(data=v2, version=2)
     entry.add_to_hass(hass)
-    hass.config_entries.async_set_disabled_by(
+    await hass.config_entries.async_set_disabled_by(
         entry.entry_id, config_entries.ConfigEntryDisabler.USER
     )
 

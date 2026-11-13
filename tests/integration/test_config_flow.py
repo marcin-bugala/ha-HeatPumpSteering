@@ -399,7 +399,7 @@ async def test_disabled_config_entry_keeps_output_ownership(
     """D87/B09: disabling an entry does not release persisted outputs."""
     existing = make_entry(dhw=True)
     existing.add_to_hass(hass)
-    hass.config_entries.async_set_disabled_by(
+    await hass.config_entries.async_set_disabled_by(
         existing.entry_id, config_entries.ConfigEntryDisabler.USER
     )
     assert existing.disabled_by is config_entries.ConfigEntryDisabler.USER
@@ -998,14 +998,18 @@ async def test_registry_display_alias_does_not_merge_distinct_outputs(
         "synthetic",
         "first-output",
         suggested_object_id="first_output",
-        aliases={"Shared relay label"},
     )
     second = registry.async_get_or_create(
         "number",
         "synthetic",
         "second-output",
         suggested_object_id="second_output",
-        aliases={"Shared relay label"},
+    )
+    first = registry.async_update_entity(
+        first.entity_id, aliases={"Shared relay label"}
+    )
+    second = registry.async_update_entity(
+        second.entity_id, aliases={"Shared relay label"}
     )
     data = entry_data(co=True)
     setpoint = next(
