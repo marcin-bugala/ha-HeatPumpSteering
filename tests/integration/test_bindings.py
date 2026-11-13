@@ -6,6 +6,7 @@ import copy
 from collections.abc import Callable
 from uuid import uuid4
 
+from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -160,4 +161,102 @@ async def test_setup_reports_existing_conflict_without_setup_order_winner(
     assert second.runtime_data.ownership_conflicts
     assert first.runtime_data.co.readiness.ready
     assert second.runtime_data.co.readiness.ready
+    assert source_service_calls == []
+
+
+async def test_unloaded_reconfigure_reconciles_all_registry_bound_roles(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    source_service_calls: list,
+) -> None:
+    """B06/B10: reconfigure and restart follow registry IDs for every role."""
+    data = entry_data(co=True, dhw=True)
+    aggregate_source_ids = [str(uuid4()), str(uuid4())]
+    data["source_bindings"].extend(
+        [
+            {
+                "source_id": aggregate_source_ids[0],
+                "entity_registry_id": None,
+                "entity_id": "sensor.aggregate_one",
+                "role": "zone_temperature",
+            },
+            {
+                "source_id": aggregate_source_ids[1],
+                "entity_registry_id": None,
+                "entity_id": "sensor.aggregate_two",
+                "role": "zone_temperature",
+            },
+        ]
+    )
+    data["co"]["zones"].append(
+        {
+            "zone_id": str(uuid4()),
+            "name": "Aggregate",
+            "group_id": None,
+            "temperature_source_ids": aggregate_source_ids,
+            "source_mode": "aggregate",
+            "primary_temperature_source_id": None,
+            "target_temperature": 20.0,
+            "enabled": True,
+            "valve_output_ids": [],
+            "actuator_type": None,
+        }
+    )
+    registry = er.async_get(hass)
+    bindings = [*data["source_bindings"], *data["output_bindings"]]
+    renamed: dict[str, str] = {}
+    for index, binding in enumerate(bindings):
+        domain = binding["entity_id"].split(".", 1)[0]
+        registry_entry = registry.async_get_or_create(
+            domain,
+            "synthetic",
+            f"binding-{index}",
+            suggested_object_id=binding["entity_id"].split(".", 1)[1],
+        )
+        binding["entity_registry_id"] = registry_entry.id
+        binding["entity_id"] = registry_entry.entity_id
+        new_entity_id = f"{domain}.renamed_binding_{index}"
+        renamed[registry_entry.id] = new_entity_id
+
+    original_ids = {
+        item.get("source_id") or item.get("output_id"): (
+            item.get("binding_revision"),
+            item["entity_registry_id"],
+        )
+        for item in bindings
+    }
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    for registry_id, new_entity_id in renamed.items():
+        current = registry.async_get(registry_id)
+        assert current is not None
+        registry.async_update_entity(current.entity_id, new_entity_id=new_entity_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.flow.async_init(
+        "heat_pump_steering",
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    assert result["step_id"] == "reconfigure"
+    assert entry.data["configuration_revision"] == data["configuration_revision"] + 1
+    updated_bindings = [
+        *entry.data["source_bindings"],
+        *entry.data["output_bindings"],
+    ]
+    for binding in updated_bindings:
+        binding_id = binding.get("source_id") or binding.get("output_id")
+        revision, registry_id = original_ids[binding_id]
+        assert binding["entity_registry_id"] == registry_id
+        assert binding["entity_id"] == renamed[registry_id]
+        assert binding.get("binding_revision") == revision
+    hass.config_entries.flow.async_abort(result["flow_id"])
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    assert set(renamed.values()) <= set(entry.runtime_data.config.entity_ids)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    assert set(renamed.values()) <= set(entry.runtime_data.config.entity_ids)
     assert source_service_calls == []

@@ -14,7 +14,9 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType, InvalidData
+from homeassistant.helpers import entity_registry as er
 
+from custom_components.heat_pump_steering.bindings import ownership_service
 from custom_components.heat_pump_steering.const import DOMAIN
 
 from .conftest import entry_data, set_temperature
@@ -565,9 +567,23 @@ async def test_remove_and_recreate_same_zone_name_gets_new_uuid(
     assert source_service_calls == []
 
 
-async def _dhw_flow_at_confirm(hass: HomeAssistant, name: str) -> dict:
+async def _dhw_flow_at_confirm(
+    hass: HomeAssistant,
+    name: str,
+    *,
+    setpoint: str = "number.dhw_setpoint",
+    enable: str = "switch.dhw_enable",
+) -> dict:
     result = await _start_user(hass, co=False, dhw=True, name=name)
-    return await _configure_dhw(hass, result)
+    return await _submit(
+        hass,
+        result,
+        {
+            "setpoint_entity_id": setpoint,
+            "enable_entity_id": enable,
+            "enable_polarity": "normal",
+        },
+    )
 
 
 async def test_parallel_conflicting_finalizations_create_only_one_entry(
@@ -591,6 +607,234 @@ async def test_parallel_conflicting_finalizations_create_only_one_entry(
     assert rejected["step_id"] == "confirm"
     assert rejected["errors"] == {"base": "output_conflict"}
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+    assert source_service_calls == []
+
+
+async def test_create_reservation_spans_async_add_boundary(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+) -> None:
+    """B09: a controlled pre-add barrier cannot expose an unreserved output."""
+    first = await _dhw_flow_at_confirm(hass, "First")
+    second = await _dhw_flow_at_confirm(hass, "Second")
+    entered_add = asyncio.Event()
+    release_add = asyncio.Event()
+    original_add = hass.config_entries.async_add
+
+    async def blocked_add(entry) -> None:
+        entered_add.set()
+        await release_add.wait()
+        await original_add(entry)
+
+    monkeypatch.setattr(hass.config_entries, "async_add", blocked_add)
+    first_task = hass.async_create_task(_submit(hass, first, {"confirm": True}))
+    await entered_add.wait()
+
+    assert len(ownership_service(hass).pending) == 1
+    rejected = await _submit(hass, second, {"confirm": True})
+    assert rejected["type"] is FlowResultType.FORM
+    assert rejected["errors"] == {"base": "output_conflict"}
+
+    release_add.set()
+    created = await first_task
+    assert created["type"] is FlowResultType.CREATE_ENTRY
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+    assert ownership_service(hass).pending == {}
+    assert source_service_calls == []
+
+
+async def test_cancelled_create_releases_pending_reservation(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+) -> None:
+    """B09/B10: abort after cancelled finalization rolls back the reservation."""
+    result = await _dhw_flow_at_confirm(hass, "Cancelled")
+    entered_add = asyncio.Event()
+    never_release = asyncio.Event()
+    original_add = hass.config_entries.async_add
+
+    async def blocked_add(entry) -> None:
+        entered_add.set()
+        await never_release.wait()
+        await original_add(entry)
+
+    monkeypatch.setattr(hass.config_entries, "async_add", blocked_add)
+    task = hass.async_create_task(_submit(hass, result, {"confirm": True}))
+    await entered_add.wait()
+    assert len(ownership_service(hass).pending) == 1
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    hass.config_entries.flow.async_abort(result["flow_id"])
+
+    assert ownership_service(hass).pending == {}
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert source_service_calls == []
+
+
+async def _dhw_reconfigure_at_confirm(
+    hass: HomeAssistant,
+    entry,
+    *,
+    name: str,
+    setpoint: str,
+) -> dict:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await _submit(
+        hass,
+        result,
+        {"name": name, "enable_co": False, "enable_dhw": True},
+    )
+    return await _submit(
+        hass,
+        result,
+        {
+            "setpoint_entity_id": setpoint,
+            "enable_entity_id": "switch.dhw_enable",
+            "enable_polarity": "normal",
+        },
+    )
+
+
+async def test_parallel_reconfigure_detects_revision_change(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    source_service_calls: list,
+) -> None:
+    """B09/B10: two drafts from one revision cannot both commit."""
+    entry = make_entry(dhw=True)
+    entry.add_to_hass(hass)
+    first, second = await asyncio.gather(
+        _dhw_reconfigure_at_confirm(
+            hass, entry, name="First", setpoint="number.first_setpoint"
+        ),
+        _dhw_reconfigure_at_confirm(
+            hass, entry, name="Second", setpoint="number.second_setpoint"
+        ),
+    )
+
+    results = await asyncio.gather(
+        _submit(hass, first, {"confirm": True}),
+        _submit(hass, second, {"confirm": True}),
+    )
+    warnings = [item for item in results if item["step_id"] == "detach_warning"]
+    assert len(warnings) == 2
+    results = await asyncio.gather(
+        *(_submit(hass, item, {"confirm": True}) for item in warnings)
+    )
+
+    assert sum(item["type"] is FlowResultType.ABORT for item in results) == 1
+    rejected = next(item for item in results if item["type"] is FlowResultType.FORM)
+    assert rejected["errors"] == {"base": "configuration_changed"}
+    assert source_service_calls == []
+
+
+async def test_create_and_reconfigure_compete_for_one_new_output(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    source_service_calls: list,
+) -> None:
+    """B09: create↔reconfigure ownership is serialized by the same coordinator."""
+    entry = make_entry(dhw=True)
+    entry.add_to_hass(hass)
+    reconfigure = await _dhw_reconfigure_at_confirm(
+        hass, entry, name="Changed", setpoint="number.shared_new_setpoint"
+    )
+    reconfigure = await _submit(hass, reconfigure, {"confirm": True})
+    assert reconfigure["step_id"] == "detach_warning"
+    create = await _dhw_flow_at_confirm(
+        hass, "New", setpoint="number.shared_new_setpoint"
+    )
+
+    results = await asyncio.gather(
+        _submit(hass, reconfigure, {"confirm": True}),
+        _submit(hass, create, {"confirm": True}),
+    )
+
+    successes = [
+        item
+        for item in results
+        if item["type"] in (FlowResultType.ABORT, FlowResultType.CREATE_ENTRY)
+    ]
+    assert len(successes) == 1
+    rejected = next(item for item in results if item["type"] is FlowResultType.FORM)
+    assert rejected["errors"] == {"base": "output_conflict"}
+    assert source_service_calls == []
+
+
+async def test_unload_keeps_ownership_and_remove_releases_it(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    source_service_calls: list,
+) -> None:
+    """B04/B09: unload retains persisted ownership; entry removal releases it."""
+    entry = make_entry(dhw=True)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+    candidate = await _dhw_flow_at_confirm(hass, "Candidate")
+    rejected = await _submit(hass, candidate, {"confirm": True})
+    assert rejected["errors"] == {"base": "output_conflict"}
+
+    assert await hass.config_entries.async_remove(entry.entry_id)
+    created = await _submit(hass, rejected, {"confirm": True})
+    assert created["type"] is FlowResultType.CREATE_ENTRY
+    assert source_service_calls == []
+
+
+async def test_registry_identity_conflicts_across_old_and_current_locations(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    source_service_calls: list,
+) -> None:
+    """D87: one registry ID conflicts even when persisted locations differ."""
+    registry = er.async_get(hass)
+    registry_entry = registry.async_get_or_create(
+        "number", "synthetic", "shared-setpoint", suggested_object_id="current"
+    )
+    data = entry_data(dhw=True)
+    setpoint = next(
+        item for item in data["output_bindings"] if item["function"] == "dhw_setpoint"
+    )
+    setpoint["entity_registry_id"] = registry_entry.id
+    setpoint["entity_id"] = "number.previous_location"
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+
+    candidate = await _dhw_flow_at_confirm(
+        hass, "Candidate", setpoint=registry_entry.entity_id
+    )
+    result = await _submit(hass, candidate, {"confirm": True})
+
+    assert result["errors"] == {"base": "output_conflict"}
+    assert source_service_calls == []
+
+
+async def test_integration_owned_output_is_rejected_after_registry_resolution(
+    hass: HomeAssistant,
+    source_service_calls: list,
+) -> None:
+    """D87: an entity supplied by this integration cannot become an output."""
+    registry_entry = er.async_get(hass).async_get_or_create(
+        "switch", DOMAIN, "own-output", suggested_object_id="own_output"
+    )
+    candidate = await _dhw_flow_at_confirm(
+        hass, "Candidate", enable=registry_entry.entity_id
+    )
+    result = await _submit(hass, candidate, {"confirm": True})
+
+    assert result["errors"] == {"base": "own_output"}
     assert source_service_calls == []
 
 
@@ -677,6 +921,64 @@ async def test_confirm_false_never_saves_entry(
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "confirm"
     assert hass.config_entries.async_entries(DOMAIN) == []
+    assert source_service_calls == []
+
+
+@pytest.mark.parametrize(
+    ("configure_valves", "configure_demand", "actuator_type"),
+    [
+        (False, False, None),
+        (False, True, None),
+        (True, False, "no"),
+        (True, True, "nc"),
+    ],
+    ids=("sources-only", "demand", "valves-no", "valves-nc-and-demand"),
+)
+async def test_all_valve_and_demand_combinations(
+    hass: HomeAssistant,
+    source_service_calls: list,
+    configure_valves: bool,
+    configure_demand: bool,
+    actuator_type: str | None,
+) -> None:
+    """A01-A04/US10/US15: all optional-output combinations stay observational."""
+    result = await _start_user(hass, co=True, dhw=False)
+    co_input = {
+        "setpoint_entity_id": "number.co_setpoint",
+        "outdoor_entity_id": "sensor.outdoor_temperature",
+        "aggregation": "mean",
+        "configure_valves": configure_valves,
+        "configure_demand": configure_demand,
+        "disconnect_demand": False,
+        "demand_polarity": "inverted",
+    }
+    if configure_demand:
+        co_input["demand_entity_id"] = "switch.co_demand"
+    result = await _submit(hass, result, co_input)
+    result = await _submit(hass, result, {"action": "add_zone"})
+    zone_input = {
+        "name": "Floor",
+        "enabled": True,
+        "temperature_entity_ids": ["sensor.living_temperature"],
+        "source_mode": "primary",
+        "primary_temperature_entity_id": "sensor.living_temperature",
+        "target_temperature": 21.0,
+        "valve_polarities": "inverted" if configure_valves else "",
+        "actuator_type": actuator_type or "nc",
+    }
+    if configure_valves:
+        zone_input["valve_entity_ids"] = ["switch.zone_valve"]
+    result = await _submit(hass, result, zone_input)
+    result = await _submit(hass, result, {"action": "continue"})
+    result = await _submit(hass, result, {"confirm": True})
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    data = result["data"]
+    assert data["co"]["configure_valves"] is configure_valves
+    assert data["co"]["configure_demand"] is configure_demand
+    assert bool(data["co"]["demand_output_id"]) is configure_demand
+    assert bool(data["co"]["zones"][0]["valve_output_ids"]) is configure_valves
+    assert data["co"]["zones"][0]["actuator_type"] == actuator_type
     assert source_service_calls == []
 
 

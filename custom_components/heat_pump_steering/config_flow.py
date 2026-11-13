@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import valid_entity_id
+from homeassistant.core import callback, valid_entity_id
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 from homeassistant.helpers.translation import async_get_translations
@@ -16,6 +16,7 @@ from homeassistant.helpers.translation import async_get_translations
 from .bindings import (
     own_platform_output,
     ownership_service,
+    reconcile_registry_locations,
     registry_id_for_entity,
 )
 from .const import CONFIG_ENTRY_VERSION, CONFIG_SCHEMA_VERSION, DOMAIN
@@ -108,6 +109,11 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._approved_detach_signature: tuple[str, ...] | None = None
         self._shown_detach_signature: tuple[str, ...] | None = None
         self._reservation_token = str(uuid4())
+
+    @callback
+    def async_remove(self) -> None:
+        """Release a finalization reservation after HA finishes or aborts the flow."""
+        ownership_service(self.hass).release(self._reservation_token)
 
     def _binding(
         self, collection: str, binding_id: str | None
@@ -283,8 +289,15 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Edit the same canonical draft while preserving stable identities."""
         if self._entry is None:
             self._entry = self._get_reconfigure_entry()
-            self._draft = copy.deepcopy(dict(self._entry.data))
-            self._original_data = copy.deepcopy(dict(self._entry.data))
+            reconciled, changed = reconcile_registry_locations(
+                self.hass, self._entry.data
+            )
+            if changed:
+                self.hass.config_entries.async_update_entry(
+                    self._entry, data=reconciled
+                )
+            self._draft = copy.deepcopy(reconciled)
+            self._original_data = copy.deepcopy(reconciled)
         errors: dict[str, str] = {}
         if user_input is not None:
             had_co = "co" in self._draft
@@ -886,9 +899,6 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         service.reserve(self._reservation_token, candidate)
                         result = self.async_create_entry(
                             title=candidate["name"], data=candidate
-                        )
-                        self.hass.loop.call_soon(
-                            service.release, self._reservation_token
                         )
                         return result
         return self.async_show_form(
