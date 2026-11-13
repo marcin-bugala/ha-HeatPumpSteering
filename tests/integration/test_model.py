@@ -95,9 +95,9 @@ def test_aggregate_mode_rejects_foreign_primary_sensor() -> None:
         parse_config(data)
 
 
-@pytest.mark.parametrize("schema_version", [True, 3.0, "3", None])
+@pytest.mark.parametrize("schema_version", [True, 4.0, "4", None])
 def test_schema_version_requires_a_real_integer(schema_version: object) -> None:
-    """Persisted booleans and equivalent-looking values are not version 3."""
+    """Persisted booleans and equivalent-looking values are not version 4."""
     data = entry_data(co=True)
     data["schema_version"] = schema_version
     with pytest.raises(ConfigurationError):

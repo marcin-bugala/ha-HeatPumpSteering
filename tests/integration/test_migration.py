@@ -14,6 +14,28 @@ from custom_components.heat_pump_steering import async_migrate_entry
 from .conftest import entry_data, legacy_entry_data
 
 
+async def test_v3_migration_adds_false_marker_without_revision_change(
+    hass: HomeAssistant, make_entry: Callable
+) -> None:
+    """I04 migration preserves every I03 identity and defers Store bootstrap."""
+    v3 = entry_data(co=True, dhw=True)
+    v3["schema_version"] = 3
+    v3.pop("state_store_initialized")
+    original = copy.deepcopy(v3)
+    entry = make_entry(data=v3, version=3)
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry)
+
+    assert entry.version == 4
+    assert entry.data == {
+        **original,
+        "schema_version": 4,
+        "state_store_initialized": False,
+    }
+    assert entry.data["configuration_revision"] == 1
+
+
 async def test_v1_migration_preserves_identity_bindings_and_target(
     hass: HomeAssistant,
     make_entry: Callable,
@@ -30,8 +52,9 @@ async def test_v1_migration_preserves_identity_bindings_and_target(
     await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.LOADED
-    assert entry.version == 3
-    assert entry.data["schema_version"] == 3
+    assert entry.version == 4
+    assert entry.data["schema_version"] == 4
+    assert entry.data["state_store_initialized"] is True
     assert entry.data["installation_id"] == original["installation_id"]
     assert entry.data["co"]["circuit_id"] == original["co"]["circuit_id"]
     assert (
@@ -65,8 +88,9 @@ async def test_v2_migration_builds_canonical_bindings(
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert entry.version == 3
-    assert entry.data["schema_version"] == 3
+    assert entry.version == 4
+    assert entry.data["schema_version"] == 4
+    assert entry.data["state_store_initialized"] is True
     assert len(entry.data["source_bindings"]) == 2
     assert len(entry.data["output_bindings"]) == 3
     assert entry.runtime_data.co.mode.value == "observation"
@@ -112,7 +136,8 @@ async def test_disabled_v2_migrates_without_registry_or_entity_states(
 
     assert await async_migrate_entry(hass, entry)
     assert entry.disabled_by is config_entries.ConfigEntryDisabler.USER
-    assert entry.version == 3
+    assert entry.version == 4
+    assert entry.data["state_store_initialized"] is False
     assert entry.data["installation_id"] == original["installation_id"]
     assert entry.data["co"]["circuit_id"] == original["co"]["circuit_id"]
     assert (
@@ -163,12 +188,12 @@ async def test_future_entry_version_keeps_canonical_payload(
 ) -> None:
     """D89/B07: future data is rejected without downgrade, reset or commands."""
     future = entry_data(co=True, dhw=True)
-    future["schema_version"] = 4
+    future["schema_version"] = 5
     original = copy.deepcopy(future)
-    entry = make_entry(data=future, version=4)
+    entry = make_entry(data=future, version=5)
     entry.add_to_hass(hass)
 
     assert not await async_migrate_entry(hass, entry)
-    assert entry.version == 4
+    assert entry.version == 5
     assert dict(entry.data) == original
     assert source_service_calls == []

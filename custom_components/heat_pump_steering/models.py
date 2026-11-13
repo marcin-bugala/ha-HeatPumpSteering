@@ -1,4 +1,4 @@
-"""Typed schema-v3 installation configuration and observation runtime."""
+"""Typed schema-v4 installation configuration and observation runtime."""
 
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ class ConfigurationError(ValueError):
 
 class ModuleMode(StrEnum):
     OBSERVATION = "observation"
+    CONTROL = "control"
 
 
 class AggregationMode(StrEnum):
@@ -134,6 +135,7 @@ class InstallationConfig:
     name: str
     schema_version: int
     configuration_revision: int
+    state_store_initialized: bool
     source_bindings: tuple[SourceBinding, ...]
     output_bindings: tuple[OutputBinding, ...]
     co: CircuitConfig | None
@@ -174,6 +176,8 @@ class HeatPumpSteeringRuntime:
     config: InstallationConfig
     co: ModuleRuntime | None
     dhw: ModuleRuntime | None
+    state_store: Any | None = None
+    state_snapshot: Any | None = None
     generation: int = 0
     stopped: bool = False
     ownership_conflicts: tuple[str, ...] = ()
@@ -235,7 +239,7 @@ def _entity(value: object, domain: str, name: str) -> str:
     return value
 
 
-def _target(value: object, name: str) -> Decimal:
+def parse_target(value: object, name: str) -> Decimal:
     if isinstance(value, bool):
         raise ConfigurationError(f"{name} must be a temperature")
     try:
@@ -336,7 +340,7 @@ def _zone(value: object, index: int) -> ZoneConfig:
         temperature_source_ids=source_ids,
         source_mode=mode,
         primary_temperature_source_id=primary,
-        target_temperature=_target(
+        target_temperature=parse_target(
             data.get("target_temperature"), "target_temperature"
         ),
         enabled=_bool(data.get("enabled", True), "zone.enabled"),
@@ -403,7 +407,7 @@ def _dhw(value: object) -> DhwConfig:
 
 
 def parse_config(data: Mapping[str, Any]) -> InstallationConfig:
-    """Parse canonical schema v3 without changing the entry."""
+    """Parse canonical schema v4 without changing the entry."""
     schema_version = data.get("schema_version")
     if (
         isinstance(schema_version, bool)
@@ -483,6 +487,9 @@ def parse_config(data: Mapping[str, Any]) -> InstallationConfig:
         name=_name(data.get("name"), "name"),
         schema_version=schema_version,
         configuration_revision=revision,
+        state_store_initialized=_bool(
+            data.get("state_store_initialized"), "state_store_initialized"
+        ),
         source_bindings=sources,
         output_bindings=outputs,
         co=co,
