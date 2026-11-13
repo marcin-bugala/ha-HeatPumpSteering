@@ -178,6 +178,8 @@ async def test_create_guard_keeps_inline_override_only_until_detach() -> None:
     assert service.pending == {}
     assert entries.async_add is cancel_ref()
     del entries.async_add
+    del task
+    await asyncio.sleep(0)
     gc.collect()
     assert cancel_ref() is None
 
