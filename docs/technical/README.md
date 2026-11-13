@@ -32,23 +32,23 @@ P01–P12 zostały rozstrzygnięte przez Marcina Bugałę i zapisane jako D90–
 Domena, minimum/macierz HA, platformy encji i Lit z P12 są przyjęte.
 Pozostałe szczegóły techniczne T podlegają przeglądowi całego projektu;
 T08 ma dowód rozwiązania w scalonym I00. Aktualna dyspozycja właściciela
-i zakres I03 są w indeksie przekazań.
+i zakres I04 są w indeksie przekazań.
 
 Pierwsze kompletne wydanie nadal zawiera CO, strefy, opcjonalne zawory/demand i CWU,
 kartę, panel oraz PL/EN; warianty samo CO / samo CWU / oba. Przyszłe dwa CO
 mają miejsce w identyfikatorach, bez drugiego regulatora, prognoz, skroplin i importera.
 
-Następny odbiorca: Developer dla I03, następnie Reviewer/Tester i Tech Lead.
+Następny odbiorca: Developer dla I04, następnie Reviewer/Tester i Tech Lead.
 Autor wykonał samokontrolę, nie niezależne review; brak niezależnego review
 PR #36 pozostaje jawny. I00/I01 scalono w PR #38; ich dowody i brak formalnego
 review są w raporcie I00/I01.
 P01–P12 nie są blokerami produktowymi.
 Wyniki kontroli dokumentacyjnego commitu będą w PR; A01–A59/B01–B13 pozostają planem.
 
-## Aktualne przekazanie po I02
+## Aktualne przekazanie po I03
 
-[I03 — własność i bindingi](../development/handoffs/i03-output-ownership.md)
-ma bazę main 3068903 po PR #40. [Raport I02](../development/handoffs/i02-verification.md)
-zawiera wynik Reviewer/Tester, rozwiązanie czterech P1 i po 53 testy obu HA
-na końcowym head oraz main. I03 pozostaje obserwacyjne; konfiguracja wyjść
-nie uruchamia sterowania. Starsze handoffy są historią, nie nowym zleceniem.
+[I04 — wersjonowany Store](../development/handoffs/i04-versioned-store.md)
+ma bazę main 74f326b po PR #43. [Raport I03](../development/handoffs/i03-verification.md)
+zawiera wynik Reviewera i Testera oraz po 91 testów obu HA na końcowym head
+i main. I04 nadal nie uruchamia usług urządzeń; dodaje trwałość celów/trybów
+i protokół rewizji. Starsze handoffy są historią, nie nowym zleceniem.
