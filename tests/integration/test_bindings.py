@@ -271,11 +271,12 @@ async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """B04/B10/C13: exactly one live registry subscription survives reloads."""
-    original_listen = hass.bus.async_listen
+    bus_type = type(hass.bus)
+    original_listen = bus_type.async_listen
     live_registry_subscriptions: set[object] = set()
 
-    def tracked_listen(event_type: str, listener: Callable, *args, **kwargs):
-        unsubscribe = original_listen(event_type, listener, *args, **kwargs)
+    def tracked_listen(bus, event_type: str, listener: Callable, *args, **kwargs):
+        unsubscribe = original_listen(bus, event_type, listener, *args, **kwargs)
         if event_type != er.EVENT_ENTITY_REGISTRY_UPDATED:
             return unsubscribe
         token = object()
@@ -287,7 +288,7 @@ async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
 
         return tracked_unsubscribe
 
-    monkeypatch.setattr(hass.bus, "async_listen", tracked_listen)
+    monkeypatch.setattr(bus_type, "async_listen", tracked_listen)
     registry = er.async_get(hass)
     old_output = registry.async_get_or_create(
         "number", "synthetic", "old-output", suggested_object_id="co_setpoint"
