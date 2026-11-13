@@ -6,6 +6,7 @@ import copy
 from collections.abc import Callable
 from uuid import uuid4
 
+import pytest
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -259,4 +260,87 @@ async def test_unloaded_reconfigure_reconciles_all_registry_bound_roles(
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert await hass.config_entries.async_setup(entry.entry_id)
     assert set(renamed.values()) <= set(entry.runtime_data.config.entity_ids)
+    assert source_service_calls == []
+
+
+async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    source_service_calls: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """B04/B10/C13: reloads do not duplicate listeners or revive old bindings."""
+    registry = er.async_get(hass)
+    old_output = registry.async_get_or_create(
+        "number", "synthetic", "old-output", suggested_object_id="co_setpoint"
+    )
+    new_output = registry.async_get_or_create(
+        "number", "synthetic", "new-output", suggested_object_id="new_setpoint"
+    )
+    data = entry_data(co=True)
+    setpoint = next(
+        item for item in data["output_bindings"] if item["function"] == "co_setpoint"
+    )
+    setpoint["entity_registry_id"] = old_output.id
+    setpoint["entity_id"] = old_output.entity_id
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    assert await hass.config_entries.async_reload(entry.entry_id)
+
+    original_reload = hass.config_entries.async_reload
+    reload_calls: list[str] = []
+
+    async def counted_reload(entry_id: str) -> bool:
+        reload_calls.append(entry_id)
+        return await original_reload(entry_id)
+
+    monkeypatch.setattr(hass.config_entries, "async_reload", counted_reload)
+    registry.async_update_entity(
+        old_output.entity_id, new_entity_id="number.renamed_old_setpoint"
+    )
+    await hass.async_block_till_done()
+    assert reload_calls == [entry.entry_id]
+    assert (
+        next(
+            item
+            for item in entry.data["output_bindings"]
+            if item["function"] == "co_setpoint"
+        )["binding_revision"]
+        == 1
+    )
+
+    replacement = copy.deepcopy(dict(entry.data))
+    replacement_binding = next(
+        item
+        for item in replacement["output_bindings"]
+        if item["function"] == "co_setpoint"
+    )
+    replacement_binding.update(
+        {
+            "entity_registry_id": new_output.id,
+            "entity_id": new_output.entity_id,
+            "binding_revision": 2,
+        }
+    )
+    replacement["configuration_revision"] += 1
+    hass.config_entries.async_update_entry(entry, data=replacement)
+    assert await original_reload(entry.entry_id)
+    reload_calls.clear()
+
+    registry.async_update_entity(
+        "number.renamed_old_setpoint", new_entity_id="number.stale_old_setpoint"
+    )
+    await hass.async_block_till_done()
+    current = next(
+        item
+        for item in entry.data["output_bindings"]
+        if item["function"] == "co_setpoint"
+    )
+    assert current["entity_registry_id"] == new_output.id
+    assert current["entity_id"] == new_output.entity_id
+    assert current["binding_revision"] == 2
+    assert reload_calls == []
     assert source_service_calls == []
