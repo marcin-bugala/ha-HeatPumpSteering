@@ -64,58 +64,16 @@ wcześniej istniały encje o tych nazwach. Wyłączenie tej automatyzacji zatrzy
 zapis, ale pozostawia obliczenia i historię. Nie przywraca poprzedniej nastawy.
 **Usunięcie pakietu również pozostawia ostatnią nastawę w pompie.**
 
-## Porównanie krótszych filtrów — tryb obserwacyjny
+## Obowiązujący wariant sterowania
 
-W działającym HA moduł porównania jest zarządzany przez interfejs konfiguracji:
-dwa helpery `input_text.hp_poc_porownanie_dane` / `pamiec`, dziewięć sensorów
-Template Helper `sensor.hp_poc_porownanie_*` i automatyzacja
-`automation.ogrzewanie_poc_porownanie_filtrow_bez_sterowania`.
-Nie trzeba kopiować plików do HA ani wykonywać restartu. Nie twórz drugiej
-kopii tych samych obiektów w pakietach YAML.
+W eksploatacji pozostaje jeden regulator: średnia czasowa temperatury zewnętrznej
+2 h, mediany wnętrza 3 h i trend 12 h. Zapis CO1 oraz opcjonalny START/STOP
+realizują dotychczasowe automatyzacje z dotychczasowymi limitami i blokadami.
+Odtwarzanie historii, pamięć po restarcie i diagnostyka pozostają aktywne.
 
-Kod źródłowy obliczeń jest w `templates/shadow_observation.jinja`.
-`python tools/build_shadow.py` generuje `deploy/shadow_api.json` z pełnymi
-definicjami obiektów dla API oraz `deploy/shadow_automation.yaml` do edytora
-automatyzacji. Generator jedynie tworzy pliki lokalnie, nie łączy się z HA.
-Przy instalacji na nowej instancji utwórz najpierw `storage_helpers`, potem
-`helpers`, a na końcu `automation`, zachowując wskazane identyfikatory.
-Makro jest wklejone do jednej zmiennej automatyzacji: aktualizacja tego
-modułu nie wymaga zmiany `custom_templates` ani kodu Python integracji.
-
-Porównanie obejmuje mediany 2 h i 45 min, krótki trend 2 h oraz dwa cele CO1:
-z medianą 2 h albo dotychczasową 3 h. Oba cele porównawcze mają kontrolę
-aktualnego kierunku zmian: składnik wzrostu 12 h danej kondygnacji wchodzi
-do korekty tylko przy jej krótkim trendzie >0,03°C/h. Gdy krótkiego trendu
-brakuje, dodatkowej korekty za wzrost nie stosujemy. Obecny regulator nadal
-używa swoich niezmienionych reguł. Porównawcze cele CO1 nie są poleceniami
-zapisu i nie oznaczają zezwolenia na podwyższenie temperatury wody.
-
-Krótki trend porównuje medianę ostatnich 30 min z medianą fragmentu od
-120 do 90 min temu; różnicę dzieli przez 1,5 h. Nie jest regresją ani
-wyuczonym modelem bezwładności. Próg 0,03°C/h jest propozycją do oceny.
-Szybki START/STOP wykorzystuje medianę 45 min i te same progi komfortu,
-30 min potwierdzenia, blokadę wietrzenia, minimum 2 h stanu CO1 i 15 min
-między próbami. Sprawdza również włączenie istniejącego auto STOP.
-Nie kopiuje awaryjnego START po utracie danych; brak danych w porównaniu
-zawsze oznacza brak zalecenia. To ocena względem rzeczywistego stanu CO1,
-nie niezależna symulacja całego wirtualnego cyklu pompy.
-
-Automatyzacja co minutę ocenia istniejący bufor próbek 5-minutowych.
-Licznik rośnie wyłącznie przy nowej obserwacji, nie przy każdym renderze.
-Krótka przerwa nie dolicza offline minut; ponad 20 min przerywa potwierdzenie.
-Zmiana celu zeruje licznik. Oba JSON-y są ograniczone do 255 znaków,
-temperatury i trendy zaokrąglone, a brak danych zapisany jako `null`.
-Sensory odrzucają stan starszy niż 10 min zamiast pokazywać stare zalecenie.
-
-Jedynymi akcjami modułu są dwa `input_text.set_value` kierowane do jego
-własnej pamięci i wyniku. Nie wywołuje `number.set_value`, `switch.turn_*`,
-nie zmienia automatyzacji regulacji ani nie przejmuje sterowania CO1.
-Dashboard pokazuje nowe linie, wartości, potwierdzenia i zalecenie START/STOP.
-Historia nowych sensorów zaczyna się w chwili ich utworzenia.
-
-Cofnięcie: wyłącz automatyzację porównania i usuń z dashboardu jej linie
-i opisy. Po 10 min sensory uznają dane za nieaktualne. Pozostawienie helperów
-nie wpływa na ogrzewanie; nie wymaga usuwania encji ani historii.
+Moduł porównawczy filtrów 2 h/45 min, alternatywnych celów CO1 i krótkiego
+trendu został wycofany. Jego konfiguracje można odnaleźć w historii Git.
+Nie należy ich ponownie instalować obok obowiązującego wariantu.
 
 ## Układ dashboardu
 

@@ -5,7 +5,6 @@ from pathlib import Path
 from statistics import median
 import math
 import ast
-import json
 import unittest
 
 import yaml
@@ -108,10 +107,7 @@ class Harness:
         self.env.globals.update(states=states, now=lambda: NOW, as_timestamp=timestamp,
                                 is_number=numeric, is_state=lambda e, s: states(e) == s,
                                 state_attr=lambda e, a: data[e].attributes.get(a) if e in data else None)
-        def from_json(value, default=None):
-            try: return json.loads(value)
-            except (ValueError, TypeError): return default
-        self.env.filters['from_json'] = from_json
+
 
     def render(self, value, variables):
         if not isinstance(value, str) or not ('{{' in value or '{%' in value):
