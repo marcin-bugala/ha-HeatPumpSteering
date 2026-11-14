@@ -341,7 +341,7 @@ async def test_setup_reports_existing_conflict_without_setup_order_winner(
         title="First heat pump",
         data=first_data,
         entry_id="01M776R0KCT7S53S95NT3PB42X",
-        version=3,
+        version=4,
         unique_id=first_data["installation_id"],
     )
     second = MockConfigEntry(
@@ -349,7 +349,7 @@ async def test_setup_reports_existing_conflict_without_setup_order_winner(
         title="Second heat pump",
         data=second_data,
         entry_id="01M776R0KCT7S53S95NT3PB42Y",
-        version=3,
+        version=4,
         unique_id=second_data["installation_id"],
     )
     first.add_to_hass(hass)
@@ -548,7 +548,7 @@ async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
         }
     )
     replacement["configuration_revision"] += 1
-    hass.config_entries.async_update_entry(entry, data=replacement)
+    await entry.runtime_data.state_store.async_commit_config_change(entry, replacement)
     assert await original_reload(entry.entry_id)
     reload_calls.clear()
 

@@ -7,6 +7,7 @@
     "error": {
       "active_zone_required": "Enabled space heating requires an enabled zone.",
       "configuration_changed": "The saved configuration changed while this form was open. Start again.",
+      "state_store_error": "The saved settings could not be updated safely. Reload the integration and try again.",
       "invalid_configuration": "The complete configuration is not valid.",
       "invalid_number_entity": "Select a valid number entity.",
       "invalid_sensor_entity": "Select a valid sensor entity.",

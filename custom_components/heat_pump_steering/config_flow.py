@@ -21,6 +21,7 @@ from .bindings import (
 )
 from .const import CONFIG_ENTRY_VERSION, CONFIG_SCHEMA_VERSION, DOMAIN
 from .models import ConfigurationError, parse_config
+from .persistence import PersistenceError, StateStore
 
 _AGGREGATIONS = ["mean", "median"]
 _SOURCE_MODES = ["aggregate", "primary"]
@@ -249,6 +250,7 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._draft = {
                     "schema_version": CONFIG_SCHEMA_VERSION,
                     "configuration_revision": 1,
+                    "state_store_initialized": False,
                     "installation_id": str(uuid4()),
                     "name": user_input["name"].strip(),
                     "source_bindings": [],
@@ -287,18 +289,23 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Edit the same canonical draft while preserving stable identities."""
+        errors: dict[str, str] = {}
         if self._entry is None:
             self._entry = self._get_reconfigure_entry()
-            reconciled, changed = reconcile_registry_locations(
+            reconciled, registry_changed = reconcile_registry_locations(
                 self.hass, self._entry.data
             )
-            if changed:
-                self.hass.config_entries.async_update_entry(
-                    self._entry, data=reconciled
-                )
+            if registry_changed:
+                try:
+                    await StateStore(
+                        self.hass, self._entry.entry_id
+                    ).async_commit_config_change(self._entry, reconciled)
+                except PersistenceError:
+                    errors["base"] = "state_store_error"
+                else:
+                    reconciled = dict(self._entry.data)
             self._draft = copy.deepcopy(reconciled)
-            self._original_data = copy.deepcopy(reconciled)
-        errors: dict[str, str] = {}
+            self._original_data = copy.deepcopy(dict(self._entry.data))
         if user_input is not None:
             had_co = "co" in self._draft
             had_dhw = "dhw" in self._draft
@@ -862,6 +869,7 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 candidate["configuration_revision"] = (
                     self._original_data["configuration_revision"] + 1
                 )
+                candidate["state_store_initialized"] = True
             try:
                 parse_config(candidate)
             except ConfigurationError:
@@ -887,12 +895,20 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ):
                         errors["base"] = "own_output"
                     elif self._entry is not None:
-                        self._draft = candidate
-                        return self.async_update_reload_and_abort(
-                            self._entry,
-                            data=candidate,
-                            title=candidate["name"],
-                        )
+                        try:
+                            await StateStore(
+                                self.hass, self._entry.entry_id
+                            ).async_commit_config_change(
+                                self._entry, candidate, title=candidate["name"]
+                            )
+                        except PersistenceError:
+                            errors["base"] = "state_store_error"
+                        else:
+                            self._draft = candidate
+                            return self.async_update_reload_and_abort(
+                                self._entry,
+                                reload_even_if_entry_is_unchanged=True,
+                            )
                     else:
                         await self.async_set_unique_id(candidate["installation_id"])
                         self._abort_if_unique_id_configured()
