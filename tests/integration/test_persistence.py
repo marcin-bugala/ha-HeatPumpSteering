@@ -226,13 +226,13 @@ async def test_failed_save_is_not_published_and_fresh_store_reads_committed(
         (lambda payload: payload.update(payload_version=2), "state_store_incompatible"),
         (lambda payload: payload.update(phase="future"), "state_store_incompatible"),
         (
-            lambda payload: payload.update(installation_id=str(uuid4())),
+            lambda payload: payload.update(installation_id="not-a-uuid"),
             "state_store_invalid",
         ),
         (lambda payload: payload.pop("saved_at"), "state_store_invalid"),
         (lambda payload: payload.update(extra=True), "state_store_invalid"),
     ],
-    ids=("future-payload", "unknown-phase", "foreign", "missing", "extra"),
+    ids=("future-payload", "unknown-phase", "bad-uuid", "missing", "extra"),
 )
 def test_payload_incompatibility_is_rejected_without_repair(
     mutation: Callable[[dict[str, Any]], Any], code: str
@@ -243,6 +243,46 @@ def test_payload_incompatibility_is_rejected_without_repair(
 
     with pytest.raises(PersistenceError, match=code):
         snapshot_from_json(payload)
+
+
+async def test_foreign_installation_is_refused_at_load_without_rewrite(
+    hass: HomeAssistant,
+) -> None:
+    """D89/B07: StateStore never adopts or rewrites another installation."""
+    key = "foreign-installation"
+    foreign = StateSnapshot(
+        installation_id=uuid4(),
+        configuration_revision=1,
+        settings_revision=1,
+        settings=_snapshot().settings,
+        pending=None,
+        saved_at=datetime.now(UTC),
+    )
+    raw = snapshot_to_json(foreign)
+    storage = Store(
+        hass,
+        1,
+        f"{DOMAIN}.{key}",
+        minor_version=1,
+        atomic_writes=True,
+    )
+    await storage.async_save(raw)
+
+    with pytest.raises(PersistenceError, match="state_store_invalid"):
+        await StateStore(hass, key).async_load_or_initialize(
+            _config(initialized=True), initialized=True
+        )
+
+    assert (
+        await Store(
+            hass,
+            1,
+            f"{DOMAIN}.{key}",
+            minor_version=1,
+            atomic_writes=True,
+        ).async_load()
+        == raw
+    )
 
 
 async def test_marker_true_missing_store_fails_before_runtime(

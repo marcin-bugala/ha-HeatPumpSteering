@@ -289,14 +289,23 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Edit the same canonical draft while preserving stable identities."""
+        errors: dict[str, str] = {}
         if self._entry is None:
             self._entry = self._get_reconfigure_entry()
-            reconciled, _changed = reconcile_registry_locations(
+            reconciled, registry_changed = reconcile_registry_locations(
                 self.hass, self._entry.data
             )
+            if registry_changed:
+                try:
+                    await StateStore(
+                        self.hass, self._entry.entry_id
+                    ).async_commit_config_change(self._entry, reconciled)
+                except PersistenceError:
+                    errors["base"] = "state_store_error"
+                else:
+                    reconciled = dict(self._entry.data)
             self._draft = copy.deepcopy(reconciled)
             self._original_data = copy.deepcopy(dict(self._entry.data))
-        errors: dict[str, str] = {}
         if user_input is not None:
             had_co = "co" in self._draft
             had_dhw = "dhw" in self._draft

@@ -222,8 +222,9 @@ async def test_user_flow_creates_three_supported_variants_atomically(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     data = result["data"]
-    assert data["schema_version"] == 3
+    assert data["schema_version"] == 4
     assert data["configuration_revision"] == 1
+    assert data["state_store_initialized"] is False
     assert data["output_bindings"]
     assert ("co" in data) is co
     assert ("dhw" in data) is dhw

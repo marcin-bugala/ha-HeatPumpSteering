@@ -548,7 +548,7 @@ async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
         }
     )
     replacement["configuration_revision"] += 1
-    hass.config_entries.async_update_entry(entry, data=replacement)
+    await entry.runtime_data.state_store.async_commit_config_change(entry, replacement)
     assert await original_reload(entry.entry_id)
     reload_calls.clear()
 
