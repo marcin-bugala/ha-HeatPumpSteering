@@ -231,7 +231,7 @@ def snapshot_from_json(value: object) -> StateSnapshot:
     if not isinstance(value, Mapping) or set(value) != _ROOT_KEYS:
         raise PersistenceError()
     payload_version = value["payload_version"]
-    if isinstance(payload_version, bool) or payload_version != PAYLOAD_VERSION:
+    if type(payload_version) is not int or payload_version != PAYLOAD_VERSION:
         raise PersistenceError("state_store_incompatible")
     if value["phase"] != "committed":
         raise PersistenceError("state_store_incompatible")

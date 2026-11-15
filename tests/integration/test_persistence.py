@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -13,8 +14,10 @@ from uuid import UUID, uuid4
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers.storage import Store
 
+import custom_components.heat_pump_steering as integration
 from custom_components.heat_pump_steering.const import DOMAIN
 from custom_components.heat_pump_steering.models import ModuleMode, parse_config
 from custom_components.heat_pump_steering.persistence import (
@@ -27,7 +30,13 @@ from custom_components.heat_pump_steering.persistence import (
     snapshot_to_json,
 )
 
-from .conftest import INSTALLATION_ID, ZONE_ID, entry_data
+from .conftest import (
+    INSTALLATION_ID,
+    ZONE_ID,
+    entry_data,
+    set_number,
+    set_temperature,
+)
 
 
 def _config(*, co: bool = True, dhw: bool = False, initialized: bool = False):
@@ -171,6 +180,52 @@ async def test_module_modes_are_independent_and_noop_does_not_bump_revision(
     assert unchanged.settings_revision == 2
 
 
+async def test_persisted_control_becomes_effective_only_after_readiness(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    source_service_calls: list,
+) -> None:
+    """D24/D54: restore intent after readiness without a device command."""
+    data = entry_data(co=True, dhw=True)
+    data["state_store_initialized"] = True
+    entry = make_entry(data=data)
+    control = replace(
+        _snapshot(co=True, dhw=True),
+        settings=UserSettings(
+            zone_targets=((UUID(ZONE_ID), Decimal("22.0")),),
+            co_mode=ModuleMode.CONTROL,
+            dhw_mode=ModuleMode.CONTROL,
+        ),
+    )
+    await Store(
+        hass,
+        1,
+        f"{DOMAIN}.{entry.entry_id}",
+        minor_version=1,
+        atomic_writes=True,
+    ).async_save(snapshot_to_json(control))
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.runtime_data.state_snapshot.settings.co_mode is ModuleMode.CONTROL
+    assert entry.runtime_data.state_snapshot.settings.dhw_mode is ModuleMode.CONTROL
+    assert entry.runtime_data.co.mode is ModuleMode.OBSERVATION
+    assert entry.runtime_data.dhw.mode is ModuleMode.OBSERVATION
+
+    set_number(hass, "number.co_setpoint", "30")
+    set_temperature(hass, "sensor.outdoor_temperature", "4")
+    set_temperature(hass, "sensor.living_temperature", "20")
+    set_number(hass, "number.dhw_setpoint", "48")
+    hass.states.async_set("switch.dhw_enable", "off")
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.co.readiness.ready
+    assert entry.runtime_data.dhw.readiness.ready
+    assert entry.runtime_data.co.mode is ModuleMode.CONTROL
+    assert entry.runtime_data.dhw.mode is ModuleMode.CONTROL
+    assert source_service_calls == []
+
+
 class _LeakyStore:
     """Model HA Store's instance-local pending data before an awaited write."""
 
@@ -220,6 +275,63 @@ async def test_failed_save_is_not_published_and_fresh_store_reads_committed(
     assert restarted.settings.targets_by_zone[UUID(ZONE_ID)] == Decimal("21.0")
 
 
+async def test_structural_prepare_save_failure_changes_nothing_and_reloads_cleanly(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+) -> None:
+    """A43/B05(partial): failed prepare leaves entry/runtime/disk committed."""
+    entry = make_entry(co=True)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    runtime = entry.runtime_data
+    store = runtime.state_store
+    entry_before = copy.deepcopy(dict(entry.data))
+    snapshot_before = runtime.state_snapshot
+    raw_before = await Store(
+        hass,
+        1,
+        f"{DOMAIN}.{entry.entry_id}",
+        minor_version=1,
+        atomic_writes=True,
+    ).async_load()
+    candidate = copy.deepcopy(entry_before)
+    candidate["configuration_revision"] += 1
+    candidate["name"] = "Must not commit"
+
+    async def fail_prepare(
+        instance: StateStore, snapshot: StateSnapshot
+    ) -> StateSnapshot:
+        raise OSError("prepare failed")
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(StateStore, "_async_save", fail_prepare)
+        with pytest.raises(OSError, match="prepare failed"):
+            await store.async_commit_config_change(entry, candidate)
+
+    assert dict(entry.data) == entry_before
+    assert runtime.config.configuration_revision == 1
+    assert runtime.state_snapshot == snapshot_before
+    assert store.snapshot == snapshot_before
+    assert (
+        await Store(
+            hass,
+            1,
+            f"{DOMAIN}.{entry.entry_id}",
+            minor_version=1,
+            atomic_writes=True,
+        ).async_load()
+        == raw_before
+    )
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    assert entry.runtime_data.config.configuration_revision == 1
+    assert entry.runtime_data.state_snapshot.configuration_revision == 1
+    assert entry.runtime_data.state_snapshot.pending is None
+    assert source_service_calls == []
+
+
 @pytest.mark.parametrize(
     ("mutation", "code"),
     [
@@ -242,6 +354,18 @@ def test_payload_incompatibility_is_rejected_without_repair(
     mutation(payload)
 
     with pytest.raises(PersistenceError, match=code):
+        snapshot_from_json(payload)
+
+
+@pytest.mark.parametrize(
+    "payload_version", [True, 1.0, "1", 2], ids=("bool", "float", "string", "future")
+)
+def test_payload_version_requires_exact_integer_one(payload_version: object) -> None:
+    """D89: equality with integer one never substitutes for its JSON type."""
+    payload = snapshot_to_json(_snapshot())
+    payload["payload_version"] = payload_version
+
+    with pytest.raises(PersistenceError, match="state_store_incompatible"):
         snapshot_from_json(payload)
 
 
@@ -302,6 +426,60 @@ async def test_marker_true_missing_store_fails_before_runtime(
     assert entry.state is ConfigEntryState.SETUP_ERROR
     assert not hasattr(entry, "runtime_data")
     assert dict(entry.data) == data
+    assert source_service_calls == []
+
+
+@pytest.mark.parametrize(
+    "store_case", ["missing", "malformed", "corrupt-load"], ids=str
+)
+async def test_marker_true_invalid_store_raises_before_runtime_or_listeners(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+    store_case: str,
+) -> None:
+    """D89/B07: None or malformed public Store load cannot reset or start."""
+    data = entry_data(co=True)
+    data["state_store_initialized"] = True
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    storage = Store(
+        hass,
+        1,
+        f"{DOMAIN}.{entry.entry_id}",
+        minor_version=1,
+        atomic_writes=True,
+    )
+    raw_before: object | None = None
+    if store_case == "malformed":
+        raw_before = {"payload_version": 1, "malformed": True}
+        await storage.async_save(raw_before)
+    elif store_case == "corrupt-load":
+        raw_before = snapshot_to_json(_snapshot())
+        await storage.async_save(raw_before)
+
+    async def no_save(*args: Any, **kwargs: Any) -> StateSnapshot:
+        raise AssertionError("invalid Store must not be saved or reset")
+
+    def no_listener(*args: Any, **kwargs: Any) -> Callable[[], None]:
+        raise AssertionError("invalid Store must fail before listeners")
+
+    async def corrupt_returns_none(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(StateStore, "_async_save", no_save)
+        patcher.setattr(integration, "async_track_state_change_event", no_listener)
+        if store_case == "corrupt-load":
+            # This is the public Store contract HA uses after handling corrupt JSON.
+            patcher.setattr(Store, "async_load", corrupt_returns_none)
+        with pytest.raises(ConfigEntryError, match="state_store_(missing|invalid)"):
+            await integration.async_setup_entry(hass, entry)
+
+    assert not hasattr(entry, "runtime_data")
+    assert dict(entry.data) == data
+    assert await storage.async_load() == raw_before
     assert source_service_calls == []
 
 
@@ -447,6 +625,106 @@ async def test_zone_set_change_updates_settings_once_and_preserves_uuid_targets(
     assert result.settings.targets_by_zone == {
         UUID(ZONE_ID): Decimal("22.0"),
         UUID(new_zone_id): Decimal("19.5"),
+    }
+
+
+async def test_removed_and_recreated_zone_never_inherits_target_by_name(
+    hass: HomeAssistant, make_entry: Callable
+) -> None:
+    """B06: removal drops UUID target; same name with new UUID bootstraps anew."""
+    data = entry_data(co=True)
+    remaining_zone_id = str(uuid4())
+    remaining_source_id = str(uuid4())
+    remaining_zone = copy.deepcopy(data["co"]["zones"][0])
+    remaining_zone.update(
+        zone_id=remaining_zone_id,
+        name="Bedroom",
+        temperature_source_ids=[remaining_source_id],
+        primary_temperature_source_id=remaining_source_id,
+        target_temperature=20.0,
+    )
+    data["co"]["zones"].append(remaining_zone)
+    data["source_bindings"].append(
+        {
+            "source_id": remaining_source_id,
+            "entity_registry_id": None,
+            "entity_id": "sensor.bedroom_temperature",
+            "role": "zone_temperature",
+        }
+    )
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    store = StateStore(hass, entry.entry_id)
+    initial = await store.async_load_or_initialize(
+        parse_config(entry.data), initialized=False
+    )
+    initialized = dict(entry.data)
+    initialized["state_store_initialized"] = True
+    hass.config_entries.async_update_entry(entry, data=initialized)
+    first_changed = await store.async_set_zone_target(
+        parse_config(initialized),
+        UUID(ZONE_ID),
+        22.0,
+        expected_revision=initial.settings_revision,
+    )
+    second_changed = await store.async_set_zone_target(
+        parse_config(initialized),
+        UUID(remaining_zone_id),
+        23.0,
+        expected_revision=first_changed.settings_revision,
+    )
+
+    removed = copy.deepcopy(initialized)
+    removed["configuration_revision"] = 2
+    removed["co"]["zones"] = [
+        zone for zone in removed["co"]["zones"] if zone["zone_id"] != ZONE_ID
+    ]
+    removed["source_bindings"] = [
+        binding
+        for binding in removed["source_bindings"]
+        if binding["source_id"]
+        in {
+            item
+            for zone in removed["co"]["zones"]
+            for item in zone["temperature_source_ids"]
+        }
+        or binding["role"] != "zone_temperature"
+    ]
+    after_remove = await store.async_commit_config_change(entry, removed)
+
+    assert after_remove.settings_revision == second_changed.settings_revision + 1
+    assert after_remove.settings.targets_by_zone == {
+        UUID(remaining_zone_id): Decimal("23.0")
+    }
+
+    recreated = copy.deepcopy(dict(entry.data))
+    recreated["configuration_revision"] = 3
+    recreated_zone_id = str(uuid4())
+    recreated_source_id = str(uuid4())
+    recreated_zone = copy.deepcopy(data["co"]["zones"][0])
+    recreated_zone.update(
+        zone_id=recreated_zone_id,
+        name=data["co"]["zones"][0]["name"],
+        temperature_source_ids=[recreated_source_id],
+        primary_temperature_source_id=recreated_source_id,
+        target_temperature=19.5,
+    )
+    recreated["co"]["zones"].append(recreated_zone)
+    recreated["source_bindings"].append(
+        {
+            "source_id": recreated_source_id,
+            "entity_registry_id": None,
+            "entity_id": "sensor.recreated_living_temperature",
+            "role": "zone_temperature",
+        }
+    )
+    after_recreate = await store.async_commit_config_change(entry, recreated)
+
+    assert after_recreate.settings_revision == after_remove.settings_revision + 1
+    assert UUID(ZONE_ID) not in after_recreate.settings.targets_by_zone
+    assert after_recreate.settings.targets_by_zone == {
+        UUID(remaining_zone_id): Decimal("23.0"),
+        UUID(recreated_zone_id): Decimal("19.5"),
     }
 
 
