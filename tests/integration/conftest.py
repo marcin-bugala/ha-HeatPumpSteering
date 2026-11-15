@@ -76,8 +76,9 @@ def dhw_data() -> dict[str, Any]:
 def entry_data(*, co: bool = False, dhw: bool = False) -> dict[str, Any]:
     """Build one of the three supported ConfigEntry variants."""
     data: dict[str, Any] = {
-        "schema_version": 3,
+        "schema_version": 4,
         "configuration_revision": 1,
+        "state_store_initialized": False,
         "installation_id": INSTALLATION_ID,
         "name": "Synthetic heat pump",
         "source_bindings": [],
@@ -182,7 +183,7 @@ def make_entry() -> Callable[..., MockConfigEntry]:
         co: bool = False,
         dhw: bool = False,
         data: dict[str, Any] | None = None,
-        version: int = 3,
+        version: int = 4,
     ) -> MockConfigEntry:
         return MockConfigEntry(
             domain=DOMAIN,
