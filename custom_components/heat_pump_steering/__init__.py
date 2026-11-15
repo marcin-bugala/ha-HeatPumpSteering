@@ -24,6 +24,7 @@ from .models import (
     HeatPumpSteeringRuntime,
     ModuleMode,
     ModuleRuntime,
+    invalidate_runtime,
     parse_config,
     refresh_readiness,
 )
@@ -118,6 +119,9 @@ async def async_setup_entry(
     )
     refresh_readiness(hass, runtime)
     _restore_effective_modes(runtime, snapshot)
+    state_store.bind_snapshot_consumer(
+        lambda persisted: _restore_effective_modes(runtime, persisted)
+    )
 
     @callback
     def async_refresh(_: Event[Any]) -> None:
@@ -134,13 +138,14 @@ async def async_setup_entry(
             updated, registry_changed = reconcile_registry_locations(hass, entry.data)
             if not registry_changed or runtime.stopped:
                 return
-            runtime.generation += 1
+            invalidate_runtime(runtime)
             await state_store.async_commit_config_change(entry, updated)
-            if not runtime.stopped:
-                await hass.config_entries.async_reload(entry.entry_id)
-        except (ConfigurationError, PersistenceError):
-            if not runtime.stopped:
-                await hass.config_entries.async_reload(entry.entry_id)
+            await hass.config_entries.async_reload(entry.entry_id)
+        except asyncio.CancelledError:
+            hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+            raise
+        except (ConfigurationError, PersistenceError, OSError):
+            await hass.config_entries.async_reload(entry.entry_id)
 
     @callback
     def async_registry_updated(_: Event[Any]) -> None:
@@ -163,12 +168,9 @@ async def async_unload_entry(
 ) -> bool:
     """Stop observation and release every resource owned by this entry."""
     runtime = entry.runtime_data
-    runtime.stopped = True
-    runtime.generation += 1
-    for unsubscribe in runtime.unsubscribers:
-        unsubscribe()
-    runtime.unsubscribers.clear()
-    tasks = tuple(runtime.tasks)
+    invalidate_runtime(runtime)
+    current = asyncio.current_task()
+    tasks = tuple(task for task in runtime.tasks if task is not current)
     for task in tasks:
         task.cancel()
     if tasks:

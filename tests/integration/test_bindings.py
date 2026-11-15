@@ -18,6 +18,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.heat_pump_steering.bindings import ownership_service
+from custom_components.heat_pump_steering.models import parse_config
+from custom_components.heat_pump_steering.persistence import StateSnapshot, StateStore
 
 from .conftest import MockConfigEntry, entry_data, set_temperature
 
@@ -271,6 +273,65 @@ async def test_registry_rename_preserves_source_identity_and_binding_revision(
     assert updated_output["entity_id"] == "number.renamed_setpoint"
     assert updated_output["binding_revision"] == 1
     assert entry.data["configuration_revision"] >= 2
+    assert source_service_calls == []
+
+
+@pytest.mark.parametrize("failure", [OSError("disk"), asyncio.CancelledError()])
+async def test_registry_finalize_failure_stops_and_recovers_runtime(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+    failure: BaseException,
+) -> None:
+    """A43/B05: registry reconciliation cannot run on mixed revisions."""
+    registry = er.async_get(hass)
+    registry_entry = registry.async_get_or_create(
+        "sensor", "synthetic", "failure-outdoor", suggested_object_id="outdoor_failure"
+    )
+    data = entry_data(co=True)
+    outdoor = next(
+        item for item in data["source_bindings"] if item["role"] == "outdoor"
+    )
+    outdoor["entity_registry_id"] = registry_entry.id
+    outdoor["entity_id"] = registry_entry.entity_id
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    previous_runtime = entry.runtime_data
+    original_save = StateStore._async_save
+    saves = 0
+
+    async def fail_finalize(
+        instance: StateStore, snapshot: StateSnapshot
+    ) -> StateSnapshot:
+        nonlocal saves
+        saves += 1
+        if saves == 2:
+            raise failure
+        return await original_save(instance, snapshot)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(StateStore, "_async_save", fail_finalize)
+        registry.async_update_entity(
+            registry_entry.entity_id, new_entity_id="sensor.renamed_failure_outdoor"
+        )
+        await hass.async_block_till_done()
+
+    assert saves >= 2
+    assert previous_runtime.stopped
+    assert entry.data["configuration_revision"] == 2
+    assert entry.runtime_data is not previous_runtime
+    assert not entry.runtime_data.stopped
+    assert entry.runtime_data.config.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.pending is None
+    persisted = await StateStore(hass, entry.entry_id).async_load_or_initialize(
+        parse_config(entry.data), initialized=True
+    )
+    assert persisted.configuration_revision == 2
+    assert persisted.pending is None
     assert source_service_calls == []
 
 

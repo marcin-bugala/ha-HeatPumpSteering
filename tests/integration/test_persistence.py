@@ -226,6 +226,103 @@ async def test_persisted_control_becomes_effective_only_after_readiness(
     assert source_service_calls == []
 
 
+async def test_loaded_runtime_publishes_persisted_target_and_mode_atomically(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    source_service_calls: list,
+) -> None:
+    """D24/D25/D54: runtime and Store expose the same successful snapshot."""
+    entry = make_entry(co=True)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    runtime = entry.runtime_data
+
+    target = await runtime.state_store.async_set_zone_target(
+        runtime.config,
+        UUID(ZONE_ID),
+        22.0,
+        expected_revision=runtime.state_snapshot.settings_revision,
+    )
+    assert runtime.state_snapshot is target
+    assert runtime.state_store.snapshot is target
+    assert runtime.state_snapshot.settings.targets_by_zone[UUID(ZONE_ID)] == Decimal(
+        "22.0"
+    )
+
+    control = await runtime.state_store.async_set_module_mode(
+        runtime.config,
+        "co",
+        ModuleMode.CONTROL,
+        expected_revision=runtime.state_snapshot.settings_revision,
+    )
+    assert runtime.state_snapshot is control
+    assert runtime.state_store.snapshot is control
+    assert runtime.co.mode is ModuleMode.CONTROL
+
+    set_temperature(hass, "sensor.living_temperature", "20.5")
+    await hass.async_block_till_done()
+    assert runtime.state_snapshot is control
+    assert runtime.co.mode is ModuleMode.CONTROL
+    assert runtime.state_snapshot.settings.targets_by_zone[UUID(ZONE_ID)] == Decimal(
+        "22.0"
+    )
+    persisted = await StateStore(hass, entry.entry_id).async_load_or_initialize(
+        runtime.config, initialized=True
+    )
+    assert persisted == control
+    assert source_service_calls == []
+
+
+@pytest.mark.parametrize("operation", ["target", "mode"])
+@pytest.mark.parametrize("failure", [OSError("disk"), asyncio.CancelledError()])
+async def test_loaded_runtime_keeps_previous_snapshot_when_settings_save_fails(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+    operation: str,
+    failure: BaseException,
+) -> None:
+    """Failed/cancelled settings writes never leak into the active runtime."""
+    entry = make_entry(co=True)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    runtime = entry.runtime_data
+    before = runtime.state_snapshot
+
+    async def fail_save(instance: StateStore, snapshot: StateSnapshot) -> StateSnapshot:
+        raise failure
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(StateStore, "_async_save", fail_save)
+        with pytest.raises(type(failure)):
+            if operation == "target":
+                await runtime.state_store.async_set_zone_target(
+                    runtime.config,
+                    UUID(ZONE_ID),
+                    22.0,
+                    expected_revision=before.settings_revision,
+                )
+            else:
+                await runtime.state_store.async_set_module_mode(
+                    runtime.config,
+                    "co",
+                    ModuleMode.CONTROL,
+                    expected_revision=before.settings_revision,
+                )
+
+    assert runtime.state_snapshot is before
+    assert runtime.state_store.snapshot is before
+    assert runtime.co.mode is ModuleMode.OBSERVATION
+    set_temperature(hass, "sensor.living_temperature", "20.5")
+    await hass.async_block_till_done()
+    assert runtime.state_snapshot is before
+    assert runtime.co.mode is ModuleMode.OBSERVATION
+    assert source_service_calls == []
+
+
 class _LeakyStore:
     """Model HA Store's instance-local pending data before an awaited write."""
 

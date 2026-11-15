@@ -18,6 +18,8 @@ from homeassistant.helpers import entity_registry as er
 
 from custom_components.heat_pump_steering.bindings import ownership_service
 from custom_components.heat_pump_steering.const import DOMAIN
+from custom_components.heat_pump_steering.models import parse_config
+from custom_components.heat_pump_steering.persistence import StateSnapshot, StateStore
 
 from .conftest import entry_data, set_temperature
 
@@ -682,6 +684,60 @@ async def test_disabled_module_preserves_configuration_and_reenables_in_observat
     assert entry.data["co"] == original_co
     assert entry.runtime_data.co.enabled
     assert entry.runtime_data.co.mode.value == "observation"
+    assert source_service_calls == []
+
+
+@pytest.mark.parametrize("failure", [OSError("disk"), asyncio.CancelledError()])
+async def test_reconfigure_finalize_failure_stops_and_recovers_runtime(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+    failure: BaseException,
+) -> None:
+    """A43/B05: real reconfigure never leaves mixed revisions active."""
+    entry = make_entry(co=True)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    previous_runtime = entry.runtime_data
+    result = await _reconfigure_co_to_confirm(hass, entry, enabled=True)
+    original_save = StateStore._async_save
+    saves = 0
+
+    async def fail_finalize(
+        instance: StateStore, snapshot: StateSnapshot
+    ) -> StateSnapshot:
+        nonlocal saves
+        saves += 1
+        if saves == 2:
+            raise failure
+        return await original_save(instance, snapshot)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(StateStore, "_async_save", fail_finalize)
+        if isinstance(failure, asyncio.CancelledError):
+            with pytest.raises(asyncio.CancelledError):
+                await _submit(hass, result, {"confirm": True})
+        else:
+            failed = await _submit(hass, result, {"confirm": True})
+            assert failed["step_id"] == "confirm"
+            assert failed["errors"] == {"base": "state_store_error"}
+        await hass.async_block_till_done()
+
+    assert saves >= 2
+    assert previous_runtime.stopped
+    assert entry.data["configuration_revision"] == 2
+    assert entry.runtime_data is not previous_runtime
+    assert not entry.runtime_data.stopped
+    assert entry.runtime_data.config.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.pending is None
+    persisted = await StateStore(hass, entry.entry_id).async_load_or_initialize(
+        parse_config(entry.data), initialized=True
+    )
+    assert persisted.configuration_revision == 2
+    assert persisted.pending is None
     assert source_service_calls == []
 
 

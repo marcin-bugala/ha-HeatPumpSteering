@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 from typing import Any
 from uuid import uuid4
@@ -20,7 +21,7 @@ from .bindings import (
     registry_id_for_entity,
 )
 from .const import CONFIG_ENTRY_VERSION, CONFIG_SCHEMA_VERSION, DOMAIN
-from .models import ConfigurationError, parse_config
+from .models import ConfigurationError, invalidate_runtime, parse_config
 from .persistence import PersistenceError, StateStore
 
 _AGGREGATIONS = ["mean", "median"]
@@ -296,14 +297,31 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self.hass, self._entry.data
             )
             if registry_changed:
+                runtime = getattr(self._entry, "runtime_data", None)
+                if runtime is not None:
+                    invalidate_runtime(runtime)
                 try:
                     await StateStore(
                         self.hass, self._entry.entry_id
                     ).async_commit_config_change(self._entry, reconciled)
-                except PersistenceError:
+                except asyncio.CancelledError:
+                    if runtime is not None:
+                        self.hass.async_create_task(
+                            self.hass.config_entries.async_reload(self._entry.entry_id)
+                        )
+                    raise
+                except (PersistenceError, OSError):
+                    if runtime is not None:
+                        self.hass.async_create_task(
+                            self.hass.config_entries.async_reload(self._entry.entry_id)
+                        )
                     errors["base"] = "state_store_error"
                 else:
                     reconciled = dict(self._entry.data)
+                    if runtime is not None:
+                        self.hass.async_create_task(
+                            self.hass.config_entries.async_reload(self._entry.entry_id)
+                        )
             self._draft = copy.deepcopy(reconciled)
             self._original_data = copy.deepcopy(dict(self._entry.data))
         if user_input is not None:
@@ -895,13 +913,30 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ):
                         errors["base"] = "own_output"
                     elif self._entry is not None:
+                        runtime = getattr(self._entry, "runtime_data", None)
+                        if runtime is not None:
+                            invalidate_runtime(runtime)
                         try:
                             await StateStore(
                                 self.hass, self._entry.entry_id
                             ).async_commit_config_change(
                                 self._entry, candidate, title=candidate["name"]
                             )
-                        except PersistenceError:
+                        except asyncio.CancelledError:
+                            if runtime is not None:
+                                self.hass.async_create_task(
+                                    self.hass.config_entries.async_reload(
+                                        self._entry.entry_id
+                                    )
+                                )
+                            raise
+                        except (PersistenceError, OSError):
+                            if runtime is not None:
+                                self.hass.async_create_task(
+                                    self.hass.config_entries.async_reload(
+                                        self._entry.entry_id
+                                    )
+                                )
                             errors["base"] = "state_store_error"
                         else:
                             self._draft = candidate

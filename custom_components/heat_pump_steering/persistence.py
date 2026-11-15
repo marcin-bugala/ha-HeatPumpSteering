@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -350,7 +350,18 @@ class StateStore:
         self.hass = hass
         self.entry_id = entry_id
         self.snapshot: StateSnapshot | None = None
+        self._snapshot_consumer: Callable[[StateSnapshot], None] | None = None
         self._lock = _LOCKS.setdefault(hass, {}).setdefault(entry_id, asyncio.Lock())
+
+    def bind_snapshot_consumer(self, consumer: Callable[[StateSnapshot], None]) -> None:
+        """Publish each successfully persisted snapshot to the active runtime."""
+        self._snapshot_consumer = consumer
+
+    def _publish(self, snapshot: StateSnapshot) -> None:
+        """Atomically replace the Store and runtime views after an awaited save."""
+        self.snapshot = snapshot
+        if self._snapshot_consumer is not None:
+            self._snapshot_consumer(snapshot)
 
     def _store(self) -> Store[dict[str, Any]]:
         # A fresh instance prevents failed async_save pending data from looking durable.
@@ -381,7 +392,7 @@ class StateStore:
             snapshot = await self._async_load_or_initialize_locked(
                 config, initialized=initialized
             )
-            self.snapshot = snapshot
+            self._publish(snapshot)
             return snapshot
 
     async def _async_load_or_initialize_locked(
@@ -452,7 +463,7 @@ class StateStore:
             if zone_id not in targets:
                 raise PersistenceError()
             if targets[zone_id] == parsed_target:
-                self.snapshot = current
+                self._publish(current)
                 return current
             targets[zone_id] = parsed_target
             settings = replace(
@@ -467,7 +478,7 @@ class StateStore:
                 settings=settings,
             )
             saved = await self._async_save(updated)
-            self.snapshot = saved
+            self._publish(saved)
             return saved
 
     async def async_set_module_mode(
@@ -493,7 +504,7 @@ class StateStore:
                 raise SettingsRevisionError()
             settings = replace(current.settings, **{f"{module}_mode": mode})
             if settings == current.settings:
-                self.snapshot = current
+                self._publish(current)
                 return current
             updated = replace(
                 current,
@@ -501,7 +512,7 @@ class StateStore:
                 settings=settings,
             )
             saved = await self._async_save(updated)
-            self.snapshot = saved
+            self._publish(saved)
             return saved
 
     async def async_commit_config_change(
@@ -550,5 +561,5 @@ class StateStore:
                 pending=None,
             )
             saved = await self._async_save(finalized)
-            self.snapshot = saved
+            self._publish(saved)
             return saved

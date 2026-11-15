@@ -185,6 +185,21 @@ class HeatPumpSteeringRuntime:
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)
 
 
+def invalidate_runtime(runtime: HeatPumpSteeringRuntime) -> None:
+    """Stop callbacks and pending work before a structural persistence boundary."""
+    if runtime.stopped:
+        return
+    runtime.stopped = True
+    runtime.generation += 1
+    for unsubscribe in runtime.unsubscribers:
+        unsubscribe()
+    runtime.unsubscribers.clear()
+    current = asyncio.current_task()
+    for task in tuple(runtime.tasks):
+        if task is not current:
+            task.cancel()
+
+
 def _mapping(value: object, name: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise ConfigurationError(f"{name} must be an object")
