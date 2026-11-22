@@ -410,6 +410,33 @@ async def test_unload_cancels_registry_reconciliation_without_reload(
     assert raw["configuration_revision"] == 1
     assert raw["pending_config_change"]["from_revision"] == 1
     assert raw["pending_config_change"]["to_revision"] == 2
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(hass.config_entries, "async_reload", counted_reload)
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data is not previous_runtime
+    assert not entry.runtime_data.stopped
+    assert not entry.runtime_data.unloading
+    assert entry.data["configuration_revision"] == 2
+    assert entry.runtime_data.config.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.pending is None
+    assert len(entry.runtime_data.unsubscribers) == 2
+    assert entry.runtime_data.tasks == set()
+    assert reload_calls == []
+    recovered = await Store(
+        hass,
+        1,
+        f"{DOMAIN}.{entry.entry_id}",
+        minor_version=1,
+        atomic_writes=True,
+    ).async_load()
+    assert recovered is not None
+    assert recovered["configuration_revision"] == 2
+    assert recovered["pending_config_change"] is None
     assert source_service_calls == []
 
 
