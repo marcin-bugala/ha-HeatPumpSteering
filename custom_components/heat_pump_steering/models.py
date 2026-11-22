@@ -180,6 +180,7 @@ class HeatPumpSteeringRuntime:
     state_snapshot: Any | None = None
     generation: int = 0
     stopped: bool = False
+    unloading: bool = False
     ownership_conflicts: tuple[str, ...] = ()
     unsubscribers: list[Callable[[], None]] = field(default_factory=list)
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)

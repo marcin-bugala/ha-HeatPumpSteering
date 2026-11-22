@@ -16,8 +16,10 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.storage import Store
 
 from custom_components.heat_pump_steering.bindings import ownership_service
+from custom_components.heat_pump_steering.const import DOMAIN
 from custom_components.heat_pump_steering.models import parse_config
 from custom_components.heat_pump_steering.persistence import StateSnapshot, StateStore
 
@@ -332,6 +334,82 @@ async def test_registry_finalize_failure_stops_and_recovers_runtime(
     )
     assert persisted.configuration_revision == 2
     assert persisted.pending is None
+    assert source_service_calls == []
+
+
+async def test_unload_cancels_registry_reconciliation_without_reload(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+) -> None:
+    """Unload leaves a durable pending change for the next explicit setup."""
+    registry = er.async_get(hass)
+    registry_entry = registry.async_get_or_create(
+        "sensor", "synthetic", "unload-outdoor", suggested_object_id="unload_outdoor"
+    )
+    data = entry_data(co=True)
+    outdoor = next(
+        item for item in data["source_bindings"] if item["role"] == "outdoor"
+    )
+    outdoor["entity_registry_id"] = registry_entry.id
+    outdoor["entity_id"] = registry_entry.entity_id
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    previous_runtime = entry.runtime_data
+    original_save = StateStore._async_save
+    prepared = asyncio.Event()
+    release = asyncio.Event()
+    reload_calls: list[str] = []
+    original_reload = hass.config_entries.async_reload
+
+    async def block_after_prepare(
+        instance: StateStore, snapshot: StateSnapshot
+    ) -> StateSnapshot:
+        saved = await original_save(instance, snapshot)
+        if snapshot.pending is not None:
+            prepared.set()
+            await release.wait()
+        return saved
+
+    async def counted_reload(entry_id: str) -> bool:
+        reload_calls.append(entry_id)
+        return await original_reload(entry_id)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(StateStore, "_async_save", block_after_prepare)
+        patcher.setattr(hass.config_entries, "async_reload", counted_reload)
+        registry.async_update_entity(
+            registry_entry.entity_id, new_entity_id="sensor.unloaded_rename"
+        )
+        await prepared.wait()
+
+        assert previous_runtime.stopped
+        assert entry.data["configuration_revision"] == 1
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.NOT_LOADED
+    assert not hasattr(entry, "runtime_data")
+    assert previous_runtime.unloading
+    assert previous_runtime.stopped
+    assert previous_runtime.unsubscribers == []
+    assert previous_runtime.tasks == set()
+    assert reload_calls == []
+    assert entry.data["configuration_revision"] == 1
+    raw = await Store(
+        hass,
+        1,
+        f"{DOMAIN}.{entry.entry_id}",
+        minor_version=1,
+        atomic_writes=True,
+    ).async_load()
+    assert raw is not None
+    assert raw["configuration_revision"] == 1
+    assert raw["pending_config_change"]["from_revision"] == 1
+    assert raw["pending_config_change"]["to_revision"] == 2
     assert source_service_calls == []
 
 

@@ -142,7 +142,8 @@ async def async_setup_entry(
             await state_store.async_commit_config_change(entry, updated)
             await hass.config_entries.async_reload(entry.entry_id)
         except asyncio.CancelledError:
-            hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+            if not runtime.unloading:
+                hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
             raise
         except (ConfigurationError, PersistenceError, OSError):
             await hass.config_entries.async_reload(entry.entry_id)
@@ -168,6 +169,7 @@ async def async_unload_entry(
 ) -> bool:
     """Stop observation and release every resource owned by this entry."""
     runtime = entry.runtime_data
+    runtime.unloading = True
     invalidate_runtime(runtime)
     current = asyncio.current_task()
     tasks = tuple(task for task in runtime.tasks if task is not current)
