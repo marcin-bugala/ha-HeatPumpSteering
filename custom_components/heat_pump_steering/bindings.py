@@ -35,7 +35,7 @@ def ownership_keys(binding: Mapping[str, Any]) -> frozenset[str]:
 
 def output_keys(data: Mapping[str, Any]) -> frozenset[str]:
     """Extract output ownership keys from canonical or legacy persisted data."""
-    if data.get("schema_version") == 3:
+    if data.get("schema_version") in (3, 4):
         return frozenset(
             key
             for binding in data.get("output_bindings", [])
@@ -214,7 +214,7 @@ def _binding(
 
 
 def migrate_v2_data(hass: HomeAssistant, data: Mapping[str, Any]) -> dict[str, Any]:
-    """Build and validate one canonical schema-v3 copy from schema v2."""
+    """Build one canonical schema-v3 copy from schema v2."""
     if isinstance(data.get("schema_version"), bool) or data.get("schema_version") != 2:
         raise ConfigurationError("unsupported v2 schema_version")
     old = copy.deepcopy(dict(data))
@@ -313,6 +313,16 @@ def migrate_v2_data(hass: HomeAssistant, data: Mapping[str, Any]) -> dict[str, A
             "setpoint_output_id": setpoint["output_id"],
             "enable_output_id": enable["output_id"],
         }
+    return migrated
+
+
+def migrate_v3_data(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Add the I04 Store marker without changing structural revision."""
+    if isinstance(data.get("schema_version"), bool) or data.get("schema_version") != 3:
+        raise ConfigurationError("unsupported v3 schema_version")
+    migrated = copy.deepcopy(dict(data))
+    migrated["schema_version"] = 4
+    migrated["state_store_initialized"] = False
     parse_config(migrated)
     return migrated
 

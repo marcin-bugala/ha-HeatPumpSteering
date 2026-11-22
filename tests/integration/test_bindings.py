@@ -16,8 +16,12 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.storage import Store
 
 from custom_components.heat_pump_steering.bindings import ownership_service
+from custom_components.heat_pump_steering.const import DOMAIN
+from custom_components.heat_pump_steering.models import parse_config
+from custom_components.heat_pump_steering.persistence import StateSnapshot, StateStore
 
 from .conftest import MockConfigEntry, entry_data, set_temperature
 
@@ -274,6 +278,168 @@ async def test_registry_rename_preserves_source_identity_and_binding_revision(
     assert source_service_calls == []
 
 
+@pytest.mark.parametrize("failure", [OSError("disk"), asyncio.CancelledError()])
+async def test_registry_finalize_failure_stops_and_recovers_runtime(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+    failure: BaseException,
+) -> None:
+    """A43/B05: registry reconciliation cannot run on mixed revisions."""
+    registry = er.async_get(hass)
+    registry_entry = registry.async_get_or_create(
+        "sensor", "synthetic", "failure-outdoor", suggested_object_id="outdoor_failure"
+    )
+    data = entry_data(co=True)
+    outdoor = next(
+        item for item in data["source_bindings"] if item["role"] == "outdoor"
+    )
+    outdoor["entity_registry_id"] = registry_entry.id
+    outdoor["entity_id"] = registry_entry.entity_id
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    previous_runtime = entry.runtime_data
+    original_save = StateStore._async_save
+    saves = 0
+
+    async def fail_finalize(
+        instance: StateStore, snapshot: StateSnapshot
+    ) -> StateSnapshot:
+        nonlocal saves
+        saves += 1
+        if saves == 2:
+            raise failure
+        return await original_save(instance, snapshot)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(StateStore, "_async_save", fail_finalize)
+        registry.async_update_entity(
+            registry_entry.entity_id, new_entity_id="sensor.renamed_failure_outdoor"
+        )
+        await hass.async_block_till_done()
+
+    assert saves >= 2
+    assert previous_runtime.stopped
+    assert entry.data["configuration_revision"] == 2
+    assert entry.runtime_data is not previous_runtime
+    assert not entry.runtime_data.stopped
+    assert entry.runtime_data.config.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.pending is None
+    persisted = await StateStore(hass, entry.entry_id).async_load_or_initialize(
+        parse_config(entry.data), initialized=True
+    )
+    assert persisted.configuration_revision == 2
+    assert persisted.pending is None
+    assert source_service_calls == []
+
+
+async def test_unload_cancels_registry_reconciliation_without_reload(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    monkeypatch: pytest.MonkeyPatch,
+    source_service_calls: list,
+) -> None:
+    """Unload leaves a durable pending change for the next explicit setup."""
+    registry = er.async_get(hass)
+    registry_entry = registry.async_get_or_create(
+        "sensor", "synthetic", "unload-outdoor", suggested_object_id="unload_outdoor"
+    )
+    data = entry_data(co=True)
+    outdoor = next(
+        item for item in data["source_bindings"] if item["role"] == "outdoor"
+    )
+    outdoor["entity_registry_id"] = registry_entry.id
+    outdoor["entity_id"] = registry_entry.entity_id
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    previous_runtime = entry.runtime_data
+    original_save = StateStore._async_save
+    prepared = asyncio.Event()
+    release = asyncio.Event()
+    reload_calls: list[str] = []
+    original_reload = hass.config_entries.async_reload
+
+    async def block_after_prepare(
+        instance: StateStore, snapshot: StateSnapshot
+    ) -> StateSnapshot:
+        saved = await original_save(instance, snapshot)
+        if snapshot.pending is not None:
+            prepared.set()
+            await release.wait()
+        return saved
+
+    async def counted_reload(entry_id: str) -> bool:
+        reload_calls.append(entry_id)
+        return await original_reload(entry_id)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(StateStore, "_async_save", block_after_prepare)
+        patcher.setattr(hass.config_entries, "async_reload", counted_reload)
+        registry.async_update_entity(
+            registry_entry.entity_id, new_entity_id="sensor.unloaded_rename"
+        )
+        await prepared.wait()
+
+        assert previous_runtime.stopped
+        assert entry.data["configuration_revision"] == 1
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.NOT_LOADED
+    assert not hasattr(entry, "runtime_data")
+    assert previous_runtime.unloading
+    assert previous_runtime.stopped
+    assert previous_runtime.unsubscribers == []
+    assert previous_runtime.tasks == set()
+    assert reload_calls == []
+    assert entry.data["configuration_revision"] == 1
+    raw = await Store(
+        hass,
+        1,
+        f"{DOMAIN}.{entry.entry_id}",
+        minor_version=1,
+        atomic_writes=True,
+    ).async_load()
+    assert raw is not None
+    assert raw["configuration_revision"] == 1
+    assert raw["pending_config_change"]["from_revision"] == 1
+    assert raw["pending_config_change"]["to_revision"] == 2
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(hass.config_entries, "async_reload", counted_reload)
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data is not previous_runtime
+    assert not entry.runtime_data.stopped
+    assert not entry.runtime_data.unloading
+    assert entry.data["configuration_revision"] == 2
+    assert entry.runtime_data.config.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.configuration_revision == 2
+    assert entry.runtime_data.state_snapshot.pending is None
+    assert len(entry.runtime_data.unsubscribers) == 2
+    assert entry.runtime_data.tasks == set()
+    assert reload_calls == []
+    recovered = await Store(
+        hass,
+        1,
+        f"{DOMAIN}.{entry.entry_id}",
+        minor_version=1,
+        atomic_writes=True,
+    ).async_load()
+    assert recovered is not None
+    assert recovered["configuration_revision"] == 2
+    assert recovered["pending_config_change"] is None
+    assert source_service_calls == []
+
+
 async def test_removed_registry_identity_does_not_adopt_same_entity_id(
     hass: HomeAssistant,
     make_entry: Callable,
@@ -341,7 +507,7 @@ async def test_setup_reports_existing_conflict_without_setup_order_winner(
         title="First heat pump",
         data=first_data,
         entry_id="01M776R0KCT7S53S95NT3PB42X",
-        version=3,
+        version=4,
         unique_id=first_data["installation_id"],
     )
     second = MockConfigEntry(
@@ -349,7 +515,7 @@ async def test_setup_reports_existing_conflict_without_setup_order_winner(
         title="Second heat pump",
         data=second_data,
         entry_id="01M776R0KCT7S53S95NT3PB42Y",
-        version=3,
+        version=4,
         unique_id=second_data["installation_id"],
     )
     first.add_to_hass(hass)
@@ -548,7 +714,7 @@ async def test_reloads_keep_one_registry_listener_and_ignore_replaced_identity(
         }
     )
     replacement["configuration_revision"] += 1
-    hass.config_entries.async_update_entry(entry, data=replacement)
+    await entry.runtime_data.state_store.async_commit_config_change(entry, replacement)
     assert await original_reload(entry.entry_id)
     reload_calls.clear()
 

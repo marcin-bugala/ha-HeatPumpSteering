@@ -50,7 +50,7 @@ async def test_supported_variants_start_ready_in_observation(
     await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.LOADED
-    assert dict(entry.data) == original
+    assert dict(entry.data) == {**original, "state_store_initialized": True}
     assert entry.runtime_data.config.installation_id == UUID(INSTALLATION_ID)
     assert (entry.runtime_data.co is not None) is co
     assert (entry.runtime_data.dhw is not None) is dhw
@@ -66,11 +66,11 @@ async def test_supported_variants_start_ready_in_observation(
 @pytest.mark.parametrize(
     ("data", "version", "expected_state"),
     [
-        (entry_data(), 3, ConfigEntryState.SETUP_ERROR),
-        (entry_data(co=True), 4, ConfigEntryState.MIGRATION_ERROR),
+        (entry_data(), 4, ConfigEntryState.SETUP_ERROR),
+        (entry_data(co=True), 5, ConfigEntryState.MIGRATION_ERROR),
         (
-            {**entry_data(co=True), "schema_version": 4},
-            3,
+            {**entry_data(co=True), "schema_version": 5},
+            4,
             ConfigEntryState.SETUP_ERROR,
         ),
         (
@@ -82,7 +82,7 @@ async def test_supported_variants_start_ready_in_observation(
                     if key != "setpoint_output_id"
                 },
             },
-            3,
+            4,
             ConfigEntryState.SETUP_ERROR,
         ),
         (
@@ -90,7 +90,7 @@ async def test_supported_variants_start_ready_in_observation(
                 **entry_data(co=True),
                 "co": {**entry_data(co=True)["co"], "zones": []},
             },
-            3,
+            4,
             ConfigEntryState.SETUP_ERROR,
         ),
     ],
