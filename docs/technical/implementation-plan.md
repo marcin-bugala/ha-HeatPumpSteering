@@ -2,10 +2,12 @@
 
 Po scaleniu PR #36 i jawnej dyspozycji właściciela przejścia do kroku 3
 konkretne zlecenia określa [indeks przekazań](../development/handoffs/README.md).
-I00/I01 scalono w PR #38, I02 w PR #40, I03 w PR #42/#43; aktualny handoff to
-[I04](../development/handoffs/i04-versioned-store.md) na main 74f326b.
-[Raport I03](../development/handoffs/i03-verification.md) wiąże zaakceptowane
-review, testy i CI z końcowym SHA. Dalsze pakiety wymagają osobnego handoffu.
+I00/I01 scalono w PR #38, I02 w PR #40, I03 w PR #42/#43, I04 w PR #45,
+I05 w PR #47 i I06 w PR #48. Aktualne przekazanie to
+[I07](../development/handoffs/i07-zone-decisions.md) na main 626c5b5.
+[Zapis I06](../development/handoffs/i06-verification.md) określa wykonanie,
+wyniki testów i brak dostępnego pełnego raportu niezależnego review.
+Dalsze pakiety wymagają osobnego przekazania.
 Baza analizy main: 6891b473a646c3d9e0783edf6cd437eb27a9b758.
 Gałęzie każdego pakietu od aktualnego origin/main po scaleniu zależności.
 Każdy PR do main, bez auto-merge, deploy i automatycznego zamykania US.
@@ -20,8 +22,8 @@ w indeksie przekazań. Nie utożsamiamy samego merge z wynikiem testu produktu.
 Podstawa przejścia do wykonania i brak niezależnego review są zapisane
 w indeksie przekazań; decyzję właściciela wiążemy z konkretną bazą SHA.
 T08 ma dowód rozwiązania w I00; I01 ma pełny CI w PR #38 i na main.
-Dla I04 obowiązuje baza 74f326b, raport odbioru I03 i warunki nowego handoffu.
-I00–I03 nie należy wykonywać ponownie.
+Dla I07 obowiązuje baza zawierająca I06, zapis jego weryfikacji i warunki nowego przekazania.
+I00–I06 nie należy wykonywać ponownie bez konkretnej usterki.
 Tech Lead wpisuje zatwierdzony SHA oraz link odpowiedzi właściciela w handoff.
 Treść wymagań i powiązanych Issues zsynchronizowana; bez nowych statusów w docs.
 Developer odświeża main, czyta Issue z komentarzami, sprawdza instrukcje i
