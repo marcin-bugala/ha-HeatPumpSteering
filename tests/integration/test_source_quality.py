@@ -332,6 +332,10 @@ async def test_rename_identity_and_unload_remove_old_observers(
     first = entry.runtime_data
     assert first.source_quality.temperatures[UUID(OUTDOOR_SOURCE_ID)].value == 4
     first_timer, first_deadline = timers[0]
+    outdoor_id = UUID(OUTDOOR_SOURCE_ID)
+    hass.states.async_set(OUTDOOR, "4.1", CELSIUS)
+    await hass.async_block_till_done()
+    (before_rename,) = first.history.source_samples(outdoor_id)
 
     renamed = "sensor.renamed_temperature"
     registry.async_update_entity(OUTDOOR, new_entity_id=renamed)
@@ -343,6 +347,10 @@ async def test_rename_identity_and_unload_remove_old_observers(
     hass.states.async_set(OUTDOOR, "999", CELSIUS)
     await hass.async_block_till_done()
     assert current.source_quality.temperatures[UUID(OUTDOOR_SOURCE_ID)].value == 3
+    renamed_samples = current.history.source_samples(outdoor_id)
+    assert renamed_samples[0].at == before_rename.at
+    assert renamed_samples[0].value == before_rename.value
+    assert [sample.value for sample in renamed_samples] == [4.1, None, 3]
     first_source_quality = first.source_quality
     first_timer(first_deadline)
     assert first.source_quality is first_source_quality
