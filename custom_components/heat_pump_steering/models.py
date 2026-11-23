@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from homeassistant.core import HomeAssistant, State
@@ -27,9 +27,12 @@ from .source_quality import (
     read_temperature,
 )
 
+if TYPE_CHECKING:
+    from .history import HistoryRuntime
+
 _ENTITY_ID = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
-_OUTDOOR_MAX_AGE = timedelta(minutes=30)
-_ZONE_MAX_AGE = timedelta(minutes=120)
+OUTDOOR_MAX_AGE = timedelta(minutes=30)
+ZONE_MAX_AGE = timedelta(minutes=120)
 
 
 class ConfigurationError(ValueError):
@@ -105,12 +108,19 @@ class ZoneConfig:
     valve_output_ids: tuple[UUID, ...]
     actuator_type: ActuatorType | None
 
-    @property
-    def observed_source_ids(self) -> tuple[UUID, ...]:
-        if self.source_mode is ZoneSourceMode.PRIMARY:
-            assert self.primary_temperature_source_id is not None
+    def selected_source_ids(self, valid_sources: Collection[UUID]) -> tuple[UUID, ...]:
+        """Use the primary while it is valid, otherwise use the valid remainder."""
+        if (
+            self.source_mode is ZoneSourceMode.PRIMARY
+            and self.primary_temperature_source_id is not None
+            and self.primary_temperature_source_id in valid_sources
+        ):
             return (self.primary_temperature_source_id,)
-        return self.temperature_source_ids
+        return tuple(
+            source_id
+            for source_id in self.temperature_source_ids
+            if source_id in valid_sources
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +195,7 @@ class HeatPumpSteeringRuntime:
     state_store: Any | None = None
     state_snapshot: Any | None = None
     source_quality: SourceQualitySnapshot | None = None
+    history: HistoryRuntime | None = None
     generation: int = 0
     stopped: bool = False
     unloading: bool = False
@@ -551,7 +562,7 @@ def refresh_readiness(
     next_expiry = None
     outdoor_id = config.co.outdoor_source_id if config.co else None
     for binding in config.source_bindings:
-        max_age = _OUTDOOR_MAX_AGE if binding.source_id == outdoor_id else _ZONE_MAX_AGE
+        max_age = OUTDOOR_MAX_AGE if binding.source_id == outdoor_id else ZONE_MAX_AGE
         reading = read_temperature(
             binding.source_id,
             binding.entity_id,
@@ -588,6 +599,11 @@ def refresh_readiness(
 
     zone_counts = {}
     if (co := config.co) and runtime.co:
+        valid_sources = {
+            source_id
+            for source_id, reading in temperatures.items()
+            if reading.issue is None
+        }
         reasons = [
             setpoint_reason(co.setpoint_output_id),
             temperatures[co.outdoor_source_id].reason,
@@ -595,18 +611,16 @@ def refresh_readiness(
         for zone in co.zones:
             zone_counts[zone.zone_id] = ZoneSourceCount(
                 sum(
-                    temperatures[source_id].issue is None
+                    source_id in valid_sources
                     for source_id in zone.temperature_source_ids
                 ),
                 len(zone.temperature_source_ids),
             )
-            if not zone.enabled:
-                continue
-            zone_reasons = [
-                temperatures[source_id].reason for source_id in zone.observed_source_ids
-            ]
-            if all(zone_reasons):
-                reasons.extend(zone_reasons)
+            if zone.enabled and not zone.selected_source_ids(valid_sources):
+                reasons.extend(
+                    temperatures[source_id].reason
+                    for source_id in zone.temperature_source_ids
+                )
         runtime.co.readiness = _readiness(reasons, co.enabled)
 
     if (dhw := config.dhw) and runtime.dhw:
@@ -628,4 +642,6 @@ def refresh_readiness(
     )
     if snapshot != runtime.source_quality:
         runtime.source_quality = snapshot
+        if runtime.history is not None:
+            runtime.history.set_current(snapshot.temperatures)
     return next_expiry
