@@ -7,7 +7,6 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
-from homeassistant.const import EVENT_STATE_CHANGED, EVENT_STATE_REPORTED
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
 
@@ -161,6 +160,7 @@ async def test_real_reports_and_expiry_do_not_create_new_timestamps(
     outdoor_id = UUID(OUTDOOR_SOURCE_ID)
     indoor_id = UUID(ZONE_SOURCE_ID)
     assert runtime.source_quality.temperatures[outdoor_id].ha_reported_at == START
+    initial_last_changed = hass.states.get(OUTDOOR).last_changed
 
     first = START + timedelta(minutes=30, microseconds=1)
     assert set(scheduled) == {first}
@@ -171,9 +171,13 @@ async def test_real_reports_and_expiry_do_not_create_new_timestamps(
     assert runtime.source_quality is previous
     assert runtime.co.readiness.ready
 
+    report(hass, DHW_ENABLE, "on", {}, now)
+    await hass.async_block_till_done()
+    assert runtime.co.readiness.ready
+
     report(hass, OUTDOOR, "4", CELSIUS, now)
     await hass.async_block_till_done()
-    assert hass.states.get(OUTDOOR).last_changed == START
+    assert hass.states.get(OUTDOOR).last_changed == initial_last_changed
     assert runtime.source_quality.temperatures[outdoor_id].ha_reported_at == now
     after_report = runtime.source_quality
     report(hass, OUTDOOR, "4", CELSIUS, now)
@@ -200,6 +204,8 @@ async def test_real_reports_and_expiry_do_not_create_new_timestamps(
     assert quality.temperatures[indoor_id].issue is None
 
     now = START + timedelta(minutes=120)
+    report(hass, DHW_ENABLE, "off", {}, now)
+    await hass.async_block_till_done()
     assert runtime.source_quality.temperatures[indoor_id].issue is None
     now += timedelta.resolution
     scheduled.pop(now)(now)
@@ -285,28 +291,47 @@ async def test_rename_identity_and_unload_remove_old_observers(
 ) -> None:
     """B04/B06: late timer and replacement cannot publish to an old binding."""
     registry = er.async_get(hass)
+    hass.states.async_remove(OUTDOOR)
     item = registry.async_get_or_create(
         "sensor", "synthetic", "outdoor", suggested_object_id="outdoor_temperature"
     )
     assert item.entity_id == OUTDOOR
+    hass.states.async_set(OUTDOOR, "4", CELSIUS)
     data = entry_data(co=True)
     data["source_bindings"][0]["entity_registry_id"] = item.id
-    tracked = []
-    actual_track = integration.async_track_point_in_utc_time
+    timers = []
+    active = {"changed": set(), "reported": set(), "expiry": set()}
 
-    def capture(hass_arg, action, deadline):
-        cancel = actual_track(hass_arg, action, deadline)
-        tracked.append((action, deadline))
-        return cancel
+    def capture(name, helper):
+        def subscribe(hass_arg, arg, other):
+            cancel = helper(hass_arg, arg, other)
+            marker = object()
+            active[name].add(marker)
+            if name == "expiry":
+                timers.append((arg, other))
 
-    monkeypatch.setattr(integration, "async_track_point_in_utc_time", capture)
-    baseline = hass.bus.async_listeners()
+            def unsubscribe():
+                active[name].remove(marker)
+                cancel()
+
+            return unsubscribe
+
+        return subscribe
+
+    for name, helper in (
+        ("changed", "async_track_state_change_event"),
+        ("reported", "async_track_state_report_event"),
+        ("expiry", "async_track_point_in_utc_time"),
+    ):
+        monkeypatch.setattr(
+            integration, helper, capture(name, getattr(integration, helper))
+        )
     entry = make_entry(data=data)
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     first = entry.runtime_data
     assert first.source_quality.temperatures[UUID(OUTDOOR_SOURCE_ID)].value == 4
-    first_timer, first_deadline = tracked[0]
+    first_timer, first_deadline = timers[0]
 
     renamed = "sensor.renamed_temperature"
     registry.async_update_entity(OUTDOOR, new_entity_id=renamed)
@@ -323,10 +348,12 @@ async def test_rename_identity_and_unload_remove_old_observers(
     assert first.source_quality is first_source_quality
 
     registry.async_remove(renamed)
+    hass.states.async_remove(renamed)
     replacement = registry.async_get_or_create(
         "sensor", "synthetic", "replacement", suggested_object_id="renamed_temperature"
     )
     assert replacement.id != item.id
+    assert replacement.entity_id == renamed
     hass.states.async_set(replacement.entity_id, "999", CELSIUS)
     await hass.async_block_till_done()
     reading = entry.runtime_data.source_quality.temperatures[UUID(OUTDOOR_SOURCE_ID)]
@@ -335,17 +362,17 @@ async def test_rename_identity_and_unload_remove_old_observers(
     for _ in range(2):
         assert await hass.config_entries.async_reload(entry.entry_id)
         await hass.async_block_till_done()
-        listeners = hass.bus.async_listeners()
-        for event in (EVENT_STATE_CHANGED, EVENT_STATE_REPORTED):
-            assert listeners[event] == baseline.get(event, 0) + 1
+        assert {name: len(items) for name, items in active.items()} == {
+            "changed": 1,
+            "reported": 1,
+            "expiry": 1,
+        }
     last = entry.runtime_data
     last_snapshot = last.source_quality
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
-    listeners = hass.bus.async_listeners()
-    for event in (EVENT_STATE_CHANGED, EVENT_STATE_REPORTED):
-        assert listeners.get(event, 0) == baseline.get(event, 0)
-    for action, deadline in tracked:
+    assert not any(active.values())
+    for action, deadline in timers:
         action(deadline)
     assert last.source_quality is last_snapshot
     assert source_service_calls == []
@@ -374,5 +401,29 @@ async def test_disabled_co_keeps_telemetry_without_affecting_dhw(
     assert reading.issue is ReadingIssue.INVALID_UNIT
     assert reading.value is None
     assert runtime.co.readiness.reasons == ("module_disabled",)
+    assert runtime.dhw.readiness.ready
+    assert source_service_calls == []
+
+
+async def test_legacy_binding_metadata_cannot_crash_readiness(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+    source_service_calls: list,
+) -> None:
+    """Older schema-v4 entries may have unexpected role or adapter metadata."""
+    data = entry_data(co=True, dhw=True)
+    data["source_bindings"][0]["role"] = "custom_label"
+    data["output_bindings"][0].update(
+        entity_id="switch.wrong_setpoint", adapter="switch", polarity="normal"
+    )
+    hass.states.async_set("switch.wrong_setpoint", "on")
+    entry = make_entry(data=data)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    runtime = entry.runtime_data
+    assert runtime.source_quality.temperatures[UUID(OUTDOOR_SOURCE_ID)].value == 4
+    assert runtime.source_quality.switches[UUID(CO_SETPOINT_OUTPUT_ID)].value is True
+    assert runtime.co.readiness.reasons == ("invalid_value:switch.wrong_setpoint",)
     assert runtime.dhw.readiness.ready
     assert source_service_calls == []

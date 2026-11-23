@@ -28,10 +28,8 @@ from .source_quality import (
 )
 
 _ENTITY_ID = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
-_SOURCE_MAX_AGE = {
-    "outdoor": timedelta(minutes=30),
-    "zone_temperature": timedelta(minutes=120),
-}
+_OUTDOOR_MAX_AGE = timedelta(minutes=30)
+_ZONE_MAX_AGE = timedelta(minutes=120)
 
 
 class ConfigurationError(ValueError):
@@ -551,8 +549,9 @@ def refresh_readiness(
     config = runtime.config
     temperatures: dict[UUID, Reading[float]] = {}
     next_expiry = None
+    outdoor_id = config.co.outdoor_source_id if config.co else None
     for binding in config.source_bindings:
-        max_age = _SOURCE_MAX_AGE[binding.role]
+        max_age = _OUTDOOR_MAX_AGE if binding.source_id == outdoor_id else _ZONE_MAX_AGE
         reading = read_temperature(
             binding.source_id,
             binding.entity_id,
@@ -580,10 +579,17 @@ def refresh_readiness(
                 output.output_id, output.entity_id, state
             )
 
+    outputs = config.outputs_by_id
+
+    def setpoint_reason(output_id: UUID) -> str | None:
+        if (reading := numbers.get(output_id)) is not None:
+            return reading.readiness_reason
+        return f"invalid_value:{outputs[output_id].entity_id}"
+
     zone_counts = {}
     if (co := config.co) and runtime.co:
         reasons = [
-            numbers[co.setpoint_output_id].readiness_reason,
+            setpoint_reason(co.setpoint_output_id),
             temperatures[co.outdoor_source_id].reason,
         ]
         for zone in co.zones:
@@ -606,8 +612,10 @@ def refresh_readiness(
     if (dhw := config.dhw) and runtime.dhw:
         runtime.dhw.readiness = _readiness(
             [
-                numbers[dhw.setpoint_output_id].readiness_reason,
-                switches[dhw.enable_output_id].reason,
+                setpoint_reason(dhw.setpoint_output_id),
+                enable.reason
+                if (enable := switches.get(dhw.enable_output_id)) is not None
+                else f"invalid_value:{outputs[dhw.enable_output_id].entity_id}",
             ],
             dhw.enabled,
         )
