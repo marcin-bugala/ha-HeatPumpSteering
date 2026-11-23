@@ -3,13 +3,26 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import (
+    Event,
+    EventStateChangedData,
+    EventStateReportedData,
+    HomeAssistant,
+    callback,
+)
 from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_track_point_in_utc_time,
+    async_track_state_change_event,
+    async_track_state_report_event,
+)
+from homeassistant.util import dt as dt_util
 
 from .bindings import (
     entry_conflicts,
@@ -117,19 +130,74 @@ async def async_setup_entry(
         state_snapshot=snapshot,
         ownership_conflicts=entry_conflicts(hass, entry),
     )
-    refresh_readiness(hass, runtime)
-    _restore_effective_modes(runtime, snapshot)
-    state_store.bind_snapshot_consumer(
-        lambda persisted: _restore_effective_modes(runtime, persisted)
+    generation = runtime.generation
+    cancel_expiry: Callable[[], None] | None = None
+    scheduled_expiry: datetime | None = None
+    timer_revision = 0
+
+    @callback
+    def async_refresh() -> None:
+        nonlocal cancel_expiry, scheduled_expiry, timer_revision
+        if runtime.stopped or generation != runtime.generation:
+            return
+        expires = refresh_readiness(hass, runtime, now=dt_util.utcnow())
+        _restore_effective_modes(runtime, runtime.state_snapshot)
+        if expires == scheduled_expiry:
+            return
+        if cancel_expiry is not None:
+            cancel_expiry()
+        scheduled_expiry = expires
+        cancel_expiry = None
+        timer_revision += 1
+        revision = timer_revision
+        if expires is None:
+            return
+
+        @callback
+        def async_expire(_: datetime) -> None:
+            nonlocal cancel_expiry, scheduled_expiry
+            if runtime.stopped or revision != timer_revision:
+                return
+            cancel_expiry = None
+            scheduled_expiry = None
+            async_refresh()
+
+        cancel_expiry = async_track_point_in_utc_time(hass, async_expire, expires)
+
+    @callback
+    def async_state_changed(_: Event[EventStateChangedData]) -> None:
+        async_refresh()
+
+    @callback
+    def async_state_reported(event: Event[EventStateReportedData]) -> None:
+        data = event.data
+        current = hass.states.get(data["entity_id"])
+        # Core mutates last_reported on an unchanged State. A superseded
+        # event must not republish its timestamp over the current report.
+        if (
+            current is data["new_state"]
+            and current.last_reported == data["last_reported"]
+        ):
+            async_refresh()
+
+    unsubscribe_changed = async_track_state_change_event(
+        hass, config.entity_ids, async_state_changed
+    )
+    unsubscribe_reported = async_track_state_report_event(
+        hass, config.entity_ids, async_state_reported
     )
 
     @callback
-    def async_refresh(_: Event[Any]) -> None:
-        refresh_readiness(hass, runtime)
-        _restore_effective_modes(runtime, runtime.state_snapshot)
+    def async_stop_observation() -> None:
+        unsubscribe_changed()
+        unsubscribe_reported()
+        if cancel_expiry is not None:
+            cancel_expiry()
 
-    runtime.unsubscribers.append(
-        async_track_state_change_event(hass, config.entity_ids, async_refresh)
+    runtime.unsubscribers.append(async_stop_observation)
+    async_refresh()
+    state_store.bind_snapshot_consumer(
+        lambda persisted: _restore_effective_modes(runtime, persisted)
     )
 
     async def async_reconcile_registry() -> None:
@@ -150,7 +218,7 @@ async def async_setup_entry(
 
     @callback
     def async_registry_updated(_: Event[Any]) -> None:
-        refresh_readiness(hass, runtime)
+        async_refresh()
         if runtime.stopped:
             return
         task = hass.async_create_task(async_reconcile_registry())
