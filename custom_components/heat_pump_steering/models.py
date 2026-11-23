@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 from collections.abc import Callable, Collection, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -15,6 +16,7 @@ from uuid import UUID
 
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from .const import CONFIG_SCHEMA_VERSION
 from .source_quality import (
@@ -28,6 +30,8 @@ from .source_quality import (
 )
 
 if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+
     from .history import HistoryRuntime
 
 _ENTITY_ID = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
@@ -75,6 +79,10 @@ class SourceBinding:
     entity_registry_id: str | None
     entity_id: str
     role: str
+
+    @property
+    def history_identity(self) -> tuple[str, str]:
+        return self.role, self.entity_registry_id or self.entity_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +204,7 @@ class HeatPumpSteeringRuntime:
     state_snapshot: Any | None = None
     source_quality: SourceQualitySnapshot | None = None
     history: HistoryRuntime | None = None
+    history_stopped_at: datetime | None = None
     generation: int = 0
     stopped: bool = False
     unloading: bool = False
@@ -204,11 +213,81 @@ class HeatPumpSteeringRuntime:
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)
 
 
+@dataclass(slots=True)
+class HistoryReload:
+    entry: ConfigEntry
+    runtime: HeatPumpSteeringRuntime | None
+    unloaded: bool = False
+
+
+_HISTORY_RELOAD: ContextVar[HistoryReload | None] = ContextVar(
+    "heat_pump_steering_history_reload", default=None
+)
+
+
+async def async_reload_preserving_history(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    runtime: HeatPumpSteeringRuntime | None,
+) -> bool:
+    """Keep RAM only when setup is part of this controlled reload."""
+    if runtime is None:
+        return await hass.config_entries.async_reload(entry.entry_id)
+    if runtime.unloading or getattr(entry, "runtime_data", None) is not runtime:
+        return False
+    if runtime.history is None:
+        return await hass.config_entries.async_reload(entry.entry_id)
+
+    handoff = HistoryReload(entry, runtime)
+    token = _HISTORY_RELOAD.set(handoff)
+    try:
+        return await hass.config_entries.async_reload(entry.entry_id)
+    finally:
+        handoff.runtime = None
+        _HISTORY_RELOAD.reset(token)
+
+
+def schedule_reload_preserving_history(
+    hass: HomeAssistant, entry: ConfigEntry, runtime: HeatPumpSteeringRuntime | None
+) -> None:
+    """Let an independent unload cancel a scheduled reload before setup."""
+    if runtime is None:
+        hass.config_entries.async_schedule_reload(entry.entry_id)
+        return
+    if runtime.unloading or getattr(entry, "runtime_data", None) is not runtime:
+        return
+    task = hass.async_create_task(
+        async_reload_preserving_history(hass, entry, runtime), eager_start=False
+    )
+    runtime.tasks.add(task)
+    task.add_done_callback(runtime.tasks.discard)
+
+
+def mark_history_reload_unload(
+    entry: ConfigEntry, runtime: HeatPumpSteeringRuntime
+) -> None:
+    """Mark an unload as part of this reload, never from another task."""
+    handoff = _HISTORY_RELOAD.get()
+    if handoff is not None and handoff.entry is entry and handoff.runtime is runtime:
+        handoff.unloaded = True
+
+
+def consume_history_reload(entry: ConfigEntry) -> HeatPumpSteeringRuntime | None:
+    """Consume only the runtime unloaded in this reload."""
+    handoff = _HISTORY_RELOAD.get()
+    if handoff is None or handoff.entry is not entry or not handoff.unloaded:
+        return None
+    runtime, handoff.runtime = handoff.runtime, None
+    return runtime
+
+
 def invalidate_runtime(runtime: HeatPumpSteeringRuntime) -> None:
     """Stop callbacks and pending work before a structural persistence boundary."""
     if runtime.stopped:
         return
     runtime.stopped = True
+    if runtime.history is not None:
+        runtime.history_stopped_at = dt_util.utcnow()
     runtime.generation += 1
     for unsubscribe in runtime.unsubscribers:
         unsubscribe()

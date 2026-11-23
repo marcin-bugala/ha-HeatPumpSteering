@@ -21,7 +21,7 @@ from custom_components.heat_pump_steering.const import DOMAIN
 from custom_components.heat_pump_steering.models import parse_config
 from custom_components.heat_pump_steering.persistence import StateSnapshot, StateStore
 
-from .conftest import entry_data, set_temperature
+from .conftest import OUTDOOR_SOURCE_ID, entry_data, set_temperature
 
 
 def _schema_field(result: dict, name: str) -> tuple[vol.Marker, object]:
@@ -517,6 +517,11 @@ async def test_successful_reconfigure_preserves_zone_id_and_replaces_sources(
     first_runtime = entry.runtime_data
     installation_id = entry.data["installation_id"]
     zone_id = entry.data["co"]["zones"][0]["zone_id"]
+    set_temperature(hass, "sensor.outdoor_temperature", "5")
+    set_temperature(hass, "sensor.living_temperature", "20")
+    await hass.async_block_till_done()
+    outdoor_id = UUID(OUTDOOR_SOURCE_ID)
+    (outdoor_sample,) = first_runtime.history.source_samples(outdoor_id)
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -567,6 +572,13 @@ async def test_successful_reconfigure_preserves_zone_id_and_replaces_sources(
     assert "sensor.new_temperature" in entry.runtime_data.config.entity_ids
     assert "sensor.living_temperature" not in entry.runtime_data.config.entity_ids
     assert entry.runtime_data.co.readiness.ready
+    history = entry.runtime_data.history
+    (inherited,) = history.source_samples(outdoor_id)
+    assert inherited.at == outdoor_sample.at
+    assert inherited.value == outdoor_sample.value
+    assert inherited.valid_until == first_runtime.history_stopped_at
+    (new_id,) = entry.runtime_data.config.co.zones[0].temperature_source_ids
+    assert history.source_samples(new_id) == ()
 
     previous_readiness = entry.runtime_data.co.readiness
     hass.states.async_set("sensor.living_temperature", "unavailable")

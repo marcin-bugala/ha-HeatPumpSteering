@@ -91,6 +91,7 @@ async def async_rebuild_history(
     watermark: datetime,
 ) -> None:
     """Restore retained samples and merge with reports received during startup."""
+    history.rebuild_status = HistoryStatus.REBUILDING
     try:
         recorder = get_instance(hass)
     except KeyError:
@@ -126,6 +127,7 @@ async def async_rebuild_history(
         if recorder.entity_filter is not None and not recorder.entity_filter(
             target.entity_id
         ):
+            history.mark_restored(target.source_id)
             continue
         start = watermark - HISTORY_HORIZON
         if target.identity_since is not None:
@@ -152,5 +154,7 @@ async def async_rebuild_history(
             _LOGGER.debug("Could not read Recorder history for a temperature source")
             recorded.limit_tail(start)
             status = HistoryStatus.RECORDER_ERROR
+        else:
+            history.mark_restored(target.source_id)
         history.merge_recorded(target.source_id, recorded, now=watermark)
     history.rebuild_status = status

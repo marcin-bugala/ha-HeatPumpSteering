@@ -34,7 +34,7 @@ from .bindings import (
 )
 from .config_flow import migrate_v1_data
 from .const import CONFIG_ENTRY_VERSION
-from .history import HistoryRuntime, TemperatureSample
+from .history import HistoryRuntime, HistoryStatus, TemperatureSample
 from .history_recorder import RecorderTarget, async_rebuild_history
 from .models import (
     ConfigurationError,
@@ -42,9 +42,13 @@ from .models import (
     ModuleMode,
     ModuleRuntime,
     SourceBinding,
+    async_reload_preserving_history,
+    consume_history_reload,
     invalidate_runtime,
+    mark_history_reload_unload,
     parse_config,
     refresh_readiness,
+    schedule_reload_preserving_history,
 )
 from .persistence import PersistenceError, StateSnapshot, StateStore
 from .source_quality import read_temperature
@@ -143,11 +147,31 @@ async def async_setup_entry(
         history=history,
         ownership_conflicts=entry_conflicts(hass, entry),
     )
+    inherited = set()
+    previous = consume_history_reload(entry)
+    if (
+        history is not None
+        and previous is not None
+        and previous.history is not None
+        and previous.history_stopped_at is not None
+    ):
+        previous_sources = previous.config.sources_by_id
+        shared_sources = {
+            source.source_id
+            for source in config.source_bindings
+            if (old := previous_sources.get(source.source_id)) is not None
+            and source.history_identity == old.history_identity
+        }
+        inherited = history.inherit(
+            previous.history, shared_sources, cutoff=previous.history_stopped_at
+        )
     registry = er.async_get(hass)
     sources_by_entity: dict[str, list[SourceBinding]] = defaultdict(list)
     history_targets = []
     for source in config.source_bindings if history is not None else ():
         sources_by_entity[source.entity_id].append(source)
+        if source.source_id in inherited:
+            continue
         registry_entry = (
             registry.async_get(source.entity_registry_id)
             if source.entity_registry_id
@@ -268,13 +292,13 @@ async def async_setup_entry(
                 return
             invalidate_runtime(runtime)
             await state_store.async_commit_config_change(entry, updated)
-            await hass.config_entries.async_reload(entry.entry_id)
+            await async_reload_preserving_history(hass, entry, runtime)
         except asyncio.CancelledError:
             if not runtime.unloading:
-                hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+                schedule_reload_preserving_history(hass, entry, runtime)
             raise
         except (ConfigurationError, PersistenceError, OSError):
-            await hass.config_entries.async_reload(entry.entry_id)
+            await async_reload_preserving_history(hass, entry, runtime)
 
     @callback
     def async_registry_updated(event: Event[Any]) -> None:
@@ -299,7 +323,7 @@ async def async_setup_entry(
         hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, async_registry_updated)
     )
     entry.runtime_data = runtime
-    if history is not None:
+    if history is not None and history_targets:
         task = entry.async_create_background_task(
             hass,
             async_rebuild_history(hass, history_targets, history, watermark),
@@ -308,6 +332,8 @@ async def async_setup_entry(
         if not task.done():
             runtime.tasks.add(task)
             task.add_done_callback(runtime.tasks.discard)
+    elif history is not None and history.rebuild_status is HistoryStatus.REBUILDING:
+        history.rebuild_status = HistoryStatus.AVAILABLE
     return True
 
 
@@ -316,6 +342,7 @@ async def async_unload_entry(
 ) -> bool:
     """Stop observation and release every resource owned by this entry."""
     runtime = entry.runtime_data
+    mark_history_reload_unload(entry, runtime)
     runtime.unloading = True
     invalidate_runtime(runtime)
     current = asyncio.current_task()

@@ -308,3 +308,35 @@ async def test_failed_chunk_cannot_extend_earlier_recorded_coverage(
     assert runtime.history.source_samples(UUID(ZONE_SOURCE_ID)) == (
         TemperatureSample(earlier_report, 20, failure_at),
     )
+
+
+async def test_real_unload_discards_history_and_cancels_queued_reload(
+    hass: HomeAssistant,
+    make_entry: Callable,
+    ready_sources: None,
+) -> None:
+    """B04/B08: ordinary unload cannot transfer RAM or leave a reload queued."""
+    entry = make_entry(co=True)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    runtime = entry.runtime_data
+    hass.states.async_set(INDOOR, "21", CELSIUS)
+    await hass.async_block_till_done()
+    source_id = UUID(ZONE_SOURCE_ID)
+    assert runtime.history.source_samples(source_id)
+
+    async with entry.setup_lock:
+        # The explicit unload is first in HA's entry lock queue.
+        unload = hass.async_create_task(
+            hass.config_entries.async_unload(entry.entry_id)
+        )
+        integration.schedule_reload_preserving_history(hass, entry, runtime)
+        queued = tuple(runtime.tasks)
+        assert queued
+    assert await unload
+    assert all(task.cancelled() for task in queued)
+    assert not await integration.async_reload_preserving_history(hass, entry, runtime)
+    assert not hasattr(entry, "runtime_data")
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.runtime_data.history.source_samples(source_id) == ()

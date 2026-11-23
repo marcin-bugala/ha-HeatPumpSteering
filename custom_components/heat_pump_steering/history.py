@@ -250,10 +250,33 @@ class HistoryRuntime:
         self._co = co
         self._sources = {source_id: SourceHistory() for source_id in source_ids}
         self._zones = {zone.zone_id: zone for zone in co.zones}
+        self._restored_sources: set[UUID] = set()
         self._current: Mapping[UUID, Reading[float]] = {}
         self.current_zones: Mapping[UUID, ZoneMeasurement] = MappingProxyType(
             {zone_id: ZoneMeasurement(None, (), 0) for zone_id in self._zones}
         )
+
+    def inherit(
+        self, previous: HistoryRuntime, source_ids: set[UUID], *, cutoff: datetime
+    ) -> set[UUID]:
+        """Copy unchanged source evidence and stop it at the reload boundary."""
+        for source_id in source_ids:
+            self._sources[source_id].merge_recorded(
+                previous._sources[source_id], now=cutoff
+            )
+            self._sources[source_id].limit_tail(cutoff)
+        self._restored_sources = previous._restored_sources & source_ids
+        self.rebuild_status = previous.rebuild_status
+        self.current_zones = MappingProxyType(
+            {
+                zone_id: previous.current_zones.get(zone_id, measurement)
+                for zone_id, measurement in self.current_zones.items()
+            }
+        )
+        return self._restored_sources.copy()
+
+    def mark_restored(self, source_id: UUID) -> None:
+        self._restored_sources.add(source_id)
 
     def source_samples(self, source_id: UUID) -> tuple[TemperatureSample, ...]:
         return self._sources[source_id].samples()

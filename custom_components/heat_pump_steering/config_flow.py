@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import DOMAIN as HOMEASSISTANT_DOMAIN
 from homeassistant.core import callback, valid_entity_id
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
@@ -21,7 +22,12 @@ from .bindings import (
     registry_id_for_entity,
 )
 from .const import CONFIG_ENTRY_VERSION, CONFIG_SCHEMA_VERSION, DOMAIN
-from .models import ConfigurationError, invalidate_runtime, parse_config
+from .models import (
+    ConfigurationError,
+    invalidate_runtime,
+    parse_config,
+    schedule_reload_preserving_history,
+)
 from .persistence import PersistenceError, StateStore
 
 _AGGREGATIONS = ["mean", "median"]
@@ -306,21 +312,21 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ).async_commit_config_change(self._entry, reconciled)
                 except asyncio.CancelledError:
                     if runtime is not None:
-                        self.hass.async_create_task(
-                            self.hass.config_entries.async_reload(self._entry.entry_id)
+                        schedule_reload_preserving_history(
+                            self.hass, self._entry, runtime
                         )
                     raise
                 except (PersistenceError, OSError):
                     if runtime is not None:
-                        self.hass.async_create_task(
-                            self.hass.config_entries.async_reload(self._entry.entry_id)
+                        schedule_reload_preserving_history(
+                            self.hass, self._entry, runtime
                         )
                     errors["base"] = "state_store_error"
                 else:
                     reconciled = dict(self._entry.data)
                     if runtime is not None:
-                        self.hass.async_create_task(
-                            self.hass.config_entries.async_reload(self._entry.entry_id)
+                        schedule_reload_preserving_history(
+                            self.hass, self._entry, runtime
                         )
             self._draft = copy.deepcopy(reconciled)
             self._original_data = copy.deepcopy(dict(self._entry.data))
@@ -924,25 +930,24 @@ class HeatPumpSteeringConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             )
                         except asyncio.CancelledError:
                             if runtime is not None:
-                                self.hass.async_create_task(
-                                    self.hass.config_entries.async_reload(
-                                        self._entry.entry_id
-                                    )
+                                schedule_reload_preserving_history(
+                                    self.hass, self._entry, runtime
                                 )
                             raise
                         except (PersistenceError, OSError):
                             if runtime is not None:
-                                self.hass.async_create_task(
-                                    self.hass.config_entries.async_reload(
-                                        self._entry.entry_id
-                                    )
+                                schedule_reload_preserving_history(
+                                    self.hass, self._entry, runtime
                                 )
                             errors["base"] = "state_store_error"
                         else:
                             self._draft = candidate
-                            return self.async_update_reload_and_abort(
-                                self._entry,
-                                reload_even_if_entry_is_unchanged=True,
+                            schedule_reload_preserving_history(
+                                self.hass, self._entry, runtime
+                            )
+                            return self.async_abort(
+                                reason="reconfigure_successful",
+                                translation_domain=HOMEASSISTANT_DOMAIN,
                             )
                     else:
                         await self.async_set_unique_id(candidate["installation_id"])
