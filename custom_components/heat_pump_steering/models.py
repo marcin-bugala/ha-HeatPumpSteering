@@ -3,27 +3,33 @@
 from __future__ import annotations
 
 import asyncio
-import math
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any
 from uuid import UUID
 
-from homeassistant.const import (
-    ATTR_UNIT_OF_MEASUREMENT,
-    STATE_UNAVAILABLE,
-    STATE_UNKNOWN,
-)
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
 
 from .const import CONFIG_SCHEMA_VERSION
+from .source_quality import (
+    NumberReading,
+    Reading,
+    SourceQualitySnapshot,
+    ZoneSourceCount,
+    read_number,
+    read_switch,
+    read_temperature,
+)
 
 _ENTITY_ID = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
-_TEMPERATURE_UNITS = {"°C", "°F"}
+_OUTDOOR_MAX_AGE = timedelta(minutes=30)
+_ZONE_MAX_AGE = timedelta(minutes=120)
 
 
 class ConfigurationError(ValueError):
@@ -178,6 +184,7 @@ class HeatPumpSteeringRuntime:
     dhw: ModuleRuntime | None
     state_store: Any | None = None
     state_snapshot: Any | None = None
+    source_quality: SourceQualitySnapshot | None = None
     generation: int = 0
     stopped: bool = False
     unloading: bool = False
@@ -513,55 +520,6 @@ def parse_config(data: Mapping[str, Any]) -> InstallationConfig:
     )
 
 
-def _state_reason(state: State | None, entity_id: str) -> str | None:
-    if state is None:
-        return f"missing:{entity_id}"
-    if state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
-        return f"{state.state}:{entity_id}"
-    return None
-
-
-def _temperature_reason(state: State | None, entity_id: str) -> str | None:
-    if reason := _state_reason(state, entity_id):
-        return reason
-    assert state is not None
-    try:
-        value = float(state.state)
-    except ValueError:
-        return f"invalid_value:{entity_id}"
-    if not math.isfinite(value):
-        return f"invalid_value:{entity_id}"
-    if state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) not in _TEMPERATURE_UNITS:
-        return f"invalid_unit:{entity_id}"
-    return None
-
-
-def _number_reason(state: State | None, entity_id: str) -> str | None:
-    if reason := _temperature_reason(state, entity_id):
-        return reason
-    assert state is not None
-    try:
-        minimum, maximum, step = (
-            float(state.attributes[key]) for key in ("min", "max", "step")
-        )
-    except (KeyError, TypeError, ValueError):
-        return f"invalid_range:{entity_id}"
-    if (
-        not all(math.isfinite(item) for item in (minimum, maximum, step))
-        or minimum > maximum
-        or step <= 0
-    ):
-        return f"invalid_range:{entity_id}"
-    return None
-
-
-def _switch_reason(state: State | None, entity_id: str) -> str | None:
-    if reason := _state_reason(state, entity_id):
-        return reason
-    assert state is not None
-    return None if state.state in ("on", "off") else f"invalid_value:{entity_id}"
-
-
 def _readiness(reasons: list[str | None], enabled: bool) -> Readiness:
     actual = tuple(reason for reason in reasons if reason is not None)
     return (
@@ -582,53 +540,92 @@ def _bound_state(
     return hass.states.get(binding.entity_id)
 
 
-def refresh_readiness(hass: HomeAssistant, runtime: HeatPumpSteeringRuntime) -> None:
-    """Refresh snapshots only; observation never calls source services."""
+def refresh_readiness(
+    hass: HomeAssistant, runtime: HeatPumpSteeringRuntime, *, now: datetime
+) -> datetime | None:
+    """Refresh current observations and return the first future expiry."""
     if runtime.stopped:
-        return
-    config, sources, outputs = (
-        runtime.config,
-        runtime.config.sources_by_id,
-        runtime.config.outputs_by_id,
-    )
-    if (co := config.co) and runtime.co:
-        setpoint, outdoor = (
-            outputs[co.setpoint_output_id].entity_id,
-            sources[co.outdoor_source_id].entity_id,
+        return None
+    config = runtime.config
+    temperatures: dict[UUID, Reading[float]] = {}
+    next_expiry = None
+    outdoor_id = config.co.outdoor_source_id if config.co else None
+    for binding in config.source_bindings:
+        max_age = _OUTDOOR_MAX_AGE if binding.source_id == outdoor_id else _ZONE_MAX_AGE
+        reading = read_temperature(
+            binding.source_id,
+            binding.entity_id,
+            _bound_state(hass, binding),
+            now=now,
+            max_age=max_age,
         )
-        reasons: list[str | None] = [
-            _number_reason(
-                _bound_state(hass, outputs[co.setpoint_output_id]), setpoint
-            ),
-            _temperature_reason(
-                _bound_state(hass, sources[co.outdoor_source_id]), outdoor
-            ),
+        temperatures[binding.source_id] = reading
+        if reading.issue is None and reading.ha_reported_at is not None:
+            # A reading at the exact limit still qualifies as fresh (A32).
+            expires = reading.ha_reported_at + max_age + timedelta.resolution
+            if next_expiry is None or expires < next_expiry:
+                next_expiry = expires
+
+    numbers: dict[UUID, NumberReading] = {}
+    switches: dict[UUID, Reading[bool]] = {}
+    for output in config.output_bindings:
+        state = _bound_state(hass, output)
+        if output.adapter is OutputAdapter.NUMBER:
+            numbers[output.output_id] = read_number(
+                output.output_id, output.entity_id, state, now=now
+            )
+        else:
+            switches[output.output_id] = read_switch(
+                output.output_id, output.entity_id, state
+            )
+
+    outputs = config.outputs_by_id
+
+    def setpoint_reason(output_id: UUID) -> str | None:
+        if (reading := numbers.get(output_id)) is not None:
+            return reading.readiness_reason
+        return f"invalid_value:{outputs[output_id].entity_id}"
+
+    zone_counts = {}
+    if (co := config.co) and runtime.co:
+        reasons = [
+            setpoint_reason(co.setpoint_output_id),
+            temperatures[co.outdoor_source_id].reason,
         ]
         for zone in co.zones:
+            zone_counts[zone.zone_id] = ZoneSourceCount(
+                sum(
+                    temperatures[source_id].issue is None
+                    for source_id in zone.temperature_source_ids
+                ),
+                len(zone.temperature_source_ids),
+            )
             if not zone.enabled:
                 continue
             zone_reasons = [
-                _temperature_reason(
-                    _bound_state(hass, sources[item]), sources[item].entity_id
-                )
-                for item in zone.observed_source_ids
+                temperatures[source_id].reason for source_id in zone.observed_source_ids
             ]
             if all(zone_reasons):
                 reasons.extend(zone_reasons)
         runtime.co.readiness = _readiness(reasons, co.enabled)
+
     if (dhw := config.dhw) and runtime.dhw:
-        setpoint, enable = (
-            outputs[dhw.setpoint_output_id].entity_id,
-            outputs[dhw.enable_output_id].entity_id,
-        )
         runtime.dhw.readiness = _readiness(
             [
-                _number_reason(
-                    _bound_state(hass, outputs[dhw.setpoint_output_id]), setpoint
-                ),
-                _switch_reason(
-                    _bound_state(hass, outputs[dhw.enable_output_id]), enable
-                ),
+                setpoint_reason(dhw.setpoint_output_id),
+                enable.reason
+                if (enable := switches.get(dhw.enable_output_id)) is not None
+                else f"invalid_value:{outputs[dhw.enable_output_id].entity_id}",
             ],
             dhw.enabled,
         )
+
+    snapshot = SourceQualitySnapshot(
+        MappingProxyType(temperatures),
+        MappingProxyType(numbers),
+        MappingProxyType(switches),
+        MappingProxyType(zone_counts),
+    )
+    if snapshot != runtime.source_quality:
+        runtime.source_quality = snapshot
+    return next_expiry
