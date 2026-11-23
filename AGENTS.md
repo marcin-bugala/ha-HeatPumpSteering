@@ -8,9 +8,10 @@
 3. Przeczytaj [workflow](docs/development/workflow.md), [standardy](docs/development/standards.md)
    i opis swojej roli w [indeksie środowiska](docs/development/README.md).
 4. Przed implementacją wymagany jest przejrzany projekt techniczny.
-   I00/I01 scalono w PR #38, I02 w PR #40, I03 w PR #42 i #43. I04 scalono w PR #45.
-   Aktualne przekazanie: [I05 — jakość źródeł](docs/development/handoffs/i05-source-quality.md).
-   Sprawdź [dowody I04](docs/development/handoffs/i04-verification.md)
+   I00/I01 scalono w PR #38, I02 w PR #40, I03 w PR #42 i #43, I04 w PR #45.
+   I05 scalono w PR #47, a I06 w PR #48.
+   Aktualne przekazanie: [I07 — decyzje stref](docs/development/handoffs/i07-zone-decisions.md).
+   Sprawdź [zapis I06 i lukę w dowodzie review](docs/development/handoffs/i06-verification.md)
    i [indeks przekazań](docs/development/handoffs/README.md).
    [Brief projektu](docs/development/technical-design-brief.md) pozostaje historią wejścia.
 
