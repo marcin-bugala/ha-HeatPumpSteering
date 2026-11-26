@@ -261,6 +261,8 @@ def snapshot_from_json(value: object) -> StateSnapshot:
         )
     except (ValueError, TypeError, OverflowError) as err:
         raise PersistenceError() from err
+    if len({key for key, _ in zone_memory}) != len(zone_memory):
+        raise PersistenceError()
     snapshot = StateSnapshot(
         installation_id=_uuid(value["installation_id"]),
         configuration_revision=_positive_int(value["configuration_revision"]),
@@ -439,14 +441,16 @@ class StateStore:
     async def _async_recover_locked(
         self, snapshot: StateSnapshot, config: InstallationConfig
     ) -> StateSnapshot:
+        if any(
+            key not in snapshot.settings.targets_by_zone
+            for key, _ in snapshot.zone_memory
+        ):
+            raise PersistenceError()
         pending = snapshot.pending
         if pending is None:
             if snapshot.configuration_revision != config.configuration_revision:
                 raise PersistenceError("state_store_revision_conflict")
             _validate_settings(snapshot.settings, config)
-            valid_zones = set(snapshot.settings.targets_by_zone)
-            if any(zone_id not in valid_zones for zone_id, _ in snapshot.zone_memory):
-                raise PersistenceError()
             return snapshot
         if config.configuration_revision == pending.from_revision:
             _validate_settings(snapshot.settings, config)

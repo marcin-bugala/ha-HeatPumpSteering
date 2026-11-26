@@ -123,6 +123,8 @@ class ZoneInput:
     observed_open: bool | None = None
     confirmed_closed_at: datetime | None = None
     enabled: bool = True
+    drop_reference: float | None = None
+    drop_reference_ready: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +161,7 @@ def evaluate_zone(
             data.valve,
             data.comfort,
             data.trend,
+            data.drop_reference,
         )
     ):
         raise ValueError("zone inputs must be finite or unavailable")
@@ -209,75 +212,163 @@ def evaluate_zone(
         loss_due = lost_since + policy.loss_grace
         if now >= loss_due:
             request = ZoneRequest.OPEN
-        …10661 tokens truncated…et nie tworzą fałszywego spadku; Tester |
-| I08 feat/24-co-calculation | Baza, kwalifikacja i ważony komfort, trend, aktywność modułów; bez usług | US17/18/20; #24 #25 #29; D10,D37,D40–D41,D45,D49; A18–A23,A33,A34,A57 | I06,I07; P09/P10 | Wyniki liczbowe A18–A23; zamknięte vs utracone vs mieszane osobno; Reviewer |
-| I09 feat/24-co-constraints | Zakres, siatka, tempo i ochrona wzrostu; nadal obserwacyjnie | US16/17; #23 #24; D38,D42,D50,D61; A21,A24–A26,A35 | I08; P01/P10 | Połówki w górę; D99: clipping do granicy z konfliktem przy nastawie poza zakresem, bez zwykłego limitu kroku/odstępu; inne braki legalnego kroku blokują; ręczna nastawa; Tester |
-| I10 feat/11-command-evidence | Dwuetapowy odczyt tej samej encji, provisional/confirmed po 2 min, bez automatycznych usług runtime | US04/16/19; #11 #23 #26; D51,D60,D68; A36,A37,A39 | I03,I05; przyjęte P01/D90 | Wstępny zgodny stan nie kończy kontroli 2 min; zgodny ponowny odczyt, także cache HA, kończy retry bez dodatkowej telemetrii; granice fizycznego dowodu jawne; Reviewer |
-| I11 feat/11-command-retries | Jedyny wykonawca, liczniki na wyjście, retry i generation, aktywacja tylko po gotowości | US03/04/17/19; #10 #11 #24 #26; D52,D60,D73–D74,D84; A08,A37–A40; B04,B10 | I04,I09,I10; P01/P03 | Dokładne czasy prób, późny/stary ACK, observation/unload w await; retry nie krokiem CO; Reviewer → Tester |
-| I12 feat/17-valve-execution | NC/NO i polaryzacja, raport elektryczny i predicted movement, niezależny eksport stanów | US05/10; #12 #17; D08,D21,D51,D66; A04,A17,A20,A36 | I07,I11; P04 | Brak udawanego physical feedback; błąd close nie usuwa ochrony; Tester |
-| I13 feat/16-demand-sequencing | OR, jedna gotowa strefa, brak minimum ON, 15min od OFF, anulowanie ON i ręczny demand | US07/09; #14 #16; D06,D43,D48–D51,D55; A27–A29,A31,A33,A34,A43,A56 | I12; P03 | Cztery kombinacje zawory/demand; bez demandu brak ON/OFF CO; Reviewer → Tester |
-| I14 feat/21-dhw-planner | Czysty plan 7×48 i next effective change, DST i override terminy, inicjalizacja | US13/14; #20 #21; D13,D26–D28,D56,D63–D65; A47–A51,A54–A56 | I04; P02/P05/P06 | Bez efektów urządzeń; jednakowe pola nie kończą nadpisania; Tester |
-| I15 feat/20-dhw-execution | Temperatura→ponowny odczyt po 2 min→ON, OFF niezależne, każda niealgorytmiczna zmiana external; bez obsługi higieny | US07/13/14; #14 #20 #21; D27,D56,D63–D64,D88; A46–A53; B11 | I10,I11,I14; P01/P02/P05 | Częściowe wykonanie, external bez blokady pochodzenia, restart i brak wymogu encji higieny; brak wpływu awarii na CO; Reviewer → Tester |
-| I16 feat/18-product-entities | number celu, switch trybów, sensor/binary/event decyzji, bounded diagnostics i anonimizacja | US02/04/11/12; #9 #11 #18 #19; D79,D81–D83; A07,A59; B12 | I04–I15; P07/P11/P12 | Własne dashboardy bez helperów; testy anonimizacji zagnieżdżeń i PL/EN; Reviewer |
-| I17 feat/20-dhw-settings-api | Uwierzytelnione WS odczytu/zapisu, revision conflict, jeden trwały zapis | US13/14; #20 #21; D29–D30,D62–D63; A44,A45,A48,A49 | I14–I16; P06 | Brak częściowego zapisu i last-write-wins; identyczny save kończy override; Tester |
-| I18 feat/18-bundled-frontend | Karta, panel CWU, draft/cancel/save i osobny ekran zaawansowany, lint/build/browser CI | US11–14; #18 #19 #20 #21; D29–D30,D62,D79–D81; A44–A56,A59; B02,B13 | I16,I17; P11/P12 | Bundle lokalny, klawiatura/mobile, PL/EN, frontend w zbiorczej bramce CI; Reviewer → Tester |
-| I19 fix/15-lifecycle-regressions | Przegląd pełnych restart/reload/unload, reconfigure i aktualizacji na złożonych stanach | US08/19; #15 #26; D54–D55,D71–D74,D84–D89; A41,A43,A51,A56; B03–B12 | I01–I18 | Testy migracji i race bez aktywnego sprzętu; brak nieplanowanych usług; Reviewer → Tester |
-| I20 docs/first-developer-release | Materiały wydania beta, instrukcje PL/EN, HACS/manual, macierz, wyniki i rollback | US08/11–14/19; #15 #18–#21 #26; D75–D81,D89; A58; B13 | Całość + osobno autoryzowany odbiór sprzętu | Release/Deployment przygotowuje materiały dla właściciela; żadnego publish/deploy |
-
-Jeśli zakres pakietu przestaje być czytelnym diffem, Tech Lead dzieli go według
-kontraktu (np. karta, panel CWU i ekran zaawansowany jako osobne PR-y z własnymi
-testami). I18 zalecane podzielić na I18a karta+CI, I18b panel CWU, I18c zaawansowane.
-Tak samo I16 można podzielić encje i diagnostykę. Nie przenosić brakujących testów
-z implementacji do I19; I19 jest dodatkową regresją, nie odroczoną jakością.
-
-Kolejność umożliwia równoległość logiczną I07–I09 i I14 dopiero po wspólnych
-kontraktach, ale delegowanie nie jest uruchomione tym planem.
-Developer → Reviewer → Tester → Tech Lead / właściciel to kontrakt pracy.
-Autor swojej samokontroli nie zgłasza jako niezależnego review.
-
-## Definition of Done pojedynczego PR
-
-Zmiana realizuje tylko przekazany zakres, ma testy właściwych US/D/A/B i brak
-nieuzgodnionych reguł. Uruchomione wymagane komendy z CI, dla kodu także pytest HA
-na minimum/current i hassfest; frontend od pierwszego PR ma lint/build/test.
-Brak testów/symulacja/skipped jawnie opisane. Uzupełnione PL/EN i procedura
-powrotu przy zmianie schematów. Reviewer otrzymuje SHA, diff, źródła i dowody.
-Tester raportuje wersję i wyniki dla wskazanego SHA; nowe commity ponawiają
-dotknięte kontrole. Merge tylko decyzją właściciela.
-
-Wycofanie PR: zanim wydano produkt, revert małego zakresu przez kolejny PR;
-po zmianie danych według macierzy schematów i zgodnej kopii HA.
-Nigdy revert schematu z cichym czyszczeniem Store.
-Scalenie dokumentacji lub części kodu nie zamyka US pełnego zakresu.
-
-## Konkretne przekazania po scaleniu projektu
-
-- [Weryfikacja I00/I01](../development/handoffs/i00-i01-verification.md):
-  oba pakiety scalono w PR #38, commit main 552ea427086786e3b3411d95ed0305dc35ba80c0.
-- [I02](../development/handoffs/i02-installation-model.md) wykonano w PR #40;
-  [odbiór](../development/handoffs/i02-verification.md) dotyczy SHA 060c0f0 / main 3068903.
-- [I03](../development/handoffs/i03-output-ownership.md): kontrakt wykonany
-  w PR #42/#43; [odbiór](../development/handoffs/i03-verification.md)
-  dotyczy SHA 1b452bd / main 74f326b.
-- [I04](../development/handoffs/i04-versioned-store.md) wykonano w PR #45;
-  [odbiór](../development/handoffs/i04-verification.md) dotyczy c00c029 / main 5f49b2e.
-- [I05](../development/handoffs/i05-source-quality.md): aktualne przekazanie
-  Developera; jakość źródeł i raporty HA, nadal bez historii i usług.
-- [Pierwotny I00](../development/handoffs/i00-ha-test-tooling.md) i
-  [I01](../development/handoffs/i01-ha-foundation.md) pozostają historią kontraktu;
-  nie uruchamiać ich ponownie. Zmianę drogi current i wspólny PR opisuje raport.
-- I02 ma minimalny D87 po entity_id. I03 rozszerza go na registry identity,
-  wszystkie konfigurowane wyjścia i pełną granicę finalizacji/setup.
-  Konfiguracja NC/NO/polaryzacji/zaworów/demandu jest częścią I03;
-  wykonanie ruchu i sekwencjonowanie nadal I12/I13. I04/I05 muszą korzystać
-  z kanonicznych bindingów schema 3, bez cofania do stringów I02.
-
-I02 doprecyzowuje realną migrację z uproszczonego modelu I01 do rozszerzonego
-modelu stref. Bieżący cel w ConfigEntry jest wartością bootstrap odziedziczoną
-po I01; Store pozostaje I04, bez równoległej kopii celu w options.
-Nie zmienia to docelowego działania ani zakresu pierwszego kompletnego wydania.
-
-C01–C13 w verification.md uzupełniają testy pakietów I01–I18: C01/C02 I10–I11,
-C03/C06 I14–I15, C04 I13, C05 I03/I12, C07 I14/I17/I18, C08 I04/I07/I16,
-C09 I06, C10 I08, C11 I09/I11, C12 I07/I16, C13 I01/I03/I18.
-Te testy powstają wraz z odpowiednimi zmianami, nie dopiero w I19.
+            reasons.append("temperature_loss_fallback")
+        else:
+            deadlines.append(loss_due)
+            reasons.append("temperature_loss_grace")
+    else:
+        trend = data.trend
+        if trend is None:
+            reasons.append("trend_unavailable")
+        candidate = None
+        if data.valve is not None:
+            rising = trend is not None and trend >= policy.trend_threshold
+            falling = trend is not None and trend <= -policy.trend_threshold
+            close_threshold = data.target if rising else data.target + policy.hysteresis
+            open_threshold = data.target if falling else data.target - policy.hysteresis
+            if data.valve >= close_threshold:
+                candidate = ZoneRequest.CLOSE
+            elif data.valve <= open_threshold:
+                candidate = ZoneRequest.OPEN
+        else:
+            reasons.append("valve_window_unavailable")
+        drop = memory.drop_latched
+        reference = (
+            data.drop_reference if data.drop_reference is not None else data.comfort
+        )
+        reference_ready = data.drop_reference_ready and reference is not None
+        if not reference_ready:
+            reasons.append("drop_reference_unavailable")
+        if (
+            not changed
+            and reference_ready
+            and data.current is not None
+            and reference - data.current > policy.sudden_drop
+        ):
+            drop = True
+        starting_drop = drop and not memory.drop_latched
+        underheat = _progress(
+            ConditionProgress() if starting_drop else memory.underheat,
+            (candidate is ZoneRequest.OPEN and drop)
+            if data.valve is not None and reference_ready
+            else None,
+            now,
+            continuous=continuous and not starting_drop,
+        )
+        if (
+            candidate is not ZoneRequest.OPEN
+            and data.valve is not None
+            and reference_ready
+        ):
+            drop = False
+        if candidate is ZoneRequest.CLOSE:
+            request = candidate
+            reasons.append("temperature_close")
+        elif candidate is ZoneRequest.OPEN:
+            blocked = False
+            if minimum_due is not None and now < minimum_due:
+                deadlines.append(minimum_due)
+                reasons.append("minimum_closed")
+                blocked = True
+            if drop and underheat.elapsed < policy.confirmation:
+                deadlines.append(now + policy.confirmation - underheat.elapsed)
+                reasons.append("sudden_drop_confirmation")
+                blocked = True
+            if not blocked:
+                request = candidate
+                reasons.append("temperature_open")
+        else:
+            reasons.append("retain_request" if request else "await_open_condition")
+        memory = replace(memory, underheat=underheat, drop_latched=drop)
+    if not available:
+        memory = replace(
+            memory, underheat=_progress(memory.underheat, None, now, continuous=False)
+        )
+    comfort = data.comfort
+    overheat = _progress(
+        memory.overheat,
+        comfort >= data.target + policy.overheat_on if comfort is not None else None,
+        now,
+        continuous=continuous,
+    )
+    release = _progress(
+        memory.release,
+        comfort <= data.target + policy.overheat_off if comfort is not None else None,
+        now,
+        continuous=continuous,
+    )
+    growth_blocked = memory.growth_blocked
+    if not data.has_outputs:
+        if overheat.elapsed >= policy.overheat_confirmation:
+            growth_blocked = True
+        if release.elapsed >= policy.release_confirmation:
+            growth_blocked = False
+        for progress, duration in (
+            (overheat, policy.overheat_confirmation),
+            (release, policy.release_confirmation),
+        ):
+            if progress.last_valid_at is not None and progress.elapsed < duration:
+                deadlines.append(now + duration - progress.elapsed)
+    warning_conditions = (
+        None if data.observed_open is None else not data.observed_open,
+        None if comfort is None else comfort >= data.target + policy.overheat_on,
+        None if data.trend is None else data.trend >= policy.trend_threshold,
+    )
+    warning_condition = (
+        False
+        if False in warning_conditions
+        else None
+        if None in warning_conditions
+        else True
+    )
+    warning_start = closed_at + policy.actuator_duration if closed_at else None
+    warning_previous = memory.warning
+    if warning_start is not None and warning_previous.last_valid_at is not None:
+        warning_previous = replace(
+            warning_previous,
+            last_valid_at=max(warning_previous.last_valid_at, warning_start),
+        )
+    warning = _progress(warning_previous, warning_condition, now, continuous=continuous)
+    warning_active = memory.warning_active
+    if warning_condition is False:
+        warning_active = False
+    if (
+        warning_condition is True
+        and closed_at is not None
+        and now >= closed_at + policy.actuator_duration
+        and warning.elapsed >= policy.warning_duration
+    ):
+        warning_active = True
+    if warning_start is not None and now < warning_start:
+        warning = ConditionProgress(
+            last_valid_at=now if warning_condition is True else None
+        )
+        deadlines.append(warning_start)
+    if warning_condition is True and warning.elapsed < policy.warning_duration:
+        deadlines.append(now + policy.warning_duration - warning.elapsed)
+    memory = replace(
+        memory,
+        request=request,
+        target=data.target,
+        source_ids=data.source_ids,
+        lost_since=lost_since,
+        closed_at=closed_at,
+        overheat=overheat,
+        release=release,
+        warning=warning,
+        growth_blocked=growth_blocked,
+        warning_active=warning_active,
+        evaluated_at=now,
+    )
+    return ZoneDecision(
+        request,
+        tuple(reasons),
+        available and request is ZoneRequest.OPEN,
+        available and comfort is not None and data.observed_open is not False,
+        growth_blocked,
+        warning_active,
+        warning_condition is None,
+        policy.priority,
+        min((d for d in deadlines if d > now), default=None),
+        memory,
+    )

@@ -78,6 +78,7 @@ class ZoneDecisionRuntime:
                 for zone in co.zones:
                     measurement = history.current_zones[zone.zone_id]
                     windows = history.zone_windows(zone.zone_id, now=now)
+                    drop_reference = history.zone_drop_reference(zone.zone_id, now=now)
                     previous = self._memory.get(zone.zone_id, ZoneMemory())
                     # Physical valve evidence is supplied by I12, not inferred
                     # from the requested position in this observation layer.
@@ -90,6 +91,8 @@ class ZoneDecisionRuntime:
                         source_ids=measurement.source_ids,
                         has_outputs=bool(zone.valve_output_ids),
                         enabled=zone.enabled and co.enabled,
+                        drop_reference=drop_reference.value,
+                        drop_reference_ready=drop_reference.ready,
                     )
                     decisions[zone.zone_id] = evaluate_zone(data, previous, now=now)
                 memory = tuple(

@@ -323,10 +323,17 @@ class HistoryRuntime:
         )
 
     def _zone_intervals(
-        self, zone: ZoneConfig, *, start: datetime, end: datetime
+        self,
+        zone: ZoneConfig,
+        *,
+        start: datetime,
+        end: datetime,
+        source_ids: tuple[UUID, ...] | None = None,
     ) -> Iterator[TemperatureInterval]:
         changes: dict[datetime, list[tuple[UUID, float | None]]] = defaultdict(list)
-        for source_id in zone.temperature_source_ids:
+        for source_id in (
+            source_ids if source_ids is not None else zone.temperature_source_ids
+        ):
             for item in self._sources[source_id].intervals(
                 start=start, end=end, max_age=ZONE_MAX_AGE
             ):
@@ -341,7 +348,7 @@ class HistoryRuntime:
                 else:
                     active.pop(source_id, None)
             selected = zone.selected_source_ids(active)
-            if selected:
+            if selected and (source_ids is None or set(selected) == set(source_ids)):
                 yield TemperatureInterval(
                     moment,
                     following,
@@ -385,6 +392,33 @@ class HistoryRuntime:
             window(settings.comfort_duration, settings.comfort_method),
             window(settings.trend_short_duration, settings.trend_method),
             window(settings.trend_long_duration, settings.trend_method),
+        )
+
+    def zone_drop_reference(
+        self,
+        zone_id: UUID,
+        *,
+        now: datetime,
+        settings: WindowSettings = _DEFAULT_WINDOWS,
+    ) -> WindowValue:
+        """Compare sudden drops against history of exactly the selected sensors."""
+        zone = self._zones[zone_id]
+        selected = self.current_zones[zone_id].source_ids
+        return evaluate_window(
+            self._zone_intervals(
+                zone,
+                start=now - settings.comfort_duration,
+                end=now,
+                source_ids=selected,
+            ),
+            end=now,
+            duration=settings.comfort_duration,
+            method=settings.comfort_method,
+            current_fresh=bool(selected)
+            and all(
+                self._fresh(source_id, ZONE_MAX_AGE, now) for source_id in selected
+            ),
+            status=self.rebuild_status,
         )
 
     def outdoor_window(
