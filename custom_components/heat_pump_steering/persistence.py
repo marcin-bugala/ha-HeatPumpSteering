@@ -24,10 +24,12 @@ from .models import (
     parse_config,
     parse_target,
 )
+from .zone_decisions import ZoneMemory
+from .zone_memory import memory_from_json, memory_to_json
 
 STORE_VERSION = 1
 STORE_MINOR_VERSION = 1
-PAYLOAD_VERSION = 1
+PAYLOAD_VERSION = 2
 
 _ROOT_KEYS = {
     "payload_version",
@@ -111,6 +113,7 @@ class StateSnapshot:
     settings: UserSettings
     pending: PendingConfigChange | None
     saved_at: datetime
+    zone_memory: tuple[tuple[UUID, ZoneMemory], ...] = ()
 
 
 _LOCKS: WeakKeyDictionary[HomeAssistant, dict[str, asyncio.Lock]] = WeakKeyDictionary()
@@ -231,12 +234,11 @@ def snapshot_from_json(value: object) -> StateSnapshot:
     if not isinstance(value, Mapping) or set(value) != _ROOT_KEYS:
         raise PersistenceError()
     payload_version = value["payload_version"]
-    if type(payload_version) is not int or payload_version != PAYLOAD_VERSION:
+    if type(payload_version) is not int or payload_version not in (1, PAYLOAD_VERSION):
         raise PersistenceError("state_store_incompatible")
     if value["phase"] != "committed":
         raise PersistenceError("state_store_incompatible")
     for name in (
-        "zone_memory",
         "output_memory",
         "overrides",
         "active_warnings",
@@ -244,6 +246,23 @@ def snapshot_from_json(value: object) -> StateSnapshot:
     ):
         if not isinstance(value[name], Mapping) or value[name]:
             raise PersistenceError()
+    raw_memory = value["zone_memory"]
+    if not isinstance(raw_memory, Mapping) or (payload_version == 1 and raw_memory):
+        raise PersistenceError()
+    try:
+        zone_memory = tuple(
+            sorted(
+                (
+                    (_uuid(key), memory_from_json(item))
+                    for key, item in raw_memory.items()
+                ),
+                key=lambda item: str(item[0]),
+            )
+        )
+    except (ValueError, TypeError, OverflowError) as err:
+        raise PersistenceError() from err
+    if len({key for key, _ in zone_memory}) != len(zone_memory):
+        raise PersistenceError()
     snapshot = StateSnapshot(
         installation_id=_uuid(value["installation_id"]),
         configuration_revision=_positive_int(value["configuration_revision"]),
@@ -251,6 +270,7 @@ def snapshot_from_json(value: object) -> StateSnapshot:
         settings=_settings_from_json(value["user_settings"]),
         pending=_pending_from_json(value["pending_config_change"]),
         saved_at=_saved_at(value["saved_at"]),
+        zone_memory=zone_memory,
     )
     if snapshot.pending is not None:
         if snapshot.pending.from_revision != snapshot.configuration_revision:
@@ -273,7 +293,9 @@ def snapshot_to_json(snapshot: StateSnapshot) -> dict[str, Any]:
         "phase": "committed",
         "user_settings": _settings_to_json(snapshot.settings),
         "pending_config_change": _pending_to_json(snapshot.pending),
-        "zone_memory": {},
+        "zone_memory": {
+            str(key): memory_to_json(item) for key, item in snapshot.zone_memory
+        },
         "output_memory": {},
         "overrides": {},
         "active_warnings": {},
@@ -419,6 +441,11 @@ class StateStore:
     async def _async_recover_locked(
         self, snapshot: StateSnapshot, config: InstallationConfig
     ) -> StateSnapshot:
+        if any(
+            key not in snapshot.settings.targets_by_zone
+            for key, _ in snapshot.zone_memory
+        ):
+            raise PersistenceError()
         pending = snapshot.pending
         if pending is None:
             if snapshot.configuration_revision != config.configuration_revision:
@@ -436,6 +463,11 @@ class StateStore:
                 settings_revision=pending.next_settings_revision,
                 settings=pending.next_settings,
                 pending=None,
+                zone_memory=tuple(
+                    (key, item)
+                    for key, item in snapshot.zone_memory
+                    if key in pending.next_settings.targets_by_zone
+                ),
             )
             return await self._async_save(finalized)
         raise PersistenceError("state_store_revision_conflict")
@@ -476,6 +508,23 @@ class StateStore:
                 current,
                 settings_revision=current.settings_revision + 1,
                 settings=settings,
+                zone_memory=tuple(
+                    (
+                        key,
+                        replace(
+                            item,
+                            target=float(parsed_target),
+                            underheat=type(item.underheat)(),
+                            overheat=type(item.overheat)(),
+                            release=type(item.release)(),
+                            warning=type(item.warning)(),
+                            drop_latched=False,
+                        ),
+                    )
+                    if key == zone_id
+                    else (key, item)
+                    for key, item in current.zone_memory
+                ),
             )
             saved = await self._async_save(updated)
             self._publish(saved)
@@ -513,6 +562,38 @@ class StateStore:
             )
             saved = await self._async_save(updated)
             self._publish(saved)
+            return saved
+
+    async def async_set_zone_memory(
+        self,
+        config: InstallationConfig,
+        memory: tuple[tuple[UUID, ZoneMemory], ...],
+        *,
+        expected_settings_revision: int,
+        is_current: Callable[[], bool],
+    ) -> StateSnapshot:
+        """Serialize a current evaluation against settings and lifecycle changes."""
+        async with self._lock:
+            current = await self._async_load_or_initialize_locked(
+                config, initialized=True
+            )
+            if (
+                not is_current()
+                or current.settings_revision != expected_settings_revision
+            ):
+                raise SettingsRevisionError()
+            valid = set(current.settings.targets_by_zone)
+            if len({key for key, _ in memory}) != len(memory) or any(
+                key not in valid for key, _ in memory
+            ):
+                raise PersistenceError()
+            updated = replace(current, zone_memory=memory)
+            if updated == current:
+                return current
+            saved = await self._async_save(updated)
+            # A save cannot be undone, but stopped runtimes must not publish.
+            if is_current():
+                self._publish(saved)
             return saved
 
     async def async_commit_config_change(
@@ -559,6 +640,11 @@ class StateStore:
                 settings_revision=pending.next_settings_revision,
                 settings=pending.next_settings,
                 pending=None,
+                zone_memory=tuple(
+                    (key, item)
+                    for key, item in prepared.zone_memory
+                    if key in next_settings.targets_by_zone
+                ),
             )
             saved = await self._async_save(finalized)
             self._publish(saved)

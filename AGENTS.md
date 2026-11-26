@@ -11,7 +11,7 @@
    I00/I01 scalono w PR #38, I02 w PR #40, I03 w PR #42 i #43, I04 w PR #45.
    I05 scalono w PR #47, a I06 w PR #48.
    Aktualne przekazanie: [I07 — decyzje stref](docs/development/handoffs/i07-zone-decisions.md).
-   Sprawdź [zapis I06 i lukę w dowodzie review](docs/development/handoffs/i06-verification.md)
+   Sprawdź [zapis I06 i uzupełnione raporty](docs/development/handoffs/i06-verification.md)
    i [indeks przekazań](docs/development/handoffs/README.md).
    [Brief projektu](docs/development/technical-design-brief.md) pozostaje historią wejścia.
 

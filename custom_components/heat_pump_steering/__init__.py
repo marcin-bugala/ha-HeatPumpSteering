@@ -52,6 +52,7 @@ from .models import (
 )
 from .persistence import PersistenceError, StateSnapshot, StateStore
 from .source_quality import read_temperature
+from .zone_runtime import ZoneDecisionRuntime
 
 type HeatPumpSteeringConfigEntry = ConfigEntry[HeatPumpSteeringRuntime]
 
@@ -147,6 +148,9 @@ async def async_setup_entry(
         history=history,
         ownership_conflicts=entry_conflicts(hass, entry),
     )
+    if history is not None:
+        runtime.zone_decisions = ZoneDecisionRuntime(hass, runtime)
+        runtime.unsubscribers.append(runtime.zone_decisions.stop)
     inherited = set()
     previous = consume_history_reload(entry)
     if (
@@ -204,6 +208,8 @@ async def async_setup_entry(
             return
         expires = refresh_readiness(hass, runtime, now=dt_util.utcnow())
         _restore_effective_modes(runtime, runtime.state_snapshot)
+        if runtime.zone_decisions is not None:
+            runtime.zone_decisions.refresh()
         if expires == scheduled_expiry:
             return
         if cancel_expiry is not None:
@@ -280,9 +286,16 @@ async def async_setup_entry(
     runtime.unsubscribers.append(async_stop_observation)
     watermark = dt_util.utcnow()
     async_refresh()
-    state_store.bind_snapshot_consumer(
-        lambda persisted: _restore_effective_modes(runtime, persisted)
-    )
+
+    def publish_snapshot(persisted: StateSnapshot) -> None:
+        changed = (
+            persisted.settings_revision != runtime.state_snapshot.settings_revision
+        )
+        _restore_effective_modes(runtime, persisted)
+        if changed and runtime.zone_decisions is not None:
+            runtime.zone_decisions.refresh(force=True)
+
+    state_store.bind_snapshot_consumer(publish_snapshot)
 
     async def async_reconcile_registry() -> None:
         """Persist a registry identity rename through the revision protocol."""
@@ -332,6 +345,11 @@ async def async_setup_entry(
         if not task.done():
             runtime.tasks.add(task)
             task.add_done_callback(runtime.tasks.discard)
+            task.add_done_callback(
+                lambda _: runtime.zone_decisions.refresh(force=True)
+                if runtime.zone_decisions is not None and not runtime.stopped
+                else None
+            )
     elif history is not None and history.rebuild_status is HistoryStatus.REBUILDING:
         history.rebuild_status = HistoryStatus.AVAILABLE
     return True

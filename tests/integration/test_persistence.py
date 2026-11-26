@@ -432,7 +432,7 @@ async def test_structural_prepare_save_failure_changes_nothing_and_reloads_clean
 @pytest.mark.parametrize(
     ("mutation", "code"),
     [
-        (lambda payload: payload.update(payload_version=2), "state_store_incompatible"),
+        (lambda payload: payload.update(payload_version=3), "state_store_incompatible"),
         (lambda payload: payload.update(phase="future"), "state_store_incompatible"),
         (
             lambda payload: payload.update(installation_id="not-a-uuid"),
@@ -455,10 +455,12 @@ def test_payload_incompatibility_is_rejected_without_repair(
 
 
 @pytest.mark.parametrize(
-    "payload_version", [True, 1.0, "1", 2], ids=("bool", "float", "string", "future")
+    "payload_version", [True, 1.0, "1", 3], ids=("bool", "float", "string", "future")
 )
-def test_payload_version_requires_exact_integer_one(payload_version: object) -> None:
-    """D89: equality with integer one never substitutes for its JSON type."""
+def test_payload_version_requires_supported_exact_integer(
+    payload_version: object,
+) -> None:
+    """D89: equality with a supported version never substitutes for its JSON type."""
     payload = snapshot_to_json(_snapshot())
     payload["payload_version"] = payload_version
 

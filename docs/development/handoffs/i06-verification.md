@@ -35,8 +35,8 @@ HA 2026.11.1: 180 testów integracyjnych PASS, pięć ostrzeżeń deprecacyjnych
 W obu zestawach nie zgłoszono skip ani xfail.
 Oba środowiska ha-tooling i pip check, quality, hassfest oraz zbiorcze ci przeszły.
 Opis PR podaje samokontrolę Developera i wynik Testera.
-Lista GitHub review, komentarzy i wątków PR pozostaje pusta.
-Nie ma dostępnego pełnego raportu niezależnego Reviewera dla końcowego drzewa.
+Podczas oceny 23 listopada lista GitHub review, komentarzy i wątków PR była pusta.
+Wtedy brakowało dostępnego pełnego raportu niezależnego Reviewera dla końcowego drzewa.
 Wskazanie `bd00aca` w opisie PR nie identyfikuje dostępnego commitu.
 Nie przedstawiamy tego wskazania jako audytowalnej akceptacji.
 
@@ -54,6 +54,14 @@ Dostępne API nie ujawnia wszystkich granic pośrednich sesji Recordera ani ręc
 I06 zachowuje lukę, gdy dostępne dane nie uzasadniają pokrycia.
 
 ## Uzupełnienie dowodów
+
+26 listopada 2026 uzupełniono niezależne raporty dla końcowego drzewa I06.
+[Reviewer](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/48#issuecomment-7196925248) przejrzał pełny diff i wydał ACCEPT w zakresie pakietu.
+[Tester](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/48#issuecomment-7196935479) niezależnie sprawdził kod, testy i logi CI oraz wydał PASS w zakresie pakietu.
+Tester nie wykonał lokalnego ponownego uruchomienia macierzy HA.
+Tech Lead sprawdził oba raporty i zwolnił warunek dowodowy przed I07.
+Ograniczenia A41, symulacji Recordera i pełnych US pozostają aktualne.
+Poniższe polecenia dokumentują wcześniejszą lukę i sposób jej uzupełnienia.
 
 Reviewer ma opublikować pełny wynik dla diffu `d3c7955..fcc61ac9` lub identycznego drzewa `626c5b5`.
 Raport ma ocenić US/D/A/B, tożsamość źródeł, watermark, luki, limity bufora i reload/unload.
