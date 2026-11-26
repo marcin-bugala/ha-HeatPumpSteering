@@ -204,6 +204,7 @@ class HeatPumpSteeringRuntime:
     state_snapshot: Any | None = None
     source_quality: SourceQualitySnapshot | None = None
     history: HistoryRuntime | None = None
+    zone_decisions: Any | None = None
     history_stopped_at: datetime | None = None
     generation: int = 0
     stopped: bool = False

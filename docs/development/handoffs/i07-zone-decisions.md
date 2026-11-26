@@ -8,16 +8,17 @@ Proponowana gałąź: `feat/12-zone-decisions`, PR do main.
 Baza produktu przy przygotowaniu: `626c5b5a291029868aceafad42cee9aabf44b3cf`.
 Developer zapisuje rzeczywisty aktualny main i końcowy SHA.
 
-To przekazanie przygotowuje I07.
-Nie uruchamia jego implementacji.
+Właściciel zlecił implementację I07 z subagentami 26 listopada 2026.
+Rzeczywista baza implementacji: `5fb7b0a036c527c19c347003a1368b1786090aa2`.
+Tech Lead zwolnił warunek dowodowy I06 po zapisaniu niezależnych raportów.
 
 ## Warunek rozpoczęcia i źródła
 
 Zatwierdzony projekt techniczny scalono w [PR #36](https://github.com/marcin-bugala/ha-HeatPumpSteering/pull/36), commit `e27621281d119f802e263d427ef9b9d36f6a135e`.
 I04 i I06 znajdują się na main.
-Przed implementacją uzupełnij audytowalny wynik niezależnego review I06 oraz odrębny raport Testera zgodnie z [zapisem I06](i06-verification.md).
+Niezależne raporty I06 uzupełniono zgodnie z [zapisem I06](i06-verification.md).
 Zgłoś Tech Leadowi każdą usterkę blokującą I06.
-Nie rozpoczynaj zależnego kodu, dopóki ten warunek pozostaje niespełniony.
+Reviewer wydał ACCEPT, a Tester PASS w zakresie pakietu I06.
 
 Przeczytaj AGENTS.md, [plan](../../technical/implementation-plan.md), [macierz](../../technical/verification.md), produkt, decyzje, US05/US06/US18 i rundy 3–6.
 Sprawdź Issues [#12](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/12), [#13](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/13) i [#25](https://github.com/marcin-bugala/ha-HeatPumpSteering/issues/25) z komentarzami.

@@ -6,7 +6,7 @@ I00/I01 scalono w PR #38, I02 w PR #40, I03 w PR #42/#43, I04 w PR #45,
 I05 w PR #47 i I06 w PR #48. Aktualne przekazanie to
 [I07](../development/handoffs/i07-zone-decisions.md) na main 626c5b5.
 [Zapis I06](../development/handoffs/i06-verification.md) określa wykonanie,
-wyniki testów i brak dostępnego pełnego raportu niezależnego review.
+wyniki testów i niezależne raporty uzupełnione 26 listopada 2026.
 Dalsze pakiety wymagają osobnego przekazania.
 Baza analizy main: 6891b473a646c3d9e0783edf6cd437eb27a9b758.
 Gałęzie każdego pakietu od aktualnego origin/main po scaleniu zależności.

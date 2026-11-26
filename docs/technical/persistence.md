@@ -15,6 +15,9 @@ installation_id i configuration_revision w payload.
 
 Payload v1: user_settings, zone_memory, output_memory, overrides, active_warnings,
 acknowledgements, saved_at UTC. Pola według [modelu](data-model.md).
+I07 odczytuje v1 i zapisuje payload v2 z typowaną pamięcią stref.
+[Kontrakt migracji](../development/handoffs/i07-memory-migration.md) określa zachowanie danych i odmowę odczytu v2 przez starszy kod.
+Wrapper Store 1.1 i ConfigEntry v4 pozostają zgodne z I04.
 Timery: termin UTC + powód + czas potwierdzonego zdarzenia + stan, który go uzasadnia.
 Retry: licznik wyjścia i next_retry; nie lista działań.
 Nie zapisujemy tasków, callbacków, tokenów, pełnych pomiarów i stanu HA domu.
